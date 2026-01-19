@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Group Chat - Multi AI</title>
+    <link rel="stylesheet" href="chatroom.css" />
+  </head>
+  <body>
+    <div class="chatroom">
+      <header class="chatroom-header">
+        <h1>群聊模式</h1>
+        <button id="openDebug" type="button">调试</button>
+      </header>
+
+      <section id="chatSetup" class="chat-setup">
+        <h2>创建群聊</h2>
+        <label>
+          <span>话题</span>
+          <input id="topicInput" type="text" placeholder="可选" />
+        </label>
+        <div class="list" id="providerList"></div>
+        <div class="list" id="personaList"></div>
+        <button id="startChat" class="primary" type="button">开始群聊</button>
+      </section>
+
+      <section id="chatMain" class="chat-main" hidden>
+        <div class="chat-topic" id="chatTopic"></div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+
+      <section id="chatComposer" class="chat-composer" hidden>
+        <div class="composer-left">
+          <textarea id="chatInput" placeholder="输入消息"></textarea>
+          <div id="composerHint"></div>
+        </div>
+        <div class="composer-right">
+          <button id="sendChat" class="primary" type="button">发送</button>
+        </div>
+      </section>
+
+      <section id="frameHost" class="frame-host"></section>
+
+      <aside id="debugPane" class="debug-pane" hidden>
+        <div class="debug-header">
+          <span>调试</span>
+          <button id="toggleDebug" type="button">折叠</button>
+        </div>
+        <div id="debugContent" class="debug-content"></div>
+      </aside>
+    </div>
+
+    <script src="providers.js"></script>
+    <script src="chatroom.js"></script>
+  </body>
+</html>

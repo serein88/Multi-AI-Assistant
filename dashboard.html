@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi AI Dashboard</title>
+    <link rel="stylesheet" href="dashboard.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="topbar">
+        <div class="topbar-title">
+          <h1>Multi AI</h1>
+          <p data-i18n="topbarSubtitle"></p>
+        </div>
+        <div class="topbar-actions">
+          <button id="openChatroom" class="icon-btn" title="????" aria-label="????" type="button">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M4 7a4 4 0 1 1 8 0 4 4 0 0 1-8 0Zm12 3a3 3 0 1 0-3-3 3 3 0 0 0 3 3Zm-9 2h6a4 4 0 0 1 4 4v1a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-1a4 4 0 0 1 4-4Zm8.5-1a5.5 5.5 0 0 1 5.5 5.5V18a1 1 0 0 1-1 1h-3.26c.16-.31.26-.66.26-1v-1a6 6 0 0 0-1.15-3.53 4.98 4.98 0 0 0-.35-.47Z" fill="currentColor" fill-rule="evenodd"/> 
+            </svg>
+          </button>
+          <button id="openSettings" data-i18n="settings"></button>
+        </div>
+      </header>
+
+      <section class="settings-inline" id="settingsPanel" hidden>
+        <div class="settings-card">
+          <header>
+            <h2 data-i18n="settingsTitle"></h2>
+            <div class="settings-controls">
+               <div class="setting-control">
+                 <span>Send</span>
+                 <div class="stepper">
+                   <button type="button" id="colDec">-</button>
+                   <span id="colDisplay">Auto</span>
+                   <button type="button" id="colInc">+</button>
+                 </div>
+               </div>
+               <button id="toggleSelectAll" type="button">全�?全不�?/button>
+            </div>
+            <p data-i18n="settingsSubtitle" style="display:none"></p>
+          </header>
+          <div class="picker-list" id="pickerList"></div>
+          <footer>
+            <button id="pickerCancel" data-i18n="cancel"></button>
+            <button id="pickerConfirm" class="primary" data-i18n="confirm"></button>
+          </footer>
+        </div>
+      </section>
+<main class="grid" id="panelGrid"></main>
+
+      <footer class="composer">
+        <div class="composer-left">
+          <label for="prompt" data-i18n="composerLabel"></label>
+          <textarea id="prompt" data-i18n-attr="placeholder" data-i18n="composerPlaceholder"></textarea>
+          <div class="composer-hint" id="shortcutHint"></div>
+        </div>
+        <div class="composer-right">
+          <button id="sendAll" class="primary" data-i18n="sendAll">
+            <span>发�?/span>
+          </button>
+        </div>
+      </footer>
+    </div>
+
+    <template id="panelTemplate">
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"></div>
+          <span class="panel-badge"></span>
+        </div>
+        <div class="panel-body">
+          <iframe class="panel-frame" allow="clipboard-read; clipboard-write" color-scheme="light"></iframe>
+        </div>
+        <div class="panel-menu">
+          <button data-action="refresh" data-i18n="refresh"></button>
+          <button data-action="newtab" data-i18n="newTab"></button>
+          <button data-action="close" data-i18n="close"></button>
+          <button data-action="switch" data-i18n="switch"></button>
+          <button data-action="add" data-i18n="add"></button>
+        </div>
+      </section>
+    </template>
+
+    <script src="providers.js"></script>
+    <script src="dashboard.js"></script>
+  </body>
+</html>
+
+

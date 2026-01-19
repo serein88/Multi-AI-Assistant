@@ -1,0 +1,47 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi AI Assistant</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>Multi AI Assistant</h1>
+      <p>选择助手后直接打开分屏或多标签。</p>
+    </header>
+
+    <section class="section">
+      <div class="providers">
+        <label><input type="checkbox" value="chatgpt" /> ChatGPT</label>
+        <label><input type="checkbox" value="claude" /> Claude</label>
+        <label><input type="checkbox" value="grok" /> Grok</label>
+        <label><input type="checkbox" value="gemini" /> Gemini</label>
+        <label><input type="checkbox" value="copilot" /> Copilot</label>
+        <label><input type="checkbox" value="doubao" /> 豆包</label>
+        <label><input type="checkbox" value="kimi" /> Kimi</label>
+        <label><input type="checkbox" value="deepseek" /> DeepSeek</label>
+        <label><input type="checkbox" value="tongyi" /> 通义千问</label>
+        <label><input type="checkbox" value="yuanbao" /> 元宝</label>
+        <label><input type="checkbox" value="zhipu" /> 智谱AI</label>
+      </div>
+    </section>
+
+    <section class="section">
+      <textarea id="prompt" placeholder="输入提示词（仅多标签发送时使用）"></textarea>
+    </section>
+
+    <section class="actions">
+      <button id="openDashboard" class="primary">打开分屏</button>
+      <button id="openSend">打开并发送</button>
+      <button id="openOnly">仅打开标签</button>
+    </section>
+
+    <section class="status" id="status"></section>
+
+    <script src="providers.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
+
