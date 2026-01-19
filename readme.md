@@ -6,7 +6,6 @@
 
 这是一个基于 Chrome Extension Manifest V3 的浏览器扩展，允许用户在**同一个标签页中分屏打开多个 AI 聊天网页**（如 ChatGPT, Claude, Gemini, Kimi, DeepSeek 等），并通过**底部的统一输入框**一键向所有 AI 发送提示词。
 
----
 
 ## 🌟 核心功能 (Core Features)
 
