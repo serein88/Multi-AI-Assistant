@@ -1137,8 +1137,9 @@ function getStopSelectors() {
   ];
 }
 
-function countResponseNodes() {
+function countResponseNodes(provider) {
   const selectors = [
+    ...(RESPONSE_SELECTORS[provider] || []),
     '[data-message-author-role="assistant"]',
     '[data-testid*="chat-message"]',
     '.assistant',
@@ -1150,7 +1151,8 @@ function countResponseNodes() {
     '[class*="message-ai"]',
     '[data-role="assistant"]'
   ];
-  return selectors.reduce((sum, sel) => sum + document.querySelectorAll(sel).length, 0);
+  const unique = Array.from(new Set(selectors));
+  return unique.reduce((sum, sel) => sum + document.querySelectorAll(sel).length, 0);
 }
 
 function hasStreamingIndicator() {
@@ -1160,7 +1162,7 @@ function hasStreamingIndicator() {
 async function waitForResponseStart(provider) {
   const timeout = 12000;
   const stopSelectors = getStopSelectors();
-  const baselineCount = countResponseNodes();
+  const baselineCount = countResponseNodes(provider);
 
   // Helper for deep check
   const hasElementDeep = (selectors) => {
@@ -1198,7 +1200,7 @@ async function waitForResponseStart(provider) {
         return;
       }
 
-      if (hasStreamingIndicator() || countResponseNodes() > baselineCount) {
+      if (hasStreamingIndicator() || countResponseNodes(provider) > baselineCount) {
         cleanup();
         resolve(true);
       }

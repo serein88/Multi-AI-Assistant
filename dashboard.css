@@ -170,12 +170,14 @@ main.grid {
 .panel-body {
   min-height: 0;
   position: relative;
+  overscroll-behavior: contain;
 }
 
 .panel-frame {
   width: 100%;
   height: 100%;
   border: 0;
+  overscroll-behavior: contain;
 }
 
 .panel-blocked {
@@ -338,9 +340,12 @@ main.grid {
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: 0.5;
   }
@@ -396,7 +401,8 @@ button.primary {
   background: transparent;
   cursor: col-resize;
   z-index: 100;
-  margin-left: -2px; /* Center over the gap */
+  margin-left: -2px;
+  /* Center over the gap */
   transition: background 0.2s;
 }
 
@@ -413,7 +419,8 @@ button.primary {
   background: transparent;
   cursor: row-resize;
   z-index: 100;
-  margin-top: -2px; /* Center over the gap */
+  margin-top: -2px;
+  /* Center over the gap */
   transition: background 0.2s;
 }
 
@@ -500,7 +507,7 @@ button.primary:active:not(:disabled) {
 }
 
 .settings-controls label {
-  display: none; 
+  display: none;
 }
 
 .picker-list {
@@ -565,6 +572,7 @@ body.settings-open .settings-inline {
 }
 
 @media (max-width: 900px) {
+
   .grid.cols-2,
   .grid.cols-3,
   .grid.cols-4,

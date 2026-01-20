@@ -45,13 +45,13 @@ let customGrid = { rows: 0, cols: 0 }; // 0 means auto
 let sortedProviderIds = []; // Order of providers in settings
 let currentSendTargets = [];
 let completedResponses = new Set();
+let startedResponses = new Set();
+let failedResponses = new Set();
 
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
 const sendStatusTimers = new Map();
 const pendingSends = new Map();
-let scrollLock = null;
-let scrollLockRaf = 0;
 
 function applyI18n(root) {
   const scope = root || document;
@@ -419,8 +419,8 @@ function animateDOMMove(parent, moveFunction) {
 }
 
 function updateSendButtonState() {
-  const { target } = parseTargetPrompt(promptEl.value || "");
-  if (target) {
+  const { targets } = parseTargetPrompt(promptEl.value || "");
+  if (targets.length > 0) {
     sendAllBtn.classList.add("composer-send-target");
   } else {
     sendAllBtn.classList.remove("composer-send-target");
@@ -561,20 +561,32 @@ function handlePanelAction(panelEl, provider, action) {
 function parseTargetPrompt(text) {
   const trimmed = text.trim();
   if (!trimmed.startsWith("@")) {
-    return { prompt: trimmed, target: null };
+    return { prompt: trimmed, targets: [] };
   }
 
-  const match = trimmed.match(/^@(\d+)[\s:：]+/);
-  if (!match) return { prompt: trimmed, target: null };
+  const targets = [];
+  let rest = trimmed;
+  while (rest.startsWith("@")) {
+    const match = rest.match(/^@(\d+)(?=[\s:：]|$|[^0-9])/);
+    if (!match) break;
+    const index = Number(match[1]);
+    if (Number.isFinite(index) && index >= 1 && index <= activePanels.length) {
+      targets.push(activePanels[index - 1]);
+    }
+    rest = rest.slice(match[0].length);
+    if (rest.startsWith(":") || rest.startsWith("：")) {
+      rest = rest.slice(1);
+    }
+    rest = rest.trimStart();
+  }
 
-  const index = Number(match[1]);
-  if (!Number.isFinite(index) || index < 1 || index > activePanels.length) {
-    return { prompt: trimmed, target: null };
+  if (targets.length === 0) {
+    return { prompt: trimmed, targets: [] };
   }
 
   return {
-    prompt: trimmed.slice(match[0].length),
-    target: activePanels[index - 1]
+    prompt: rest,
+    targets: Array.from(new Set(targets))
   };
 }
 
@@ -586,30 +598,15 @@ function getPanelIframe(providerId) {
   return panel.querySelector("iframe");
 }
 
-function lockDashboardScroll() {
-  if (scrollLock) return;
-  scrollLock = { left: window.scrollX, top: window.scrollY };
-  const onScroll = () => {
-    if (!scrollLock) return;
-    if (scrollLockRaf) return;
-    scrollLockRaf = requestAnimationFrame(() => {
-      scrollLockRaf = 0;
-      window.scrollTo(scrollLock.left, scrollLock.top);
-    });
-  };
-  scrollLock.onScroll = onScroll;
-  window.addEventListener("scroll", onScroll, { passive: true });
-  window.scrollTo(scrollLock.left, scrollLock.top);
-}
-
-function unlockDashboardScroll() {
-  if (!scrollLock) return;
-  window.removeEventListener("scroll", scrollLock.onScroll);
-  scrollLock = null;
-  if (scrollLockRaf) {
-    cancelAnimationFrame(scrollLockRaf);
-    scrollLockRaf = 0;
-  }
+function updateSendingState() {
+  if (!currentSendTargets.length) return;
+  const pending = currentSendTargets.filter((providerId) =>
+    !startedResponses.has(providerId) && !failedResponses.has(providerId)
+  );
+  if (pending.length > 0) return;
+  sendAllBtn.disabled = false;
+  sendAllBtn.textContent = I18N.sendAll;
+  currentSendTargets = [];
 }
 
 function resolvePendingSend(providerId, success) {
@@ -670,29 +667,37 @@ async function sendPrompt() {
     return;
   }
 
-  const { prompt, target } = parseTargetPrompt(text);
+  const { prompt, targets } = parseTargetPrompt(text);
   if (!prompt) {
     showMessage("Please enter a valid prompt", "warning");
     return;
   }
 
-  currentSendTargets = target ? [target] : [...activePanels];
+  const targetList = targets.length > 0 ? targets : [...activePanels];
+  currentSendTargets = targetList;
   completedResponses = new Set();
+  startedResponses = new Set();
+  failedResponses = new Set();
 
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Sending...";
-  lockDashboardScroll();
 
   try {
-    if (target) {
-      await sendPromptToProvider(target, prompt);
-      showMessage(`Sent to ${PROVIDER_BY_ID[target]?.label || target}`, "success");
+    const promises = targetList.map((providerId) =>
+      sendPromptToProvider(providerId, prompt)
+    );
+    const results = await Promise.all(promises);
+    results.forEach((ok, index) => {
+      if (!ok) {
+        failedResponses.add(targetList[index]);
+      }
+    });
+    updateSendingState();
+    if (targetList.length === 1) {
+      const targetId = targetList[0];
+      showMessage(`Sent to ${PROVIDER_BY_ID[targetId]?.label || targetId}`, "success");
     } else {
-      const promises = activePanels.map((providerId) =>
-        sendPromptToProvider(providerId, prompt)
-      );
-      await Promise.all(promises);
-      showMessage(`Sent to ${activePanels.length} assistants`, "success");
+      showMessage(`Sent to ${targetList.length} assistants`, "success");
     }
 
     promptEl.value = "";
@@ -700,9 +705,10 @@ async function sendPrompt() {
     console.error("Send failed", error);
     showMessage("Send failed. Try again.", "error");
   } finally {
-    sendAllBtn.disabled = false;
-    sendAllBtn.textContent = I18N.sendAll;
-    unlockDashboardScroll();
+    if (currentSendTargets.length === 0) {
+      sendAllBtn.disabled = false;
+      sendAllBtn.textContent = I18N.sendAll;
+    }
   }
 }
 
@@ -936,6 +942,16 @@ window.addEventListener("message", (event) => {
 
   if (data.type === "sendResult") {
     resolvePendingSend(data.provider, data.success);
+    if (data.success === false) {
+      failedResponses.add(data.provider);
+      updateSendingState();
+    }
+    return;
+  }
+
+  if (data.type === "responseStarted") {
+    startedResponses.add(data.provider);
+    updateSendingState();
     return;
   }
 
