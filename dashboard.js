@@ -50,6 +50,8 @@ const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
 const sendStatusTimers = new Map();
 const pendingSends = new Map();
+let scrollLock = null;
+let scrollLockRaf = 0;
 
 function applyI18n(root) {
   const scope = root || document;
@@ -584,6 +586,32 @@ function getPanelIframe(providerId) {
   return panel.querySelector("iframe");
 }
 
+function lockDashboardScroll() {
+  if (scrollLock) return;
+  scrollLock = { left: window.scrollX, top: window.scrollY };
+  const onScroll = () => {
+    if (!scrollLock) return;
+    if (scrollLockRaf) return;
+    scrollLockRaf = requestAnimationFrame(() => {
+      scrollLockRaf = 0;
+      window.scrollTo(scrollLock.left, scrollLock.top);
+    });
+  };
+  scrollLock.onScroll = onScroll;
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.scrollTo(scrollLock.left, scrollLock.top);
+}
+
+function unlockDashboardScroll() {
+  if (!scrollLock) return;
+  window.removeEventListener("scroll", scrollLock.onScroll);
+  scrollLock = null;
+  if (scrollLockRaf) {
+    cancelAnimationFrame(scrollLockRaf);
+    scrollLockRaf = 0;
+  }
+}
+
 function resolvePendingSend(providerId, success) {
   const pending = pendingSends.get(providerId);
   if (!pending) return;
@@ -653,6 +681,7 @@ async function sendPrompt() {
 
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Sending...";
+  lockDashboardScroll();
 
   try {
     if (target) {
@@ -673,6 +702,7 @@ async function sendPrompt() {
   } finally {
     sendAllBtn.disabled = false;
     sendAllBtn.textContent = I18N.sendAll;
+    unlockDashboardScroll();
   }
 }
 
