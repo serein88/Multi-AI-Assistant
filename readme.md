@@ -1,8 +1,6 @@
 # Multi AI Assistant (Browser Extension)
 
-**Project Location**: `D:\CodeSpace\多AI助手`  
 **Manifest Version**: V3  
-**Status**: Active Development (v0.3.1)
 
 这是一个基于 Chrome Extension Manifest V3 的浏览器扩展，允许用户在**同一个标签页中分屏打开多个 AI 聊天网页**（如 ChatGPT, Claude, Gemini, Kimi, DeepSeek 等），并通过**底部的统一输入框**一键向所有 AI 发送提示词。
 
@@ -61,8 +59,9 @@
 ## 🛠 技术架构 (Technical Architecture)
 
 ### 1. 文件结构
+
 ```text
-D:\CodeSpace\多AI助手\
+Multi AI Assistant\
 ├── manifest.json        # 核心配置：权限、Host 匹配、Content Scripts
 ├── background.js        # Service Worker：管理标签页、跨页消息转发
 ├── dashboard.html/js    # 主界面：Grid 布局、iframe 管理、消息总线
@@ -95,28 +94,4 @@ D:\CodeSpace\多AI助手\
 
 ---
 
-## 👨‍💻 接手开发指南 (For the Next AI)
 
-### 如何添加新的 AI 支持？
-1.  **`providers.js`**：在 `PROVIDERS` 数组中添加 `{ id, label, url }`。
-2.  **`manifest.json`**：
-    - 在 `host_permissions` 添加域名。
-    - 在 `content_scripts.matches` 添加域名。
-3.  **`content/content.js`**：
-    - 在 `HOST_MAP` 添加域名到 ID 的映射。
-    - 在 `PROVIDER_CONFIGS` 添加该 ID 的配置（输入框选择器、按钮选择器、特殊处理逻辑）。
-
-### 如何调试？
-- **Dashboard 调试**：直接右键扩展图标 -> "审查弹出内容" 或打开 `dashboard.html` 的开发者工具。
-- **Content Script 调试**：在 AI 面板的 iframe 中右键 -> "审查框架" (Inspect Frame)，查看 Console 输出。
-- **本地模拟**：`chrome-shim.js` 提供了在非扩展环境下打开 `dashboard.html` 的基础 Mock，方便调整 UI。
-
-### 已知问题 (Known Issues)
-- **ChatGPT 状态误报**：ChatGPT 的发送按钮有时不可点击，我们目前采用“强制触发 Enter 事件并乐观返回成功”的策略。
-- **滚动跳动**：已通过 `focus({ preventScroll: true })` 修复，但在某些新站点可能需要重新验证。
-- **iframe 限制**：部分站点（如 Google 系严格风控）即使修改 Header 也无法在 iframe 运行，需引导用户使用“新标签页模式”。
-
----
-
-**最后更新时间**: 2026-01-18  
-**当前重点**: 完善消息发送状态的准确性，优化 Dashboard 的 UX 细节。
