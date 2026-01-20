@@ -16,7 +16,7 @@ chrome-devtools_new_page
 url: "chrome-extension://adglfigbkfnfemhgcdcmlkgbalfgcdlg/dashboard.html"
 ```
 
-然后就可以使用chrome-devtools-mcp的其他功能进行调试了.
+然后就可以使用chrome-devtools-mcp的其他功能进行调试了。
 
 
 
