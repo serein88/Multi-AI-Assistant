@@ -41,6 +41,13 @@ main.grid {
   border-bottom: 1px solid var(--accent-weak);
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
 .topbar-title h1 {
   margin: 0 0 2px;
   font-size: 16px;
@@ -57,7 +64,12 @@ main.grid {
   border-radius: 12px;
   border: 1px solid var(--accent-weak);
   background: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
 }
+
 
 .topbar-actions .icon-btn {
   display: inline-flex;
@@ -132,7 +144,7 @@ main.grid {
 }
 
 .panel-header::after {
-  content: "â˜?";
+  content: "v";
   font-size: 14px;
   color: var(--muted);
   margin-left: auto;
@@ -140,10 +152,12 @@ main.grid {
   opacity: 0.5;
 }
 
+
 .panel.menu-open .panel-header::after {
-  content: "âœ?";
+  content: "^";
   opacity: 1;
 }
+
 
 .panel-badge {
   font-size: 11px;
@@ -369,9 +383,10 @@ button.primary {
 }
 
 .composer-send-target::before {
-  content: "âž?";
+  content: "@";
   font-size: 18px;
 }
+
 
 .grid-splitter-vertical {
   position: absolute;

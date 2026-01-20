@@ -20,7 +20,7 @@ const PROVIDERS = {
     url: "https://grok.com/"
   },
   doubao: {
-    label: "����",
+    label: "豆包",
     url: "https://www.doubao.com/"
   },
   kimi: {
@@ -32,11 +32,11 @@ const PROVIDERS = {
     url: "https://chat.deepseek.com/"
   },
   tongyi: {
-    label: "ͨ��ǧ��",
+    label: "通义千问",
     url: "https://www.qianwen.com/"
   },
   yuanbao: {
-    label: "Ԫ��",
+    label: "元宝",
     url: "https://yuanbao.tencent.com/"
   },
   zhipu: {

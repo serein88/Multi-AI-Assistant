@@ -49,6 +49,7 @@ let completedResponses = new Set();
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
 const sendStatusTimers = new Map();
+const pendingSends = new Map();
 
 function applyI18n(root) {
   const scope = root || document;
@@ -68,7 +69,7 @@ function applyI18n(root) {
 
 function loadState() {
   const stored = localStorage.getItem(STATE_KEY);
-  
+
   // Default sorted order is just the definition order
   sortedProviderIds = PROVIDERS.map(p => p.id);
 
@@ -99,12 +100,13 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STATE_KEY, JSON.stringify({ 
+  localStorage.setItem(STATE_KEY, JSON.stringify({
     panels: activePanels,
     grid: customGrid,
     rowSizes,
     colSizes,
-    sortedProviderIds}));
+    sortedProviderIds
+  }));
 }
 
 async function loadPanelsFromStorage() {
@@ -118,13 +120,13 @@ async function loadPanelsFromStorage() {
 function buildPicker(selected) {
   pickerList.innerHTML = "";
   const selectedSet = new Set(selected);
-  
+
   // Use sortedProviderIds to determine order, falling back to definition order if missing
   const order = sortedProviderIds.length > 0 ? sortedProviderIds : PROVIDERS.map(p => p.id);
-  
+
   // Filter out any IDs that might no longer exist in PROVIDERS (cleanup)
   const validOrder = order.filter(id => PROVIDER_BY_ID[id]);
-  
+
   // Append any new providers that aren't in the sorted list yet
   const validSet = new Set(validOrder);
   PROVIDERS.forEach(p => {
@@ -132,7 +134,7 @@ function buildPicker(selected) {
       validOrder.push(p.id);
     }
   });
-  
+
   // Update the global state to match this canonical list
   sortedProviderIds = validOrder;
 
@@ -168,9 +170,9 @@ let draggingPickerItem = null;
 function animateDOMMove(parent, moveFunction) {
   const children = Array.from(parent.children);
   const positions = new Map(children.map(c => [c, c.getBoundingClientRect()]));
-  
+
   moveFunction();
-  
+
   // Force layout calculation
   // void parent.offsetWidth; 
 
@@ -179,19 +181,19 @@ function animateDOMMove(parent, moveFunction) {
       const oldPos = positions.get(child);
       const newPos = child.getBoundingClientRect();
       if (!oldPos) return;
-      
+
       const dx = oldPos.left - newPos.left;
       const dy = oldPos.top - newPos.top;
-      
+
       if (dx !== 0 || dy !== 0) {
         // Invert the move
         child.style.transform = `translate(${dx}px, ${dy}px)`;
         child.style.transition = 'none';
-        
+
         requestAnimationFrame(() => {
-           // Remove inversion to animate to new position
-           child.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
-           child.style.transform = '';
+          // Remove inversion to animate to new position
+          child.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
+          child.style.transform = '';
         });
       }
     });
@@ -210,35 +212,35 @@ function attachPickerDnD(item) {
   item.addEventListener("dragend", () => {
     item.classList.remove("dragging");
     draggingPickerItem = null;
-    
+
     // Save new order
     sortedProviderIds = Array.from(pickerList.children).map(el => el.dataset.providerId);
-  saveState();
+    saveState();
   });
 
   item.addEventListener("dragover", (event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
-    
+
     if (!draggingPickerItem || draggingPickerItem === item) return;
-    
+
     const rect = item.getBoundingClientRect();
     const next = (event.clientY - rect.top) / (rect.height) > 0.5;
-    
+
     const parent = item.parentNode;
     // Debounce or check if move is actually needed to avoid thrashing?
     // With FLIP, thrashing is handled by the animation system mostly, but we should be careful.
-    
+
     // Check if we are already in the right spot
     if (next && item.nextSibling === draggingPickerItem) return;
     if (!next && item.previousSibling === draggingPickerItem) return;
 
     animateDOMMove(pickerList, () => {
-        if (next) {
-            parent.insertBefore(draggingPickerItem, item.nextSibling);
-        } else {
-            parent.insertBefore(draggingPickerItem, item);
-        }
+      if (next) {
+        parent.insertBefore(draggingPickerItem, item.nextSibling);
+      } else {
+        parent.insertBefore(draggingPickerItem, item);
+      }
     });
   });
 }
@@ -275,7 +277,7 @@ function isAllSelected() {
 
 function getColumnCount() {
   if (customGrid.cols > 0) return customGrid.cols;
-  
+
   const n = activePanels.length;
   if (n <= 1) return 1;
   if (n <= 4) return 2;
@@ -292,7 +294,7 @@ function getRowCount(colCount) {
 function syncGridInputs() {
   const colCount = getColumnCount();
   if (colDisplay) {
-      colDisplay.textContent = customGrid.cols > 0 ? customGrid.cols : "Auto";
+    colDisplay.textContent = customGrid.cols > 0 ? customGrid.cols : "Auto";
   }
 }
 
@@ -389,25 +391,25 @@ if (colDecBtn && colIncBtn) {
 function animateDOMMove(parent, moveFunction) {
   const children = Array.from(parent.children);
   const positions = new Map(children.map(c => [c, c.getBoundingClientRect()]));
-  
+
   moveFunction();
-  
+
   requestAnimationFrame(() => {
     children.forEach(child => {
       const oldPos = positions.get(child);
       const newPos = child.getBoundingClientRect();
       if (!oldPos) return;
-      
+
       const dx = oldPos.left - newPos.left;
       const dy = oldPos.top - newPos.top;
-      
+
       if (dx !== 0 || dy !== 0) {
         child.style.transform = `translate(${dx}px, ${dy}px)`;
         child.style.transition = 'none';
-        
+
         requestAnimationFrame(() => {
-           child.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
-           child.style.transform = '';
+          child.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
+          child.style.transform = '';
         });
       }
     });
@@ -421,7 +423,7 @@ function updateSendButtonState() {
   } else {
     sendAllBtn.classList.remove("composer-send-target");
   }
-   updateShortcutHint();
+  updateShortcutHint();
 }
 
 function applyPanelI18n(panelRoot) {
@@ -574,6 +576,60 @@ function parseTargetPrompt(text) {
   };
 }
 
+function getPanelIframe(providerId) {
+  const index = activePanels.indexOf(providerId);
+  if (index < 0) return null;
+  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  if (!panel) return null;
+  return panel.querySelector("iframe");
+}
+
+function resolvePendingSend(providerId, success) {
+  const pending = pendingSends.get(providerId);
+  if (!pending) return;
+  clearTimeout(pending.timeoutId);
+  pendingSends.delete(providerId);
+  pending.resolve(Boolean(success));
+}
+
+function sendPromptToProvider(providerId, prompt) {
+  if (!providerId || !prompt) {
+    return Promise.resolve(false);
+  }
+
+  const iframe = getPanelIframe(providerId);
+
+  return new Promise((resolve) => {
+    if (pendingSends.has(providerId)) {
+      resolvePendingSend(providerId, false);
+    }
+
+    const timeoutId = setTimeout(() => {
+      resolvePendingSend(providerId, false);
+    }, SEND_TIMEOUT_MS);
+
+    pendingSends.set(providerId, { resolve, timeoutId });
+
+    if (!iframe || !iframe.contentWindow || IFRAME_BLOCKED_PROVIDERS.has(providerId)) {
+      chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt })
+        .then((res) => resolvePendingSend(providerId, res && res.ok))
+        .catch(() => resolvePendingSend(providerId, false));
+      return;
+    }
+
+    try {
+      iframe.contentWindow.postMessage({
+        source: "multi-ai",
+        type: "sendPrompt",
+        provider: providerId,
+        prompt
+      }, "*");
+    } catch (e) {
+      resolvePendingSend(providerId, false);
+    }
+  });
+}
+
 async function sendPrompt() {
   const text = promptEl.value.trim();
   if (!text) {
@@ -650,15 +706,15 @@ function initGridResizers() {
       const panel = panels[i - 1]; // This might not be in first row if flow is different
       if (panel) {
         const rect = panel.getBoundingClientRect();
-      const splitter = document.createElement("div");
-      splitter.className = "grid-splitter grid-splitter-vertical";
-      splitter.dataset.index = String(i - 1);
-      // Position relative to grid container
-      const left = rect.right - gridRect.left;
-      const leftPct = (left / gridRect.width) * 100;
-      splitter.style.left = `${leftPct}%`;
-      splitter.addEventListener("mousedown", onVerticalSplitterMouseDown);
-      grid.appendChild(splitter);
+        const splitter = document.createElement("div");
+        splitter.className = "grid-splitter grid-splitter-vertical";
+        splitter.dataset.index = String(i - 1);
+        // Position relative to grid container
+        const left = rect.right - gridRect.left;
+        const leftPct = (left / gridRect.width) * 100;
+        splitter.style.left = `${leftPct}%`;
+        splitter.addEventListener("mousedown", onVerticalSplitterMouseDown);
+        grid.appendChild(splitter);
       }
     }
   }
@@ -685,7 +741,7 @@ function initGridResizers() {
       const prevRowIndex = row - 1;
       const panelIndex = prevRowIndex * columnCount; // First panel of previous row
       const panel = panels[panelIndex];
-      
+
       if (panel) {
         const rect = panel.getBoundingClientRect();
         const splitter = document.createElement("div");
@@ -697,7 +753,7 @@ function initGridResizers() {
       }
     }
   } else {
-     grid.style.gridTemplateRows = "";
+    grid.style.gridTemplateRows = "";
   }
 }
 
@@ -732,7 +788,7 @@ function onVerticalSplitterMouseDown(event) {
     newSizes[index + 1] = right;
     colSizes = newSizes;
     grid.style.gridTemplateColumns = colSizes.map((v) => `${v}%`).join(" ");
-    
+
     // Update splitter visual position? 
     // Ideally we re-run initGridResizers or just update this splitter.
     // But initGridResizers is heavy.
@@ -745,7 +801,7 @@ function onVerticalSplitterMouseDown(event) {
     document.body.classList.remove("resizing");
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
-  saveState();
+    saveState();
     syncGridInputs();
   }
 
@@ -765,19 +821,19 @@ function onHorizontalSplitterMouseDown(event) {
 
   function onMove(e) {
     const deltaPx = e.clientY - startY;
-    
+
     // Fix: Divide delta by (index + 1) to account for cumulative height change
     // Because changing row height affects all rows above this splitter
     const adjustedDelta = deltaPx / (index + 1);
-    
+
     let newHeight = startHeight + adjustedDelta;
     const min = 100; // Min height for a row
     if (newHeight < min) newHeight = min;
-    
-    // 联动调整：将所有行的高度都设置为相同的新高�?    // Linked adjustment: Set all rows to the same new height
+
+    // Linked adjustment: set all rows to the same new height.
     const newSizes = rowSizes.map(() => newHeight);
     rowSizes = newSizes;
-    
+
     grid.style.gridTemplateRows = rowSizes.map((px) => `${px}px`).join(" ");
     updateSplitterPositions();
   }
@@ -786,7 +842,7 @@ function onHorizontalSplitterMouseDown(event) {
     document.body.classList.remove("resizing");
     document.removeEventListener("mousemove", onMove);
     document.removeEventListener("mouseup", onUp);
-  saveState();
+    saveState();
     syncGridInputs();
   }
 
@@ -843,6 +899,20 @@ function showMessage(text, type = "info") {
     messageEl.style.display = "none";
   }, 3000);
 }
+
+window.addEventListener("message", (event) => {
+  const data = event.data || {};
+  if (data.source !== "multi-ai-content") return;
+
+  if (data.type === "sendResult") {
+    resolvePendingSend(data.provider, data.success);
+    return;
+  }
+
+  if (data.type === "responseComplete") {
+    completedResponses.add(data.provider);
+  }
+});
 
 function ensureDefaultPanels() {
   if (activePanels.length === 0) {
@@ -931,11 +1001,11 @@ pickerConfirm.addEventListener("click", () => {
         }
       }
     }
-  saveState();
+    saveState();
     updateShortcutHint();
   } else {
     activePanels = selection;
-  saveState();
+    saveState();
     renderPanels();
   }
   closeSettings();
