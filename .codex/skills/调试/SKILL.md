@@ -1,6 +1,6 @@
 ---
 name: 调试
-description: 使用chrome-devtools-mcp调试当前项目“多AI助手”的方法
+description: 使用chrome-devtools-mcp调试当前项目“Multi Al Assistant”的方法
 ---
 
 # start debug
