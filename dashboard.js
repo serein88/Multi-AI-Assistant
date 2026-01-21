@@ -36,6 +36,7 @@ const colIncBtn = document.getElementById("colInc");
 const colDisplay = document.getElementById("colDisplay");
 const shortcutHint = document.getElementById("shortcutHint");
 const clearGroupChatBtn = document.getElementById("clearGroupChat");
+const targetChips = document.getElementById("targetChips");
 
 let activePanels = [];
 let pendingPickTarget = null;
@@ -47,6 +48,8 @@ let currentSendTargets = [];
 let completedResponses = new Set();
 let startedResponses = new Set();
 let failedResponses = new Set();
+let selectedTargets = [];
+let suppressPromptInput = false;
 
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
@@ -347,13 +350,68 @@ function updateShortcutHint() {
     return `@${index + 1} ${name}`;
   });
   const text = labels.join(" / ");
-  if (text && (promptEl.value || "").trim().startsWith("@")) {
+  if (text && (promptEl.value || "").includes("@")) {
     shortcutHint.textContent = text;
     shortcutHint.style.display = "block";
   } else {
     shortcutHint.textContent = "";
     shortcutHint.style.display = "none";
   }
+}
+
+function renderTargetChips() {
+  if (!targetChips) return;
+  targetChips.innerHTML = "";
+  selectedTargets.forEach((providerId) => {
+    const provider = PROVIDER_BY_ID[providerId];
+    const chip = document.createElement("span");
+    chip.className = "composer-chip";
+    const code = document.createElement("code");
+    code.textContent = `@${provider?.label || providerId}`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "Remove");
+    remove.textContent = "×";
+    remove.addEventListener("click", () => {
+      selectedTargets = selectedTargets.filter((id) => id !== providerId);
+      renderTargetChips();
+      updateSendButtonState();
+    });
+    chip.appendChild(code);
+    chip.appendChild(remove);
+    targetChips.appendChild(chip);
+  });
+}
+
+function parseTargetsFromInput(text) {
+  const matches = text.match(/@(\d+)/g) || [];
+  const targets = [];
+  matches.forEach((token) => {
+    const index = Number(token.slice(1));
+    if (Number.isFinite(index) && index >= 1 && index <= activePanels.length) {
+      targets.push(activePanels[index - 1]);
+    }
+  });
+  return Array.from(new Set(targets));
+}
+
+function stripTargetTokens(text) {
+  return text.replace(/@(\d+)(?=[\s:：]|$|[^0-9])/g, "").replace(/\s{2,}/g, " ").trimStart();
+}
+
+function syncTargetsFromPrompt() {
+  if (suppressPromptInput) return;
+  const text = promptEl.value || "";
+  const targets = parseTargetsFromInput(text);
+  if (targets.length === 0) return;
+  selectedTargets = Array.from(new Set([...selectedTargets, ...targets]));
+  const stripped = stripTargetTokens(text);
+  if (stripped !== text) {
+    suppressPromptInput = true;
+    promptEl.value = stripped;
+    suppressPromptInput = false;
+  }
+  renderTargetChips();
 }
 
 
@@ -420,7 +478,9 @@ function animateDOMMove(parent, moveFunction) {
 
 function updateSendButtonState() {
   const { targets } = parseTargetPrompt(promptEl.value || "");
-  if (targets.length > 0) {
+  const hasInlineTargets = targets.length > 0;
+  const hasChips = selectedTargets.length > 0;
+  if (hasInlineTargets && !hasChips) {
     sendAllBtn.classList.add("composer-send-target");
   } else {
     sendAllBtn.classList.remove("composer-send-target");
@@ -673,7 +733,9 @@ async function sendPrompt() {
     return;
   }
 
-  const targetList = targets.length > 0 ? targets : [...activePanels];
+  const targetList = selectedTargets.length > 0
+    ? selectedTargets
+    : (targets.length > 0 ? targets : [...activePanels]);
   currentSendTargets = targetList;
   completedResponses = new Set();
   startedResponses = new Set();
@@ -701,6 +763,8 @@ async function sendPrompt() {
     }
 
     promptEl.value = "";
+    selectedTargets = [];
+    renderTargetChips();
   } catch (error) {
     console.error("Send failed", error);
     showMessage("Send failed. Try again.", "error");
@@ -957,6 +1021,8 @@ window.addEventListener("message", (event) => {
 
   if (data.type === "responseComplete") {
     completedResponses.add(data.provider);
+    startedResponses.add(data.provider);
+    updateSendingState();
   }
 });
 
@@ -988,10 +1054,18 @@ promptEl.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
     event.preventDefault();
     sendPrompt();
+    return;
+  }
+
+  if (event.key === "Backspace" && !promptEl.value && selectedTargets.length > 0) {
+    selectedTargets = selectedTargets.slice(0, -1);
+    renderTargetChips();
+    updateSendButtonState();
   }
 });
 
 promptEl.addEventListener("input", () => {
+  syncTargetsFromPrompt();
   updateSendButtonState();
 });
 

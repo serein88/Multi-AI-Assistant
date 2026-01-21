@@ -271,6 +271,48 @@ main.grid {
   gap: 4px;
 }
 
+.composer-targets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 0;
+}
+
+.composer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-weak);
+  background: #ffffff;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.composer-chip code {
+  font-family: "Courier New", Consolas, monospace;
+  font-size: 12px;
+  background: #f2f1ee;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--accent-weak);
+}
+
+.composer-chip button {
+  border: none;
+  background: transparent;
+  padding: 0 2px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.composer-chip button:hover {
+  color: var(--ink);
+}
+
 .composer textarea {
   min-height: 60px;
   max-height: 200px;

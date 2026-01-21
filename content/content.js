@@ -1115,7 +1115,18 @@ async function sendImaMessage(input, prompt, config) {
   }
 }
 
-function getStopSelectors() {
+function getStopSelectors(provider) {
+  if (provider === "chatgpt") {
+    return [
+      'button[data-testid="stop-button"]',
+      'button[aria-label*="Stop generating"]',
+      'button[aria-label*="Stop generating response"]',
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="停止生成"]',
+      'button[aria-label*="停止"]'
+    ];
+  }
+
   return [
     'button[aria-label*="Stop"]',
     'button[aria-label*="停止"]',
@@ -1155,14 +1166,19 @@ function countResponseNodes(provider) {
   return unique.reduce((sum, sel) => sum + document.querySelectorAll(sel).length, 0);
 }
 
-function hasStreamingIndicator() {
-  return !!document.querySelector('.result-streaming, .streaming, [data-testid*="stream"], .ds-loading');
+function hasStreamingIndicator(provider) {
+  const base = '.result-streaming, .streaming, [data-testid*="stream"], .ds-loading';
+  if (provider === "chatgpt") {
+    return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming`);
+  }
+  return !!document.querySelector(base);
 }
 
 async function waitForResponseStart(provider) {
   const timeout = 12000;
-  const stopSelectors = getStopSelectors();
+  const stopSelectors = getStopSelectors(provider);
   const baselineCount = countResponseNodes(provider);
+  const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
 
   // Helper for deep check
   const hasElementDeep = (selectors) => {
@@ -1200,7 +1216,22 @@ async function waitForResponseStart(provider) {
         return;
       }
 
-      if (hasStreamingIndicator() || countResponseNodes(provider) > baselineCount) {
+      if (hasStreamingIndicator(provider) || countResponseNodes(provider) > baselineCount) {
+        cleanup();
+        resolve(true);
+        return;
+      }
+
+      if (provider === "chatgpt" && sendSelectors.length > 0) {
+        const sendVisible = hasElementDeep(sendSelectors);
+        if (!sendVisible) {
+          cleanup();
+          resolve(true);
+        }
+        return;
+      }
+
+      if (countResponseNodes(provider) > baselineCount) {
         cleanup();
         resolve(true);
       }
@@ -1218,9 +1249,10 @@ async function waitForResponseStart(provider) {
   });
 }
 
-async function waitForResponseComplete() {
+async function waitForResponseComplete(provider) {
   const timeout = 90000;
-  const stopSelectors = getStopSelectors();
+  const stopSelectors = getStopSelectors(provider);
+  const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
 
   // Helper for deep check
@@ -1256,6 +1288,15 @@ async function waitForResponseComplete() {
         sawStop = true;
         return;
       }
+      if (provider === "chatgpt" && sendSelectors.length > 0) {
+        const sendVisible = hasElementDeep(sendSelectors);
+        if (sawStop || sendVisible) {
+          cleanup();
+          resolve(true);
+        }
+        return;
+      }
+
       if (sawStop) {
         // Stop button disappeared -> generation likely done
         cleanup();
@@ -1451,7 +1492,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         // ignore
       }
 
-      waitForResponseComplete().then(() => {
+      waitForResponseComplete(provider).then(() => {
         const latest = extractLatestResponse(provider);
         try {
           window.parent.postMessage({

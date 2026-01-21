@@ -264,6 +264,26 @@ function log(msg, ...args) {
 ---
 
 
+## Project Status Summary
+
+### Progress
+
+- Split-screen dashboard, popup, background, and content scripts are in place for multi-provider prompt fan-out.
+- Provider metadata is centralized in `providers.js`, with DNR rules in `rules.json` to enable iframe embedding.
+- Messaging flow uses `postMessage` (dashboard <-> iframe) plus `chrome.runtime` (background <-> pages).
+
+### Technical Route
+
+- Manifest V3 extension with a dashboard page that orchestrates CSS Grid iframes for AI sites.
+- Content scripts use per-provider selector configs to inject input and detect response state.
+- Background service worker handles cross-tab fallbacks for sites that cannot be iframed.
+
+### Pending Skills
+
+- Group Chat Mode isolated UI (`chatroom.html/js/css`) with turn-based sequencing and rolling sync.
+- Response extraction strategies per provider to populate the unified timeline reliably.
+- Markdown rendering for AI replies and a collapsed debug panel for sync payloads.
+
 ## Group Chat Mode (????) - Development Principles
 
 This project will add a SECOND conversation mode called **Group Chat Mode (????)**.
