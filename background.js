@@ -1,3 +1,12 @@
+const START_PAGE = "dashboard.html";
+const DEBUG = true; // Set to false in production
+
+function log(msg, ...args) {
+  if (DEBUG) {
+    console.log(`[MultiAI Background] ${msg}`, ...args);
+  }
+}
+
 const PROVIDERS = {
   chatgpt: {
     label: "ChatGPT",
@@ -150,6 +159,8 @@ chrome.action.onClicked.addListener(() => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  log(`Received message: ${message.type}`, message);
+
   if (message.type === "openProviders") {
     const providers = Array.isArray(message.providers) ? message.providers : [];
     const prompt = typeof message.prompt === "string" ? message.prompt : "";

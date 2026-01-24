@@ -111,7 +111,7 @@ const PROVIDER_CONFIGS = {
       "button svg[data-icon='paper-plane']",
       "button:has(svg[data-icon='paper-plane'])",
       "button:has(path[d*='M.5 1.163A1'])",
-      "button[type='submit']",
+      // "button[type='submit']", // Too generic, causes false positives
       "button[aria-label*='发送消息']",
       "button[aria-label*='发送对话']"
     ],
@@ -382,10 +382,27 @@ function deepFindElement(selectors) {
   return null;
 }
 
-// Helper for logging
+const DEBUG = true;
 function log(msg, ...args) {
-  console.log(`[MultiAI Debug] ${msg}`, ...args);
+  if (DEBUG) {
+    console.log(`[MultiAI Content] ${msg}`, ...args);
+    // Forward log to dashboard for unified debugging
+    if (window.parent && window.parent !== window) {
+      try {
+        window.parent.postMessage({
+          source: "multi-ai-content",
+          type: "log",
+          message: msg,
+          args: args
+        }, "*");
+      } catch (e) {
+        // ignore cross-origin errors
+      }
+    }
+  }
 }
+
+log(`Content script loaded for ${window.location.hostname}`);
 
 function waitForElement(selectors, timeout = 3000) {
   return new Promise((resolve) => {
@@ -401,6 +418,21 @@ function waitForElement(selectors, timeout = 3000) {
     check();
   });
 }
+
+// Listen for messages from dashboard
+window.addEventListener("message", (event) => {
+  if (event.source !== window.parent) return;
+  
+  const data = event.data || {};
+  if (data.type === "getPageUrl") {
+    window.parent.postMessage({
+      source: "multi-ai-content",
+      type: "pageUrl",
+      provider: data.provider,
+      url: window.location.href
+    }, "*");
+  }
+});
 
 function setInputValue(el, value) {
   if (!el) return false;
@@ -1123,7 +1155,14 @@ function getStopSelectors(provider) {
       'button[aria-label*="Stop generating response"]',
       'button[aria-label*="Stop"]',
       'button[aria-label*="停止生成"]',
-      'button[aria-label*="停止"]'
+      'button[aria-label*="停止"]',
+      'button[aria-label*="Pause"]',
+      'button[aria-label*="暂停"]',
+      'button[aria-label*="停止流式传输"]',
+      '[data-testid="stop-generating-button"]',
+      'button:has(svg rect)', 
+      'button:has(svg path[d^="M2 2h20v20H2"])',
+      'button:has(svg[data-icon="stop"])'
     ];
   }
 
@@ -1167,9 +1206,9 @@ function countResponseNodes(provider) {
 }
 
 function hasStreamingIndicator(provider) {
-  const base = '.result-streaming, .streaming, [data-testid*="stream"], .ds-loading';
+  const base = '.result-streaming, .streaming, [data-testid*="stream"], .ds-loading, [class*="result-streaming"]';
   if (provider === "chatgpt") {
-    return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming`);
+    return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming, .result-streaming, .markdown.result-streaming`);
   }
   return !!document.querySelector(base);
 }
@@ -1179,12 +1218,18 @@ async function waitForResponseStart(provider) {
   const stopSelectors = getStopSelectors(provider);
   const baselineCount = countResponseNodes(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
+  
+  log(`Waiting for response start: ${provider}, baseline=${baselineCount}`);
 
-  // Helper for deep check
-  const hasElementDeep = (selectors) => {
+  // Helper for deep check with visibility
+  const hasElementDeep = (selectors, checkVisibility = true) => {
     // Fast path: check light DOM first
     for (const sel of selectors) {
-      if (document.querySelector(sel)) return true;
+      const el = document.querySelector(sel);
+      if (el) {
+        if (!checkVisibility) return true;
+        if (isElementVisible(el)) return true;
+      }
     }
     // Slow path: deep traversal for Shadow DOM (Copilot etc)
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
@@ -1192,7 +1237,8 @@ async function waitForResponseStart(provider) {
       const node = walker.currentNode;
       if (node.shadowRoot) {
         for (const sel of selectors) {
-          if (deepQueryAll(node.shadowRoot, sel).length > 0) return true;
+          const els = deepQueryAll(node.shadowRoot, sel);
+          if (els.some(el => !checkVisibility || isElementVisible(el))) return true;
         }
       }
     }
@@ -1210,37 +1256,90 @@ async function waitForResponseStart(provider) {
     const check = () => {
       if (settled) return;
       
-      if (hasElementDeep(stopSelectors)) {
+      // 1. Check Stop Button (Strongest signal)
+      // For ChatGPT, we accept even if visibility is tricky, presence is usually enough
+      const strictVis = provider !== 'chatgpt'; 
+      if (hasElementDeep(stopSelectors, strictVis)) {
+        log("Response started: Stop button found");
         cleanup();
         resolve(true);
         return;
       }
 
-      if (hasStreamingIndicator(provider) || countResponseNodes(provider) > baselineCount) {
+      // 2. Check Streaming Indicator
+      if (hasStreamingIndicator(provider)) {
+        log("Response started: Streaming indicator found");
         cleanup();
         resolve(true);
         return;
       }
 
-      if (provider === "chatgpt" && sendSelectors.length > 0) {
-        const sendVisible = hasElementDeep(sendSelectors);
-        if (!sendVisible) {
+      // 3. Check Response Count Increase
+      const currentCount = countResponseNodes(provider);
+      if (currentCount > baselineCount) {
+        log(`Response started: Count increased ${baselineCount} -> ${currentCount}`);
+        cleanup();
+        resolve(true);
+        return;
+      }
+
+      // 4. Check Send Button Disappearance or Disabled (Generic)
+      // Only if we have valid send selectors
+      if (sendSelectors.length > 0) {
+        // If send button is GONE or DISABLED, we assume started.
+        let sendBtnActive = false;
+        
+        // Check Light DOM
+        for (const sel of sendSelectors) {
+          const el = document.querySelector(sel);
+          if (el && isElementVisible(el)) {
+             // It is visible. Is it active?
+             const btn = el.closest('button, [role="button"], input') || el;
+             
+             if (!btn.disabled && !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true') {
+               sendBtnActive = true;
+               break;
+             }
+          }
+        }
+
+        // Check Shadow DOM if not found in Light DOM (for Copilot etc)
+        if (!sendBtnActive && (provider === 'copilot' || provider === 'gemini')) {
+             // Simple check: if we can't find the send button anymore, it might be gone.
+             // But we need to be careful about "loading" states vs "gone".
+             // For now, let's stick to Light DOM for generic, and only rely on this if we are sure.
+        }
+
+        if (!sendBtnActive) {
+          log("Response started: Send button disappeared or disabled");
           cleanup();
           resolve(true);
+          return;
         }
-        return;
       }
 
-      if (countResponseNodes(provider) > baselineCount) {
-        cleanup();
-        resolve(true);
+      // 5. Check Input Clearance (Generic but powerful)
+      // If input was non-empty and now is empty, response likely started
+      const inputEl = findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []);
+      if (inputEl) {
+        const val = getEditableText(inputEl).trim();
+        // We don't have the original prompt here easily, but if it's empty, it's a good sign.
+        // But we must be careful not to trigger if it was ALREADY empty (unlikely during sending).
+        // Let's assume if we are "waiting for response", we just sent something.
+        if (!val) {
+           log("Response started: Input cleared");
+           cleanup();
+           resolve(true);
+           return;
+        }
       }
     };
 
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid'] });
 
     const timer = setTimeout(() => {
+      log("Response wait timed out");
       cleanup();
       resolve(false);
     }, timeout);
@@ -1397,89 +1496,79 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
   await new Promise(resolve => setTimeout(resolve, 10));
 
+  let sendOk = false;
+
   // Special handlers for complex editors
   if (provider === "chatgpt") {
-    return await sendChatGPTMessage(input, prompt, config);
-  }
-
-  if (provider === "copilot") {
-    return await sendCopilotMessage(input, prompt, config);
-  }
-
-  if (provider === "kimi") {
-    return await sendKimiMessage(input, prompt, config);
-  }
-
-  if (provider === "ima") {
-    return await sendImaMessage(input, prompt, config);
-  }
-
-  const setOk = await setInputValue(input, prompt);
-  if (!setOk) {
-    console.error(`设置输入值失败: ${provider}`);
-    if (retryCount < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 50));
-      return trySendPrompt(provider, prompt, retryCount + 1);
-    }
-    return false;
-  }
-
-  await new Promise(resolve => setTimeout(resolve, 10));
-
-  let sendOk = clickSendButton(config.sendButtonSelectors);
-
-  if (!sendOk && input) {
-    try {
-      input.focus({ preventScroll: true });
-      const baseEventInit = {
-        bubbles: true,
-        cancelable: true,
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13
-      };
-
-      // Copilot logic removed (handled above)
-
-      const targets = [input];
-      if (provider === "copilot") {
-        if (input.form) {
-          targets.push(input.form);
-        }
-        targets.push(document.body, document);
+    sendOk = await sendChatGPTMessage(input, prompt, config);
+  } else if (provider === "copilot") {
+    sendOk = await sendCopilotMessage(input, prompt, config);
+  } else if (provider === "kimi") {
+    sendOk = await sendKimiMessage(input, prompt, config);
+  } else if (provider === "ima") {
+    sendOk = await sendImaMessage(input, prompt, config);
+  } else {
+    // Generic handler
+    const setOk = await setInputValue(input, prompt);
+    if (!setOk) {
+      console.error(`设置输入值失败: ${provider}`);
+      if (retryCount < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+        return trySendPrompt(provider, prompt, retryCount + 1);
       }
+      return false;
+    }
 
-      ["keydown", "keypress", "keyup"].forEach((type) => {
-        targets.forEach((t) => {
-          try {
-            const evt = new KeyboardEvent(type, baseEventInit);
-            t.dispatchEvent(evt);
-          } catch (e) {
-            // ignore
-          }
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    sendOk = clickSendButton(config.sendButtonSelectors);
+
+    if (!sendOk && input) {
+      try {
+        input.focus({ preventScroll: true });
+        const baseEventInit = {
+          bubbles: true,
+          cancelable: true,
+          key: "Enter",
+          code: "Enter",
+          keyCode: 13,
+          which: 13
+        };
+
+        const targets = [input];
+        ["keydown", "keypress", "keyup"].forEach((type) => {
+          targets.forEach((t) => {
+            try {
+              const evt = new KeyboardEvent(type, baseEventInit);
+              t.dispatchEvent(evt);
+            } catch (e) {
+              // ignore
+            }
+          });
         });
-      });
 
-      sendOk = true;
-    } catch (error) {
-      console.error("发送Enter事件失败:", error);
+        sendOk = true;
+      } catch (error) {
+        console.error("发送Enter事件失败:", error);
+      }
     }
   }
 
   if (window.parent && window.parent !== window) {
     try {
+      log(`[Content] Sending sendResult to Dashboard for ${provider}: success=${sendOk}`);
       window.parent.postMessage({
         source: "multi-ai-content",
         type: "sendResult",
         provider: provider,
-        success: true
+        success: sendOk
       }, "*");
     } catch (e) {
-      // ignore
+      console.error(`[Content] Failed to postMessage:`, e);
     }
 
     const responseStarted = sendOk ? await waitForResponseStart(provider) : false;
+    log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
     if (responseStarted) {
       try {
@@ -1594,6 +1683,14 @@ function initializeCustomFixes() {
       .cib-serp-main, .cib-message {
         display: block !important;
       }
+    `;
+    document.head.appendChild(style);
+  }
+
+  if (provider === "you") {
+    const style = document.createElement("style");
+    style.textContent = `
+      [data-testid='search-input'] { opacity: 1 !important; visibility: visible !important; }
     `;
     document.head.appendChild(style);
   }

@@ -2,29 +2,53 @@ const STATE_KEY = "multi-ai-dashboard";
 const MAX_PANELS = 50;
 const DASHBOARD_KEY = "multi-ai-dashboard-panels";
 
-const I18N = {
-  topbarSubtitle: "",
-  settings: "Settings",
-  composerLabel: "",
-  composerPlaceholder: "",
-  sendAll: "Send",
-  settingsTitle: "Select AI",
-  settingsSubtitle: "Up to 16 panels",
-  cancel: "Cancel",
-  confirm: "Confirm",
-  refresh: "Refresh",
-  newTab: "Open in New Tab",
-  close: "Close",
-  switch: "Switch AI",
-  add: "Add AI",
-  shortcutPrefix: ""
+const I18N_DATA = {
+  "zh-CN": {
+    topbarSubtitle: "",
+    settings: "设置",
+    composerLabel: "提示词",
+    composerPlaceholder: "Enter 发送，Shift+Enter换行",
+    sendAll: "发送",
+    settingsTitle: "选择 AI",
+    settingsSubtitle: "最多 16 个分屏",
+    cancel: "取消",
+    confirm: "确认",
+    refresh: "刷新",
+    newTab: "新标签页",
+    close: "关闭",
+    switch: "切换 AI",
+    add: "添加 AI",
+    shortcutPrefix: "快捷键",
+    langBtn: "En"
+  },
+  "en-US": {
+    topbarSubtitle: "",
+    settings: "Settings",
+    composerLabel: "Prompt",
+    composerPlaceholder: "Enter to send, Shift+Enter for new line",
+    sendAll: "Send",
+    settingsTitle: "Select AI",
+    settingsSubtitle: "Up to 16 panels",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    refresh: "Refresh",
+    newTab: "New Tab",
+    close: "Close",
+    switch: "Switch AI",
+    add: "Add AI",
+    shortcutPrefix: "Shortcut",
+    langBtn: "中"
+  }
 };
+
+let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
+let I18N = I18N_DATA[currentLang];
 
 const grid = document.getElementById("panelGrid");
 const promptEl = document.getElementById("prompt");
 const sendAllBtn = document.getElementById("sendAll");
 const settingsBtn = document.getElementById("openSettings");
-const chatroomBtn = document.getElementById("openChatroom");
+// const chatroomBtn = document.getElementById("openChatroom"); // Removed
 const settingsPanel = document.getElementById("settingsPanel");
 const pickerList = document.getElementById("pickerList");
 const pickerCancel = document.getElementById("pickerCancel");
@@ -35,8 +59,9 @@ const colDecBtn = document.getElementById("colDec");
 const colIncBtn = document.getElementById("colInc");
 const colDisplay = document.getElementById("colDisplay");
 const shortcutHint = document.getElementById("shortcutHint");
-const clearGroupChatBtn = document.getElementById("clearGroupChat");
+// const clearGroupChatBtn = document.getElementById("clearGroupChat"); // Removed
 const targetChips = document.getElementById("targetChips");
+const langToggleBtn = document.getElementById("langToggle"); // New
 
 let activePanels = [];
 let pendingPickTarget = null;
@@ -50,6 +75,16 @@ let startedResponses = new Set();
 let failedResponses = new Set();
 let selectedTargets = [];
 let suppressPromptInput = false;
+
+const DEBUG = true; // Set to false in production
+
+function log(msg, ...args) {
+  if (DEBUG) {
+    console.log(`[MultiAI Dashboard] ${msg}`, ...args);
+  }
+}
+
+log("Dashboard script loaded");
 
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
@@ -71,6 +106,13 @@ function applyI18n(root) {
   });
 }
 
+function toggleLanguage() {
+  currentLang = currentLang === "zh-CN" ? "en-US" : "zh-CN";
+  localStorage.setItem("multi-ai-lang", currentLang);
+  I18N = I18N_DATA[currentLang];
+  applyI18n();
+  renderPanels(); // Re-render panels to translate dynamic content
+}
 
 function loadState() {
   const stored = localStorage.getItem(STATE_KEY);
@@ -90,9 +132,11 @@ function loadState() {
     if (Array.isArray(state.rowSizes)) {
       rowSizes = state.rowSizes;
     }
+    
     if (Array.isArray(state.colSizes)) {
       colSizes = state.colSizes;
     }
+    
     if (Array.isArray(state.sortedProviderIds)) {
       // Merge stored sort order with any new providers that might have appeared
       const storedSet = new Set(state.sortedProviderIds);
@@ -115,6 +159,7 @@ function saveState() {
 }
 
 async function loadPanelsFromStorage() {
+  log("Loading panels from storage...");
   const stored = await chrome.storage.local.get(DASHBOARD_KEY);
   const panels = stored[DASHBOARD_KEY];
   if (Array.isArray(panels) && panels.length > 0) {
@@ -447,6 +492,10 @@ if (colDecBtn && colIncBtn) {
   });
 }
 
+if (langToggleBtn) {
+  langToggleBtn.addEventListener("click", toggleLanguage);
+}
+
 
 function animateDOMMove(parent, moveFunction) {
   const children = Array.from(parent.children);
@@ -509,10 +558,24 @@ function renderPanels() {
     panelEl.dataset.index = String(index);
 
     const title = node.querySelector(".panel-title");
-    title.textContent = provider.label;
+    title.innerHTML = ""; // Clear existing
+    
+    // Icon
+    const icon = document.createElement("img");
+    icon.src = `https://www.google.com/s2/favicons?domain=${new URL(provider.url).hostname}&sz=32`;
+    icon.onerror = () => { icon.style.display = "none"; }; // Hide if fails
+    title.appendChild(icon);
+    
+    // Label
+    const label = document.createElement("span");
+    label.textContent = provider.label;
+    title.appendChild(label);
 
-    const badge = node.querySelector(".panel-badge");
+    // Badge (Shortcut Index) - moved to title
+    const badge = document.createElement("span");
+    badge.className = "panel-badge";
     badge.textContent = `@${index + 1}`;
+    title.appendChild(badge);
 
     const iframe = node.querySelector(".panel-frame");
     const panelBody = node.querySelector(".panel-body");
@@ -530,31 +593,41 @@ function renderPanels() {
     }
 
     const header = node.querySelector(".panel-header");
-    header.addEventListener("click", (event) => {
-      if (event.target.closest("button")) return;
-      const isOpen = panelEl.classList.contains("menu-open");
-      document.querySelectorAll(".panel.menu-open").forEach((p) => {
-        if (p !== panelEl) {
-          p.classList.remove("menu-open");
-        }
-      });
-      panelEl.classList.toggle("menu-open", !isOpen);
-    });
+    const actions = node.querySelector(".panel-header-actions");
+    
+    // Helper to create action button
+    const createActionBtn = (title, svgPath, actionName) => {
+        const btn = document.createElement("button");
+        btn.className = "header-action-btn";
+        btn.title = title;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>`;
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            handlePanelAction(panelEl, provider, actionName);
+        });
+        return btn;
+    };
 
-    const menu = node.querySelector(".panel-menu");
-    menu.addEventListener("click", (event) => {
-      const button = event.target.closest("button");
-      if (!button) return;
-      event.stopPropagation();
-      handlePanelAction(panelEl, provider, button.dataset.action);
-      panelEl.classList.remove("menu-open");
-    });
+    // 1. Open in New Tab
+    actions.appendChild(createActionBtn(
+        I18N.newTab, 
+        `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>`, 
+        "newtab"
+    ));
 
-    document.addEventListener("click", (event) => {
-      if (!panelEl.contains(event.target)) {
-        panelEl.classList.remove("menu-open");
-      }
-    });
+    // 2. Refresh
+    actions.appendChild(createActionBtn(
+        I18N.refresh,
+        `<path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>`,
+        "refresh"
+    ));
+
+    // 3. Close
+    actions.appendChild(createActionBtn(
+        I18N.close,
+        `<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>`,
+        "close"
+    ));
 
     applyPanelI18n(node);
     grid.appendChild(node);
@@ -563,6 +636,18 @@ function renderPanels() {
   applyGridLayout();
   updateShortcutHint();
 }
+
+// Global click listener for Settings Modal
+document.addEventListener("click", (event) => {
+    if (!settingsPanel.hidden) {
+        // Close if clicking outside the settings card and not on the toggle button
+        if (!settingsPanel.contains(event.target) && 
+            event.target !== settingsBtn && 
+            !settingsBtn.contains(event.target)) {
+            closeSettings();
+        }
+    }
+});
 
 function handlePanelAction(panelEl, provider, action) {
   const index = Number(panelEl.dataset.index);
@@ -581,7 +666,42 @@ function handlePanelAction(panelEl, provider, action) {
   }
 
   if (action === "newtab") {
-    chrome.runtime.sendMessage({ type: "openProviderTab", provider: provider.id });
+    // Try to get current URL from iframe content script
+    const iframe = panelEl.querySelector("iframe");
+    if (iframe && iframe.contentWindow) {
+      // Set a timeout fallback
+      let resolved = false;
+      const timeoutId = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          chrome.runtime.sendMessage({ type: "openProviderTab", provider: provider.id });
+        }
+      }, 500);
+
+      // Listen for one-time response
+      const listener = (event) => {
+        const data = event.data || {};
+        if (data.source === "multi-ai-content" && data.type === "pageUrl" && data.provider === provider.id) {
+          if (!resolved) {
+            resolved = true;
+            clearTimeout(timeoutId);
+            window.removeEventListener("message", listener);
+            const targetUrl = data.url || provider.url;
+            window.open(targetUrl, "_blank");
+          }
+        }
+      };
+      window.addEventListener("message", listener);
+      
+      // Request URL
+      iframe.contentWindow.postMessage({
+        source: "multi-ai",
+        type: "getPageUrl",
+        provider: provider.id
+      }, "*");
+    } else {
+      chrome.runtime.sendMessage({ type: "openProviderTab", provider: provider.id });
+    }
     return;
   }
 
@@ -732,6 +852,8 @@ async function sendPrompt() {
     showMessage("Please enter a valid prompt", "warning");
     return;
   }
+
+  log(`Preparing to send prompt: "${prompt.substring(0, 20)}..." to ${activePanels.length} panels`);
 
   const targetList = selectedTargets.length > 0
     ? selectedTargets
@@ -1004,7 +1126,20 @@ window.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.source !== "multi-ai-content") return;
 
+  // Handle forwarded logs for unified debugging
+  if (data.type === "log") {
+    if (DEBUG) {
+      console.log(`[Via Iframe] [MultiAI Content] ${data.message}`, ...(data.args || []));
+    }
+    return;
+  }
+
+  log(`Received message from ${data.provider}: ${data.type}`, data);
+
   if (data.type === "sendResult") {
+    if (DEBUG) {
+      console.log(`[MultiAI Dashboard] Send result for ${data.provider}: ${data.success ? "SUCCESS" : "FAILED"}`);
+    }
     resolvePendingSend(data.provider, data.success);
     if (data.success === false) {
       failedResponses.add(data.provider);
@@ -1014,6 +1149,9 @@ window.addEventListener("message", (event) => {
   }
 
   if (data.type === "responseStarted") {
+    if (DEBUG) {
+      console.log(`[MultiAI Dashboard] Response started for ${data.provider}`);
+    }
     startedResponses.add(data.provider);
     updateSendingState();
     return;
@@ -1037,15 +1175,17 @@ function enforceMaxPanels(list) {
 }
 
 applyI18n();
-
-sendAllBtn.addEventListener("click", sendPrompt);
-settingsBtn.addEventListener("click", () => openSettings(activePanels, null));
-if (chatroomBtn) {
-  chatroomBtn.addEventListener("click", () => {
-    const url = chrome?.runtime?.getURL ? chrome.runtime.getURL("chatroom.html") : "chatroom.html";
-    window.open(url, "_blank");
+  
+  // Auto-resize textarea
+  promptEl.addEventListener("input", () => {
+    promptEl.style.height = "auto";
+    promptEl.style.height = Math.min(promptEl.scrollHeight, 100) + "px"; // 100px is approx 3.5 lines (24px * 3.5 + padding)
   });
-}
+
+  sendAllBtn.addEventListener("click", sendPrompt);
+settingsBtn.addEventListener("click", () => openSettings(activePanels, null));
+// Chatroom button removed
+
 
 
 

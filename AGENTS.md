@@ -35,7 +35,15 @@ This is a browser extension with no build pipeline. Development workflow:
 - **Dashboard**: Right-click extension icon -> "Inspect popup" or open DevTools on dashboard.html
 - **Content Scripts**: In AI panel iframe, right-click -> "Inspect Frame" to see console output
 - **Background Script**: chrome://extensions/ -> Click "Service Worker" link on extension card
-- **Local Dev**: Use `dashboard-dev.html` with `chrome-shim.js` for UI development without extension context
+  - *Note*: "Invalid" status means the Service Worker is inactive (sleeping) to save memory. It wakes up on events.
+- **Local Dev**: Use `dashboard-dev.html` with `chrome-shim.js` for UI development without extension context.
+- **Unified Logging**: Filter console with `MultiAI` to see logs from all contexts (Dashboard, Content, Background). Content script logs are forwarded to the Dashboard console.
+- **Console Noise**: Filter with `-cookie` to hide third-party cookie warnings.
+
+### Development Tools
+
+- `dashboard-dev.html`: A development-only dashboard that mocks Chrome APIs using `chrome-shim.js`. Use this for rapid UI iteration without reloading the extension.
+- `chrome-shim.js`: Mocks `chrome.runtime`, `chrome.storage`, and `chrome.tabs` for local development.
 
 ---
 
@@ -204,7 +212,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
    { id: "newai", label: "New AI", url: "https://newai.com/" }
    ```
 
-2. **`manifest.json`**: Add to `host_permissions` and `content_scripts.matches`
+2. **`manifest.json`**: Add to `host_permissions` and `content_scripts.matches`.
+   *   **Important**: Include `www.` subdomain explicitly (e.g., `https://www.newai.com/*`) and wildcard if needed (`https://*.newai.com/*`).
 
 3. **`content/content.js`**: Add to `HOST_MAP` and `PROVIDER_CONFIGS`
    ```javascript
@@ -220,6 +229,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
    ```
 
 4. **`rules.json`**: Add DNR rule if site blocks iframes
+   *   **Note**: Some sites (like `a.claude.ai` or `yuanbao.tencent.com`) need specific rules.
    ```json
    {
      "id": 99,
@@ -254,8 +264,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // 跨域错误，重新加载iframe
 
 // Debug logging with prefix
+// Set DEBUG = true in file header
 function log(msg, ...args) {
-  console.log(`[MultiAI Debug] ${msg}`, ...args);
+  if (DEBUG) {
+    // Standardized Prefixes:
+    // Dashboard: [MultiAI Dashboard]
+    // Content:   [MultiAI Content] (Forwarded to Dashboard as [Via Iframe] [MultiAI Content])
+    // Background:[MultiAI Background]
+    console.log(`[MultiAI Context] ${msg}`, ...args);
+  }
 }
 ```
 
@@ -267,6 +284,19 @@ function log(msg, ...args) {
 ## Project Status Summary
 
 ### Progress
+
+- **UI Refactor (Jan 2026)**:
+  - **Layout**: Column widths auto-reset to equal distribution on load; row heights persisted.
+  - **Interaction**: Settings modals (global & panel) close on click-outside (focus loss).
+  - **Panel Header**: Added "Open in New Tab" icon; updated Settings icon (vertical ellipsis); removed "Switch/Add AI" buttons.
+  - **I18N**: Added English/Chinese language toggle (persisted).
+  - **Visuals**: Unified rounded button styles in settings; removed Group Chat entry point.
+  - **Latest Polish (Late Jan)**:
+    - **Headers**: Unified panel header height (32px) with overflow protection; moved shortcut badges (e.g., `@1`) next to titles.
+    - **Separators**: Added semi-transparent gray dividers between panels.
+    - **Floating UI**: Repositioned "Target Chips" to float above the footer with glassmorphism; moved Status Message to top-center with slide animation.
+    - **Alignment**: Vertically centered the "Send" button; improved input placeholder text.
+    - **Fixes**: "Open in New Tab" now correctly opens the current specific conversation URL (deep link) via message passing.
 
 - Split-screen dashboard, popup, background, and content scripts are in place for multi-provider prompt fan-out.
 - Provider metadata is centralized in `providers.js`, with DNR rules in `rules.json` to enable iframe embedding.

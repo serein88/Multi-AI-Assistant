@@ -362,5 +362,35 @@
       "urlFilter": "login.live.com",
       "resourceTypes": ["xmlhttprequest", "sub_frame", "main_frame"]
     }
+  },
+  {
+    "id": 25,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "yuanbao.tencent.com",
+      "resourceTypes": ["sub_frame"]
+    }
+  },
+  {
+    "id": 26,
+    "priority": 1,
+    "action": {
+      "type": "modifyHeaders",
+      "responseHeaders": [
+        { "header": "x-frame-options", "operation": "remove" },
+        { "header": "content-security-policy", "operation": "remove" }
+      ]
+    },
+    "condition": {
+      "urlFilter": "a.claude.ai",
+      "resourceTypes": ["sub_frame"]
+    }
   }
 ]
