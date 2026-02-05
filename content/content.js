@@ -177,23 +177,36 @@ const PROVIDER_CONFIGS = {
   },
   grok: {
     inputSelectors: [
+      "textarea[placeholder*='Ask Grok']",
+      "textarea[placeholder*='Ask']",
+      "textarea[aria-label*='Ask Grok']",
+      "textarea[aria-label*='Ask']",
       "textarea[placeholder*='Chat']",
       "textarea[placeholder*='聊天']",
       "textarea[aria-label*='message']",
+      "textarea[aria-label*='Message']",
       "textarea[id*='message']",
       "div[contenteditable='true'][role='textbox']",
+      "div[contenteditable='true'][aria-label*='Ask']",
+      "div[contenteditable='true'][aria-label*='message']",
+      "div[contenteditable='true'][data-testid*='input']",
       "div[contenteditable='true'][data-testid*='composer']",
       "main textarea",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
+      "button[aria-label*='Send message']",
       "button[aria-label*='Send']",
       "button[aria-label*='发送']",
+      "button[title*='Send']",
+      "button[title*='发送']",
+      "button[data-testid*='send']",
       "button[type='submit']",
-      "button[data-testid*='send']"
+      "div[role='button'][aria-label*='Send']"
     ],
-    inputType: "contenteditable"
+    inputType: "contenteditable",
+    useShadow: true
   },
   doubao: {
     inputSelectors: [
@@ -419,6 +432,31 @@ function waitForElement(selectors, timeout = 3000) {
   });
 }
 
+function findElementDeep(selectors) {
+  for (const selector of selectors) {
+    const direct = document.querySelector(selector);
+    if (direct) return direct;
+    const deep = deepQueryAll(document.body, selector);
+    if (deep.length > 0) return deep[0];
+  }
+  return null;
+}
+
+function waitForElementDeep(selectors, timeout = 3000) {
+  return new Promise((resolve) => {
+    const start = Date.now();
+
+    const check = () => {
+      const found = findElementDeep(selectors);
+      if (found) return resolve(found);
+      if (Date.now() - start > timeout) return resolve(null);
+      requestAnimationFrame(check);
+    };
+
+    check();
+  });
+}
+
 // Listen for messages from dashboard
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
@@ -545,6 +583,27 @@ function clickSendButton(selectors) {
     return true;
   } catch (error) {
     console.error("点击发送按钮失败:", error);
+    try {
+      const mouseEvent = new MouseEvent("click", {
+        view: window,
+        bubbles: true,
+        cancelable: true
+      });
+      button.dispatchEvent(mouseEvent);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+}
+
+function clickSendButtonDeep(selectors) {
+  const button = findElementDeep(selectors);
+  if (!button || isElementDisabled(button) || !isElementVisible(button)) return false;
+  try {
+    button.click();
+    return true;
+  } catch (error) {
     try {
       const mouseEvent = new MouseEvent("click", {
         view: window,
@@ -990,6 +1049,136 @@ async function sendCopilotMessage(input, prompt, config) {
   }
 }
 
+async function sendGrokMessage(input, prompt, config) {
+  try {
+    const editable = findEditableNearSendButton(input, config.inputSelectors, config.sendButtonSelectors, config.useShadow) || normalizeEditableInput(input) || input;
+    if (!editable) return false;
+    editable.focus({ preventScroll: true });
+
+    let setOk = await forceSetEditableText(editable, prompt);
+    if (!setOk) {
+      setOk = await setInputValue(editable, prompt);
+    }
+    if (!setOk) {
+      try {
+        if (editable.tagName === "TEXTAREA" || editable.tagName === "INPUT") {
+          editable.value = prompt;
+          editable.dispatchEvent(new Event("input", { bubbles: true }));
+        } else {
+          editable.innerText = prompt;
+          editable.dispatchEvent(new Event("input", { bubbles: true }));
+        }
+      } catch (e) {}
+    }
+
+    editable.dispatchEvent(new Event("input", { bubbles: true }));
+    editable.dispatchEvent(new Event("change", { bubbles: true }));
+    editable.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
+    editable.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+
+    for (let attempt = 0; attempt < 15; attempt++) {
+        const currentText = getEditableText(editable).trim();
+        if (!currentText) {
+            await forceSetEditableText(editable, prompt);
+            editable.dispatchEvent(new Event("input", { bubbles: true }));
+            editable.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        let clicked = config.useShadow 
+          ? clickSendButtonDeep(config.sendButtonSelectors)
+          : clickSendButton(config.sendButtonSelectors);
+        
+        if (clicked) return true;
+
+        const potentialButtons = [];
+        let current = editable;
+        for (let i = 0; i < 4; i++) {
+            if (!current || !current.parentElement) break;
+            current = current.parentElement;
+            const candidates = current.querySelectorAll("button, div[role=\"button\"], [class*=\"button\"], [class*=\"btn\"], a[href=\"#\"]");
+            for (const cand of candidates) {
+                if (cand === editable || cand.contains(editable)) continue;
+                if (!isElementVisible(cand)) continue;
+                
+                let score = 0;
+                const html = cand.outerHTML.toLowerCase();
+                const text = cand.innerText.trim().toLowerCase();
+                const ariaLabel = (cand.getAttribute("aria-label") || "").toLowerCase();
+                
+                if (ariaLabel.includes("send") || ariaLabel.includes("发送") || ariaLabel.includes("submit")) score += 20;
+                
+                const negativeKeywords = ["attach", "upload", "voice", "model", "mode", "search", "附件", "上传", "语音", "模型", "搜索", "file", "sidebar", "menu", "private", "侧边栏", "菜单", "私密", "主页", "history", "历史"];
+                if (negativeKeywords.some(k => ariaLabel.includes(k) || text.includes(k))) score -= 20;
+                
+                if (html.includes("svg") || cand.querySelector("svg")) score += 5;
+                
+                if (text) {
+                    if (text === "send" || text === "发送") score += 15;
+                    else if (text.includes("send") || text.includes("发送")) score += 5;
+                    else if (text.length > 0) score -= 5;
+                } else {
+                    if (html.includes("rounded-full") || html.includes("circle")) score += 5;
+                    if (html.includes("aspect-square") && (html.includes("h-8") || html.includes("h-10"))) score += 5;
+                }
+
+                if (html.includes("arrow") || html.includes("paper")) score += 5;
+                if (cand.disabled) score -= 10;
+                
+                if (score > 0) {
+                    potentialButtons.push({ el: cand, score });
+                }
+            }
+            if (potentialButtons.length > 0) {
+                 break; 
+            }
+        }
+
+        if (potentialButtons.length > 0) {
+            potentialButtons.sort((a, b) => b.score - a.score);
+            const best = potentialButtons[0];
+            if (best.score >= 12) {
+                best.el.click();
+                return true;
+            }
+        }
+        
+        await new Promise(r => setTimeout(r, 200));
+    }
+
+    // 4. Fallback: Enter key
+    const enterEvents = [
+      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
+      new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
+      new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
+      new InputEvent('beforeinput', { inputType: 'insertParagraph', data: null, bubbles: true, cancelable: true, composed: true })
+    ];
+
+    for (const evt of enterEvents) {
+      editable.dispatchEvent(evt);
+      await new Promise(r => setTimeout(r, 10));
+    }
+    
+    // Also dispatch on parent form/container just in case
+    const container = editable.closest('form') || editable.closest('[class*="input"]') || editable.parentElement;
+    if (container) {
+       for (const evt of enterEvents) {
+        container.dispatchEvent(evt);
+       }
+       // Try dispatching submit if it's a form
+       if (container.tagName === 'FORM') {
+           container.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+           container.requestSubmit && container.requestSubmit();
+       }
+    }
+    
+    return true;
+
+  } catch (e) {
+    console.error("Grok send error:", e);
+    return false;
+  }
+}
+
 function setKimiEditableText(editable, text) {
   if (!editable) return false;
   try {
@@ -1166,6 +1355,17 @@ function getStopSelectors(provider) {
     ];
   }
 
+  if (provider === "grok") {
+    // Grok specific: avoid generic SVG selectors to prevent false positives
+    return [
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="停止"]',
+      'button[title*="Stop"]',
+      'button[title*="停止"]',
+      '[data-testid*="stop"]'
+    ];
+  }
+
   return [
     'button[aria-label*="Stop"]',
     'button[aria-label*="停止"]',
@@ -1285,7 +1485,8 @@ async function waitForResponseStart(provider) {
 
       // 4. Check Send Button Disappearance or Disabled (Generic)
       // Only if we have valid send selectors
-      if (sendSelectors.length > 0) {
+      // FIX: Skip for Grok because selectors might be unstable/heuristic-based, leading to false positives if selectors match nothing.
+      if (sendSelectors.length > 0 && provider !== 'grok') {
         // If send button is GONE or DISABLED, we assume started.
         let sendBtnActive = false;
         
@@ -1484,7 +1685,9 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     });
   }
 
-  const input = await waitForElement(config.inputSelectors, 3000);
+  const input = config.useShadow
+    ? await waitForElementDeep(config.inputSelectors, 3000)
+    : await waitForElement(config.inputSelectors, 3000);
   if (!input) {
     console.error(`找不到输入框: ${provider}`);
     if (retryCount < maxRetries) {
@@ -1503,6 +1706,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     sendOk = await sendChatGPTMessage(input, prompt, config);
   } else if (provider === "copilot") {
     sendOk = await sendCopilotMessage(input, prompt, config);
+  } else if (provider === "grok") {
+    sendOk = await sendGrokMessage(input, prompt, config);
   } else if (provider === "kimi") {
     sendOk = await sendKimiMessage(input, prompt, config);
   } else if (provider === "ima") {
@@ -1521,7 +1726,9 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    sendOk = clickSendButton(config.sendButtonSelectors);
+    sendOk = config.useShadow
+      ? clickSendButtonDeep(config.sendButtonSelectors)
+      : clickSendButton(config.sendButtonSelectors);
 
     if (!sendOk && input) {
       try {

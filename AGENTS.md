@@ -391,3 +391,9 @@ This likely requires extending `content/content.js` with per-provider response s
 | `providers.js` | Provider metadata array | ~45 |
 | `manifest.json` | Extension configuration | ~90 |
 | `rules.json` | Network request header rules | ~290 |
+
+## Grok 发送修复记录 (2026-02-05)
+
+- 发送逻辑迁移为优先使用 `forceSetEditableText`，并用 `findEditableNearSendButton` 锁定真实输入节点。
+- 增加轮询等待发送按钮出现（文本输入后才显示的场景），并保留 Enter/表单提交回退。
+- 强化按钮筛选规则，排除“附件/语音/侧边栏”等干扰按钮，避免误点。
