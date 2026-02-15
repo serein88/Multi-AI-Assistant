@@ -245,3 +245,42 @@
   - 若后续恢复 chatroom 功能，需要重新补回文件与声明并同步验证。
 - 下一步建议：
   - 你确认后将 `TD-20260214-001` 标记为“完成”，下一轮继续 `TD-20260214-002`。
+
+## 2026-02-15（记录 9）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-002（并同步 TD-20260214-001 验收）
+- 任务名：统一分屏数量上限与文案
+- 状态流转：
+  - `TD-20260214-001`：待确认 -> 完成（用户确认通过）
+  - `TD-20260214-002`：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `providers.js`
+  - `dashboard.js`
+  - `popup.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 新增统一上限常量源：`providers.js` 增加 `DASHBOARD_MAX_PANELS = 6`。
+  - `dashboard.js` 的 `MAX_PANELS` 改为读取统一常量（含兜底），并同步设置页中英文文案为 `6`。
+  - `popup.js` 去除硬编码 `6`，改为读取同一常量并用于校验与提示文案。
+- 验证步骤：
+1. 语法校验：
+   - `node --check dashboard.js`
+   - `node --check popup.js`
+   - `node --check providers.js`
+2. 常量来源检索：
+   - `rg -n "DASHBOARD_MAX_PANELS|MAX_PANELS = typeof|MAX_DASHBOARD_PANELS" providers.js dashboard.js popup.js`
+3. 旧口径检索（50/16/硬编码 6）：
+   - `rg -n "16 panels|16 个分屏|MAX_PANELS = 50|> 6|最多选择 6" dashboard.js popup.js providers.js`
+- 验证证据：
+  - 证据 A：三份脚本 `node --check` 均通过。
+  - 证据 B：检索命中统一链路：
+    - `providers.js`：`DASHBOARD_MAX_PANELS = 6`
+    - `dashboard.js`：`MAX_PANELS = typeof DASHBOARD_MAX_PANELS ...`
+    - `popup.js`：`MAX_DASHBOARD_PANELS = typeof DASHBOARD_MAX_PANELS ...`
+  - 证据 C：旧不一致口径（`50/16/硬编码 6`）检索为空。
+- 风险/问题：
+  - `dashboard.js` 中文文案原文件存在历史编码异常（已存在问题），本轮未单独处理编码层技术债。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-002` 标记为“完成”，下一轮继续 `TD-20260214-003`（统一 Provider 数据源与 URL）。

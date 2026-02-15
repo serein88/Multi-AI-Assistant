@@ -1,4 +1,6 @@
-﻿const PROVIDERS = [
+﻿const DASHBOARD_MAX_PANELS = 6;
+
+const PROVIDERS = [
   { id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com/" },
   { id: "claude", label: "Claude", url: "https://claude.ai/" },
   { id: "grok", label: "Grok", url: "https://grok.com/" },
@@ -42,3 +44,4 @@ function findProviderByToken(token) {
 
   return PROVIDERS.find((provider) => provider.label.toLowerCase() === lowered) || null;
 }
+

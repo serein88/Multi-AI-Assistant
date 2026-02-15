@@ -7,6 +7,7 @@ const openOnlyButton = document.getElementById("openOnly");
 const openDashboardButton = document.getElementById("openDashboard");
 const providerCheckboxes = Array.from(document.querySelectorAll(".providers input[type='checkbox']"));
 const DASHBOARD_KEY = "multi-ai-dashboard-panels";
+const MAX_DASHBOARD_PANELS = typeof DASHBOARD_MAX_PANELS === "number" ? DASHBOARD_MAX_PANELS : 6;
 
 function getSelectedProviders() {
   return providerCheckboxes
@@ -102,8 +103,8 @@ async function openDashboard() {
     setStatus("至少选择一个 AI。");
     return;
   }
-  if (providers.length > 6) {
-    setStatus("最多选择 6 个 AI 分屏。");
+  if (providers.length > MAX_DASHBOARD_PANELS) {
+    setStatus(`最多选择 ${MAX_DASHBOARD_PANELS} 个 AI 分屏。`);
     return;
   }
 

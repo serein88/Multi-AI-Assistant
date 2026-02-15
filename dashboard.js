@@ -1,5 +1,5 @@
 const STATE_KEY = "multi-ai-dashboard";
-const MAX_PANELS = 50;
+const MAX_PANELS = typeof DASHBOARD_MAX_PANELS === "number" ? DASHBOARD_MAX_PANELS : 6;
 const DASHBOARD_KEY = "multi-ai-dashboard-panels";
 
 const I18N_DATA = {
@@ -10,7 +10,7 @@ const I18N_DATA = {
     composerPlaceholder: "Enter 发送，Shift+Enter换行",
     sendAll: "发送",
     settingsTitle: "选择 AI",
-    settingsSubtitle: "最多 16 个分屏",
+    settingsSubtitle: `最多 ${MAX_PANELS} 个分屏`,
     cancel: "取消",
     confirm: "确认",
     refresh: "刷新",
@@ -28,7 +28,7 @@ const I18N_DATA = {
     composerPlaceholder: "Enter to send, Shift+Enter for new line",
     sendAll: "Send",
     settingsTitle: "Select AI",
-    settingsSubtitle: "Up to 16 panels",
+    settingsSubtitle: `Up to ${MAX_PANELS} panels`,
     cancel: "Cancel",
     confirm: "Confirm",
     refresh: "Refresh",

@@ -20,8 +20,8 @@
 
 | ID | 任务名 | 优先级 | 状态 | 验收标准 | 备注 |
 |---|---|---:|---|---|---|
-| TD-20260214-001 | 清理无效 `chatroom` 资源声明 | P0 | 待确认 | `manifest.json` 的 `web_accessible_resources` 不再引用不存在的 `chatroom.html/css/js` | 已移除无效声明，待你确认 |
-| TD-20260214-002 | 统一分屏数量上限与文案 | P0 | 待进行 | `dashboard.js`、`popup.js`、文案中的上限口径一致（如 6 或 16），并有统一常量来源 | 现状存在 `50/16/6` 多套口径 |
+| TD-20260214-001 | 清理无效 `chatroom` 资源声明 | P0 | 完成 | `manifest.json` 的 `web_accessible_resources` 不再引用不存在的 `chatroom.html/css/js` | 2026-02-15 用户确认通过 |
+| TD-20260214-002 | 统一分屏数量上限与文案 | P0 | 完成 | `dashboard.js`、`popup.js`、文案中的上限口径一致（如 6 或 16），并有统一常量来源 | 已统一为 6，确认通过 |
 | TD-20260214-003 | 统一 Provider 数据源与 URL | P0 | 待进行 | `providers.js` 与 `background.js` 不再重复维护 Provider，关键 URL（如 Kimi）一致 | 避免配置漂移 |
 | TD-20260214-004 | 修复未消费消息与死代码通道 | P1 | 待进行 | `content/content.js` 发出的消息在 `dashboard/background` 有明确处理，或删除无效消息发送 | 例如 `openAccountPage` 当前无消费者 |
 | TD-20260214-005 | 消除 `dashboard.js` 重复函数定义 | P1 | 待进行 | 重复定义函数合并为单一实现，行为保持一致 | `animateDOMMove` 重复定义 |
