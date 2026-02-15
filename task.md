@@ -23,8 +23,8 @@
 | TD-20260214-001 | 清理无效 `chatroom` 资源声明 | P0 | 完成 | `manifest.json` 的 `web_accessible_resources` 不再引用不存在的 `chatroom.html/css/js` | 2026-02-15 用户确认通过 |
 | TD-20260214-002 | 统一分屏数量上限与文案 | P0 | 完成 | `dashboard.js`、`popup.js`、文案中的上限口径一致（如 6 或 16），并有统一常量来源 | 已统一为 6，用户确认通过（20260215） |
 | TD-20260214-003 | 统一 Provider 数据源与 URL | P0 | 完成 | `providers.js` 与 `background.js` 不再重复维护 Provider，关键 URL（如 Kimi）一致 | `background.js` 已复用 `providers.js`，用户确认通过（20260215） |
-| TD-20260214-004 | 修复未消费消息与死代码通道 | P1 | 完成 | `content/content.js` 发出的消息在 `dashboard/background` 有明确处理，或删除无效消息发送 | 已删除 `openAccountPage` 无消费者通道，用户已经确认（20250215） |
-| TD-20260214-005 | 消除 `dashboard.js` 重复函数定义 | P1 | 待进行 | 重复定义函数合并为单一实现，行为保持一致 | `animateDOMMove` 重复定义 |
+| TD-20260214-004 | 修复未消费消息与死代码通道 | P1 | 完成 | `content/content.js` 发出的消息在 `dashboard/background` 有明确处理，或删除无效消息发送 | 已删除 `openAccountPage` 无消费者通道，用户已确认（20260215） |
+| TD-20260214-005 | 消除 `dashboard.js` 重复函数定义 | P1 | 完成 | 重复定义函数合并为单一实现，行为保持一致 | 已移除 `animateDOMMove` 重复定义，用户确认（20250215） |
 | TD-20260214-006 | 对齐发送状态徽章逻辑与样式 | P1 | 待进行 | `dashboard.js` 实际更新 `panel-badge` 的 `sending/success/error` 状态类，与 `dashboard.css` 对齐 | 当前样式存在但逻辑不完整 |
 | TD-20260214-007 | 明确扩展入口策略（popup vs 直接 dashboard） | P2 | 待进行 | `manifest.json` 的 `default_popup` 与实际交互策略一致；保留或移除 popup 路径给出明确结论 | 当前 popup 文件存在但入口为空 |
 | TD-20260214-008 | 修复项目文档与页面文本编码乱码 | P2 | 待进行 | `AGENTS.md`/`readme.md`/页面文案中的乱码文本修复并统一 UTF-8 | 影响可读性与协作效率 |

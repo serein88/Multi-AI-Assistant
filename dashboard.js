@@ -497,34 +497,6 @@ if (langToggleBtn) {
 }
 
 
-function animateDOMMove(parent, moveFunction) {
-  const children = Array.from(parent.children);
-  const positions = new Map(children.map(c => [c, c.getBoundingClientRect()]));
-
-  moveFunction();
-
-  requestAnimationFrame(() => {
-    children.forEach(child => {
-      const oldPos = positions.get(child);
-      const newPos = child.getBoundingClientRect();
-      if (!oldPos) return;
-
-      const dx = oldPos.left - newPos.left;
-      const dy = oldPos.top - newPos.top;
-
-      if (dx !== 0 || dy !== 0) {
-        child.style.transform = `translate(${dx}px, ${dy}px)`;
-        child.style.transition = 'none';
-
-        requestAnimationFrame(() => {
-          child.style.transition = 'transform 0.3s cubic-bezier(0.2, 0, 0.2, 1)';
-          child.style.transform = '';
-        });
-      }
-    });
-  });
-}
-
 function updateSendButtonState() {
   const { targets } = parseTargetPrompt(promptEl.value || "");
   const hasInlineTargets = targets.length > 0;

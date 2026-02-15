@@ -341,3 +341,31 @@
   - 删除 `openAccountPage` 后，Gemini 头像点击不再触发额外上报（当前项目无消费方，属于预期清理）。
 - 下一步建议：
   - 你确认后将 `TD-20260214-004` 标记为“完成”，下一轮继续 `TD-20260214-005`。
+
+## 2026-02-15（记录 12）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-005（并同步 TD-20260214-004 验收）
+- 任务名：消除 `dashboard.js` 重复函数定义
+- 状态流转：
+  - `TD-20260214-004`：待确认 -> 完成（用户确认通过）
+  - `TD-20260214-005`：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 删除 `dashboard.js` 中第二处重复的 `animateDOMMove` 定义，保留前面的实现作为唯一实现。
+  - 不改函数签名与调用点，确保行为一致（拖拽排序动画仍走同一函数）。
+- 验证步骤：
+1. 语法校验：`node --check dashboard.js`。
+2. 检查定义数量：`rg -n "function animateDOMMove" dashboard.js`。
+3. 检查调用仍有效：`rg -n "animateDOMMove\\(" dashboard.js`。
+- 验证证据：
+  - 证据 A：`node --check dashboard.js` 通过。
+  - 证据 B：`function animateDOMMove` 仅剩 1 处定义（位于 `dashboard.js:220`）。
+  - 证据 C：调用仍存在（`dashboard.js:288`），未引入未定义引用。
+- 风险/问题：
+  - 无行为层风险预警；本次为纯去重改动。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-005` 标记为“完成”，下一轮继续 `TD-20260214-006`。
