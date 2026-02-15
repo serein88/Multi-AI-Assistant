@@ -111,10 +111,17 @@
 - 发送链路排查路径：`dashboard postMessage -> content trySendPrompt -> sendResult/responseStarted/responseComplete`。
 - 低风险提交策略：优先小步、单任务、可回滚的提交单元。
 
-Grok 适配经验（2026-02）：
+### Grok 适配经验（2026-02）：
 
 - 发送成功判定不要只看“点击成功”，要看强信号：`Stop` 出现 / 输入框清空 / 流式标记 / 响应节点增长。
 - 对易波动站点（如 Grok）要有降级兜底：`sendResult:true` 后若 `responseStarted` 超时，回补 `sendResult:false`。
 - 统一发送按钮的 `Sending...` 建议按“派发完成”释放，不阻塞在“响应开始”事件上。
 - 验证扩展改动前先热重载（如 `chrome.runtime.reload()`），避免用旧脚本误判结果。
 - Playwright 调试扩展页优先“先开普通页再 `window.open(chrome-extension://...)`”，并固定记录控制台日志作为证据。
+
+### Chrome 调试连接规范（2026-02）：
+
+- 未来默认使用“连接用户已打开的 Chrome 调试窗口”方式调试，不新开独立浏览器实例。
+- 标准连接方式：优先通过 CDP 端口 `127.0.0.1:9222`（`chromium.connectOverCDP`）接管现有会话。
+- 连接后优先复用现有扩展页标签（如 `chrome-extension://<extension-id>/dashboard.html`）做调试与验证。
+

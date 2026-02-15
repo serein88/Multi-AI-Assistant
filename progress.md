@@ -470,3 +470,119 @@
   - 当前策略下点击扩展图标不会弹出 Popup；若后续要恢复图标弹窗入口，需要重新设置 `action.default_popup` 并调整文档。
 - 下一步建议：
   - 你确认后将 `TD-20260214-007` 标记为“完成”，下一轮继续 `TD-20260214-008`（编码乱码修复）。
+
+## 2026-02-15（记录 16）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-008
+- 任务名：修复项目文档与页面文本编码乱码
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 对 `content/content.js` 中历史乱码文本进行集中修复，覆盖：
+    - Provider 选择器中的中文关键词（如 `发送/消息/输入/回复/提交/聊天/停止`）。
+    - 错误日志与注释文本（如“设置输入值失败”“点击发送按钮失败”等）。
+  - 修复替换过程中产生的选择器引号缺失问题，确保 `aria-label/title/placeholder` 选择器语法正确。
+  - 复核文档与页面文件（`AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`）为可正常 UTF-8 解码文本，无替换字符。
+- 验证步骤：
+1. 乱码扫描：`rg -n "娑堟伅|鍙戦€|鍥炲|杈撳叆|鑱婂ぉ|鎻愪氦|璁剧疆|鐐瑰嚮|鏈壘鍒伴厤缃|鎵句笉鍒拌緭鍏ユ|蹇€熸鏌?|寮哄埗浜壊|灏介噺鏄剧ず|鍙戦€丒|璇\\?|闂\\?" E:/CodeSpace/Multi Al Assistant`。
+2. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/content/content.js`。
+3. UTF-8 可解码校验（关键文件）：Node 脚本读取 `AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`、`content/content.js`，检查是否包含 `\uFFFD`。
+4. 关键修复点命中：`rg -n "发送消息|发送对话|设置输入值失败|点击发送按钮失败|未找到配置|找不到输入框|发送 Enter 事件失败|强制亮色主题变量|尽量显示内容|textarea\\[placeholder\\*='请'\\]|textarea\\[placeholder\\*='问'\\]" content/content.js`。
+- 验证证据：
+  - 证据 A：乱码扫描无命中结果（空结果），原乱码串已清理。
+  - 证据 B：`node --check content/content.js` 通过（无语法错误）。
+  - 证据 C：UTF-8 校验输出均为 `replacement=false`：
+    - `AGENTS.md | replacement=false`
+    - `readme.md | replacement=false`
+    - `dashboard.html | replacement=false`
+    - `popup.html | replacement=false`
+    - `content/content.js | replacement=false`
+  - 证据 D：`content/content.js` 命中修复后的关键文本（如 `发送消息`、`发送对话`、`设置输入值失败`、`强制亮色主题变量` 等）。
+- 风险/问题：
+  - 本轮主要修复编码与文本，不改变发送流程控制逻辑；功能性风险较低。
+  - `content/content.js` 文件头 BOM 已在本轮写回时去除（仍为 UTF-8），若团队有 BOM 约定需后续统一说明。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-008` 标记为“完成”；当前技术债清单可进入新一轮需求任务。
+
+## 2026-02-15（记录 17）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260215-001
+- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.css`
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 定位到根因：水平分割线（`.grid-splitter-horizontal`）原本以“跨边界居中”方式定位，渲染后会覆盖到下一行标题顶部区域，导致标题行检查尺寸一致但视觉高度出现差异。
+  - 修复策略：
+    - 保持分割线高层级可交互（不降 z-index）。
+    - 将水平分割线改为锚定在“上一行底部内部”，不再压到下一行标题。
+  - 具体改动：
+    - `dashboard.css`：`.grid-splitter-horizontal` 的 `margin-top` 从 `-2px` 改为 `0`。
+    - `dashboard.js`：新增 `HORIZONTAL_SPLITTER_HEIGHT = 4`，并在 `initGridResizers()/updateSplitterPositions()` 中统一将水平分割线 `top` 计算改为 `rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT`。
+- 验证步骤：
+1. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/dashboard.js`。
+2. 自动化验证（Playwright，本地加载扩展）：
+   - 强制 `activePanels=['chatgpt','claude']`、`customGrid.cols=1`，渲染两行分屏。
+   - 采样下一行标题顶部命中元素（`elementFromPoint`）和水平分割线中心命中元素。
+   - 程序触发一次水平分割线拖拽，检查 `gridTemplateRows` 是否变化。
+3. 改动点检索：
+   - `rg -n "panel-header|grid-splitter-horizontal|HORIZONTAL_SPLITTER_HEIGHT|margin-top" dashboard.css dashboard.js`
+- 验证证据：
+  - 证据 A：自动化输出（关键字段）：
+    - `headerTopIsHeader: true`（下一行标题顶部命中 `panel-header`）
+    - `splitterCenterIsSplitter: true`（分割线中心命中 `grid-splitter-horizontal`）
+    - `beforeRows: "400px 400px"` -> `afterRows: "439.2px 439.2px"`（拖拽生效）
+    - `headerZ: "5"`，`splitterZ: "100"`（标题与分割线层级关系符合预期）
+  - 证据 B：`node --check dashboard.js` 通过。
+  - 证据 C：改动检索命中：
+    - `dashboard.css` 中 `.grid-splitter-horizontal { margin-top: 0; ... }`
+    - `dashboard.js` 中 `HORIZONTAL_SPLITTER_HEIGHT` 常量与两处 `top` 计算更新。
+- 风险/问题：
+  - 本轮修复聚焦“单列多行”场景（即水平分割线存在时）；多列场景未改动原有垂直分割线行为。
+- 下一步建议：
+  - 你确认视觉问题已消失后，将 `T-20260215-001` 标记为“完成”。
+
+## 2026-02-15（记录 18）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260215-001（复开）
+- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
+- 状态流转：待确认 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.css`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你反馈“bug 仍存在”与截图复开任务。
+  - 二次定位到真实根因：不是 header 高度本身，而是某些 `.panel` 在加载完成后出现非 0 `scrollTop`（实测 `3.2`），导致内部 header 被整体上移，造成“检查尺寸一样但视觉不一样”。
+  - 修复方式：将 `.panel` 从可滚动裁剪容器改为非滚动裁剪容器（`overflow: clip`，保留 `overflow: hidden` 作为兼容回退），阻断 `scrollTop` 位移来源。
+- 验证步骤：
+1. 连接你已打开的 Chrome 调试窗口（CDP `127.0.0.1:9222`），定位现有 `dashboard.html` 页面。
+2. 先做临时注入验证：将 `.panel` 改为 `overflow: clip`，对比修复前后 `headerTopDelta` 与 `panel.scrollTop`。
+3. 落地代码后执行扩展热重载（`chrome.runtime.reload()`），等待页面与 iframe 加载完成，再次采样：
+   - `//*[@id=\"panelGrid\"]/section[1]/div[1]` 与 `section[2]/div[1]` 的 `top` 差值
+   - 两个 `panel` 的 `scrollTop`
+   - `overflow` 计算值
+4. 触发一次垂直分割线拖拽，确认列宽仍可变化。
+- 验证证据：
+  - 证据 A（临时注入前后对比）：
+    - 修复前：`headerTopDelta = -3.2`，`p2ScrollTop = 3.2`，`p2Overflow = hidden`
+    - 临时注入后：`headerTopDelta = 0`，`p2ScrollTop = 0`，`p2Overflow = clip`
+  - 证据 B（代码落地并热重载后）：
+    - `headerTopDelta = 0`
+    - `p1ScrollTop = 0`，`p2ScrollTop = 0`
+    - `p1Overflow = clip`，`p2Overflow = clip`
+  - 证据 C（交互回归）：
+    - 垂直分割线拖拽前后 `gridTemplateColumns` 从 `759.6px 759.6px` 变为 `798.987px 720.2px`，说明拖拽能力正常。
+- 风险/问题：
+  - 本轮未改发送链路与 provider 逻辑，影响面集中在 panel 容器滚动行为。
+- 下一步建议：
+  - 你确认截图中的标题视觉差异已消失后，将 `T-20260215-001` 标记为“完成”。

@@ -1,4 +1,4 @@
-﻿const RESPONSE_SELECTORS = {
+const RESPONSE_SELECTORS = {
   chatgpt: [
     "[data-message-author-role='assistant'] .markdown",
     "[data-message-author-role='assistant']",
@@ -91,9 +91,9 @@ const PROVIDER_CONFIGS = {
       "textarea[data-id='root']",
       "textarea[id*='prompt']",
       "textarea[aria-label*='Message']",
-      "textarea[aria-label*='娑堟伅']",
+      "textarea[aria-label*='消息']",
       "textarea[placeholder*='Message']",
-      "textarea[placeholder*='娑堟伅']",
+      "textarea[placeholder*='消息']",
       "textarea[placeholder*='Ask']",
       "form textarea",
       "div[contenteditable='true'][role='textbox'][aria-label*='Message']",
@@ -107,13 +107,13 @@ const PROVIDER_CONFIGS = {
     sendButtonSelectors: [
       "button[data-testid='send-button']",
       "button[aria-label*='Send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button svg[data-icon='paper-plane']",
       "button:has(svg[data-icon='paper-plane'])",
       "button:has(path[d*='M.5 1.163A1'])",
       // "button[type='submit']", // Too generic, causes false positives
-      "button[aria-label*='鍙戦€佹秷鎭?]",
-      "button[aria-label*='鍙戦€佸璇?]"
+      "button[aria-label*='发送消息']",
+      "button[aria-label*='发送对话']"
     ],
     inputType: "contenteditable"
   },
@@ -122,17 +122,17 @@ const PROVIDER_CONFIGS = {
       "div[contenteditable='true'][data-testid='chat-input']",
       "div[contenteditable='true'][data-placeholder]",
       "div[contenteditable='true'][aria-label*='Message']",
-      "div[contenteditable='true'][aria-label*='娑堟伅']",
+      "div[contenteditable='true'][aria-label*='消息']",
       "div[contenteditable='true'][role='textbox']",
       "div[contenteditable='true'][data-placeholder*='Reply']",
-      "div[contenteditable='true'][data-placeholder*='鍥炲']",
+      "div[contenteditable='true'][data-placeholder*='回复']",
       "section textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
       "button[data-testid='send-button']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button:has(svg path[d*='M15.854'])",
       "button[type='submit']",
       "button[data-testid='composer-send-button']"
@@ -142,14 +142,14 @@ const PROVIDER_CONFIGS = {
   gemini: {
     inputSelectors: [
       "textarea[aria-label*='prompt']",
-      "textarea[aria-label*='杈撳叆']",
+      "textarea[aria-label*='输入']",
       "textarea[placeholder*='Enter']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button:has(svg)",
       "button[type='submit']"
     ],
@@ -166,7 +166,7 @@ const PROVIDER_CONFIGS = {
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Submit']",
       "button[title*='Submit']",
       "button[type='submit']",
@@ -182,7 +182,7 @@ const PROVIDER_CONFIGS = {
       "textarea[aria-label*='Ask Grok']",
       "textarea[aria-label*='Ask']",
       "textarea[placeholder*='Chat']",
-      "textarea[placeholder*='鑱婂ぉ']",
+      "textarea[placeholder*='聊天']",
       "textarea[aria-label*='message']",
       "textarea[aria-label*='Message']",
       "textarea[id*='message']",
@@ -199,29 +199,29 @@ const PROVIDER_CONFIGS = {
       "button[aria-label*='Send message']",
       "button[aria-label*='Send']",
       "button[aria-label*='Submit']",
-      "button[aria-label*='鎻愪氦']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='提交']",
+      "button[aria-label*='发送']",
       "button[title*='Send']",
       "button[title*='Submit']",
-      "button[title*='鎻愪氦']",
-      "button[title*='鍙戦€?]",
+      "button[title*='提交']",
+      "button[title*='发送']",
       "button[data-testid*='send']",
       "button[type='submit']",
       "div[role='button'][aria-label*='Send']",
       "div[role='button'][aria-label*='Submit']",
-      "div[role='button'][aria-label*='鎻愪氦']"
+      "div[role='button'][aria-label*='提交']"
     ],
     inputType: "contenteditable",
     useShadow: true
   },
   doubao: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -236,15 +236,15 @@ const PROVIDER_CONFIGS = {
       "div[class*='chat-input'] div[contenteditable='true']",
       "div.editor-content[contenteditable='true']",
       "div[contenteditable='true']",
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea"
     ],
     sendButtonSelectors: [
       "button[data-testid='send-button']",
       "button[data-testid*='send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
-      "[role='button'][aria-label*='鍙戦€?]",
+      "[role='button'][aria-label*='发送']",
       "[role='button'][aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -252,9 +252,9 @@ const PROVIDER_CONFIGS = {
   },
   ima: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
-      "textarea[placeholder*='璇?]",
-      "textarea[aria-label*='杈撳叆']",
+      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='请']",
+      "textarea[aria-label*='输入']",
       "textarea",
       "div[contenteditable='true'][role='textbox']",
       "div[role='textbox'][contenteditable='true']",
@@ -264,21 +264,21 @@ const PROVIDER_CONFIGS = {
       "button[type='submit']",
       "button[data-testid='send-button']",
       "button[data-testid*='send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
-      "[role='button'][aria-label*='鍙戦€?]",
+      "[role='button'][aria-label*='发送']",
       "[role='button'][aria-label*='Send']"
     ],
     inputType: "contenteditable"
   },
   deepseek: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -286,12 +286,12 @@ const PROVIDER_CONFIGS = {
   },
   tongyi: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -299,12 +299,12 @@ const PROVIDER_CONFIGS = {
   },
   yuanbao: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -312,12 +312,12 @@ const PROVIDER_CONFIGS = {
   },
   zhipu: {
     inputSelectors: [
-      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='输入']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -327,14 +327,14 @@ const PROVIDER_CONFIGS = {
     inputSelectors: [
       "textarea[data-testid='search-input']",
       "textarea[placeholder*='Ask']",
-      "textarea[placeholder*='闂?]",
+      "textarea[placeholder*='问']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[data-testid='search-button']",
       "button[aria-label*='Send']",
-      "button[aria-label*='鍙戦€?]",
+      "button[aria-label*='发送']",
       "button[type='submit']"
     ],
     inputType: "textarea"
@@ -537,7 +537,7 @@ function setInputValue(el, value) {
             el.setSelectionRange(value.length, value.length);
             resolve(true);
           } catch (error) {
-            console.error("璁剧疆杈撳叆鍊煎け璐?", error);
+            console.error("设置输入值失败", error);
             resolve(false);
           }
         }, 10); // Reduced delay
@@ -579,14 +579,14 @@ function setInputValue(el, value) {
 
             resolve(true);
           } catch (error) {
-            console.error("璁剧疆contenteditable鍊煎け璐?", error);
+            console.error("设置 contenteditable 值失败", error);
             resolve(false);
           }
         }, 10); // Reduced delay
       });
     }
   } catch (error) {
-    console.error("璁剧疆杈撳叆鍊煎け璐?", error);
+    console.error("设置输入值失败", error);
     return Promise.resolve(false);
   }
 
@@ -607,7 +607,7 @@ function clickSendButton(selectors) {
     // }
     return true;
   } catch (error) {
-    console.error("鐐瑰嚮鍙戦€佹寜閽け璐?", error);
+    console.error("点击发送按钮失败", error);
     try {
       const mouseEvent = new MouseEvent("click", {
         view: window,
@@ -767,7 +767,7 @@ function findSendButtonNearInput(selectors, input) {
         const looksSend =
           label.includes("send") ||
           label.includes("submit") ||
-          label.includes("鎻愪氦") ||
+          label.includes("提交") ||
           /\bsend\b/i.test(className) ||
           /send-button/i.test(className) ||
           /sendButton/i.test(className) ||
@@ -1002,7 +1002,7 @@ async function sendCopilotMessage(input, prompt, config) {
     log("Copilot: waiting for button to appear...");
 
     // Selectors for Shadow DOM
-    const shadowSelectors = "button[aria-label*='Send'], button[aria-label*='鍙戦€?], button[aria-label*='Submit'], button[title*='Submit'], button[icon='Send'], button[title*='Send'], button[title*='鍙戦€?], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='鍙戦€?], div[role='button'][aria-label*='Submit']";
+    const shadowSelectors = "button[aria-label*='Send'], button[aria-label*='发送'], button[aria-label*='Submit'], button[title*='Submit'], button[icon='Send'], button[title*='Send'], button[title*='发送'], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='发送'], div[role='button'][aria-label*='Submit']";
 
     const deepQuery = (root, selector) => {
       if (!root) return null;
@@ -1397,11 +1397,11 @@ function getStopSelectors(provider) {
       'button[aria-label*="Stop generating"]',
       'button[aria-label*="Stop generating response"]',
       'button[aria-label*="Stop"]',
-      'button[aria-label*="鍋滄鐢熸垚"]',
-      'button[aria-label*="鍋滄"]',
+      'button[aria-label*="停止生成"]',
+      'button[aria-label*="停止"]',
       'button[aria-label*="Pause"]',
-      'button[aria-label*="鏆傚仠"]',
-      'button[aria-label*="鍋滄娴佸紡浼犺緭"]',
+      'button[aria-label*="暂停"]',
+      'button[aria-label*="停止流式传输"]',
       '[data-testid="stop-generating-button"]',
       'button:has(svg rect)', 
       'button:has(svg path[d^="M2 2h20v20H2"])',
@@ -1413,23 +1413,23 @@ function getStopSelectors(provider) {
     // Grok specific: avoid generic SVG selectors to prevent false positives
     return [
       'button[aria-label*="Stop"]',
-      'button[aria-label*="鍋滄"]',
+      'button[aria-label*="停止"]',
       'button[title*="Stop"]',
-      'button[title*="鍋滄"]',
+      'button[title*="停止"]',
       '[data-testid*="stop"]'
     ];
   }
 
   return [
     'button[aria-label*="Stop"]',
-    'button[aria-label*="鍋滄"]',
-    'button[aria-label*="鏆傚仠"]',
+    'button[aria-label*="停止"]',
+    'button[aria-label*="暂停"]',
     'button[data-testid*="stop"]',
     'button[aria-label*="Pause"]',
     'button[data-testid="stop-button"]',
     'button[title*="Stop"]',
-    'button[title*="鍋滄"]',
-    'button[title*="鏆傚仠"]',
+    'button[title*="停止"]',
+    'button[title*="暂停"]',
     '.stop-generating',
     '[class*="stop-generating"]',
     '[class*="StopGenerating"]',
@@ -1437,7 +1437,7 @@ function getStopSelectors(provider) {
     'button svg rect',
     'button svg path[d^="M2 2h20v20H2"]',
     'div[role="button"][aria-label*="Stop"]',
-    'div[role="button"][aria-label*="鍋滄"]'
+    'div[role="button"][aria-label*="停止"]'
   ];
 }
 
@@ -1690,14 +1690,14 @@ async function waitForResponseStartLegacy(provider) {
       // Expanded selectors for GPT/Copilot
       const stopSelectors = [
         'button[aria-label*="Stop"]',
-        'button[aria-label*="鍋滄"]',
+        'button[aria-label*="停止"]',
         'button[data-testid*="stop"]',
         'button[aria-label*="Pause"]', // Sometimes Pause
         // ChatGPT specific
         'button[data-testid="stop-button"]',
         // Copilot specific
         'button[title*="Stop"]',
-        'button[title*="鍋滄"]',
+        'button[title*="停止"]',
         '.stop-generating',
         // Generic icon check (square icon usually)
         'button svg rect',
@@ -1727,12 +1727,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   const maxRetries = provider === "grok" ? 0 : 2;
   const config = PROVIDER_CONFIGS[provider];
   if (!config) {
-    console.error(`鏈壘鍒伴厤缃? ${provider}`);
+    console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
     return false;
   }
 
-  // 蹇€熸鏌ラ〉闈㈢姸鎬侊紝涓嶅繀姝荤瓑 load
+  // 快速检查页面状态，不必死等 load
   if (document.readyState === "loading") {
     await new Promise((resolve) => {
       window.addEventListener("DOMContentLoaded", resolve, { once: true });
@@ -1744,7 +1744,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     ? await waitForElementDeep(config.inputSelectors, 3000)
     : await waitForElement(config.inputSelectors, 3000);
   if (!input) {
-    console.error(`鎵句笉鍒拌緭鍏ユ: ${provider}`);
+    console.error(`找不到输入框: ${provider}`);
     if (retryCount < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 50));
       return trySendPrompt(provider, prompt, retryCount + 1);
@@ -1772,7 +1772,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     // Generic handler
     const setOk = await setInputValue(input, prompt);
     if (!setOk) {
-      console.error(`璁剧疆杈撳叆鍊煎け璐? ${provider}`);
+      console.error(`设置输入值失败 ${provider}`);
       if (retryCount < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 50));
         return trySendPrompt(provider, prompt, retryCount + 1);
@@ -1813,7 +1813,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
         sendOk = true;
       } catch (error) {
-        console.error("鍙戦€丒nter浜嬩欢澶辫触:", error);
+        console.error("发送 Enter 事件失败:", error);
       }
     }
   }
@@ -1891,7 +1891,7 @@ function initializeCustomFixes() {
         color-scheme: light !important;
         forced-color-adjust: none !important;
       }
-      /* 寮哄埗浜壊涓婚鍙橀噺 */
+      /* 强制亮色主题变量 */
       :root {
         --gcp-primary-color: #1a73e8 !important;
         --google-blue-600: #1a73e8 !important;
@@ -1924,7 +1924,7 @@ function initializeCustomFixes() {
   if (provider === "copilot") {
     const style = document.createElement("style");
     style.textContent = `
-      /* 灏介噺鏄剧ず鍐呭 */
+      /* 尽量显示内容 */
       .cib-serp-main, .cib-message {
         display: block !important;
       }

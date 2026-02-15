@@ -88,6 +88,7 @@ log("Dashboard script loaded");
 
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
+const HORIZONTAL_SPLITTER_HEIGHT = 4;
 const sendStatusTimers = new Map();
 const pendingSends = new Map();
 const BADGE_STATUS_CLASSES = ["status-sending", "status-success", "status-error"];
@@ -991,7 +992,7 @@ function initGridResizers() {
         const splitter = document.createElement("div");
         splitter.className = "grid-splitter grid-splitter-horizontal";
         splitter.dataset.index = String(prevRowIndex);
-        splitter.style.top = `${rect.bottom - gridRect.top}px`;
+        splitter.style.top = `${rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT}px`;
         splitter.addEventListener("mousedown", onHorizontalSplitterMouseDown);
         grid.appendChild(splitter);
       }
@@ -1119,7 +1120,7 @@ function updateSplitterPositions() {
     const panel = panels[panelIndex];
     if (panel) {
       const rect = panel.getBoundingClientRect();
-      const top = rect.bottom - gridRect.top;
+      const top = rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT;
       sp.style.top = `${top}px`;
     }
   });

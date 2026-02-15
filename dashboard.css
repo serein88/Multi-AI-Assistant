@@ -118,6 +118,7 @@ main.grid {
   background: var(--panel);
   border: 0;
   overflow: hidden;
+  overflow: clip; /* Prevent panel from becoming a scroll container and offsetting header visually. */
   display: grid;
   grid-template-rows: auto 1fr;
   min-height: 320px;
@@ -534,8 +535,8 @@ button.primary {
   background: transparent;
   cursor: row-resize;
   z-index: 100;
-  margin-top: -2px;
-  /* Center over the gap */
+  margin-top: 0;
+  /* Anchor splitter inside previous row bottom edge, avoid overlaying next row header. */
   transition: background 0.2s;
 }
 
