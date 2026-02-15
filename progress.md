@@ -219,3 +219,29 @@
   - `003-5/003-6/003-7` 为按指令并单收口，未再单独新增代码改动；后续若需更细粒度追踪，可再拆分补充记录。
 - 下一步建议：
   - 回到技术债 Backlog，按优先级领取 `TD-20260214-001` 或 `TD-20260214-002`。
+
+## 2026-02-15（记录 8）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-001
+- 任务名：清理无效 `chatroom` 资源声明
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 移除 `manifest.json` 的 `web_accessible_resources` 中无效条目：`chatroom.html`、`chatroom.css`、`chatroom.js`。
+  - 同步将 `TD-20260214-001` 状态更新为“待确认”。
+- 验证步骤：
+1. 执行 JSON 校验命令：`node -e "JSON.parse(require('fs').readFileSync('e:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
+2. 检索 `manifest.json` 中是否仍存在 `chatroom.html/css/js`：`rg -n "chatroom\\.(html|css|js)" manifest.json`。
+3. 检索项目内是否存在同名文件：`rg --files | rg "chatroom\\.(html|css|js)$"`。
+- 验证证据：
+  - 证据 A：命令输出 `manifest ok`，JSON 结构合法。
+  - 证据 B：`manifest.json` 中检索 `chatroom.(html|css|js)` 无结果。
+  - 证据 C：项目文件检索 `chatroom.(html|css|js)` 无结果，确认已无无效声明目标。
+- 风险/问题：
+  - 若后续恢复 chatroom 功能，需要重新补回文件与声明并同步验证。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-001` 标记为“完成”，下一轮继续 `TD-20260214-002`。

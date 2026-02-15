@@ -107,10 +107,7 @@
         "dashboard.html",
         "dashboard.css",
         "dashboard.js",
-        "providers.js",
-        "chatroom.html",
-        "chatroom.css",
-        "chatroom.js"
+        "providers.js"
       ],
       "matches": [
         "<all_urls>"
