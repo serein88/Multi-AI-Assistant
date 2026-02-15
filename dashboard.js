@@ -90,6 +90,7 @@ const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
 const sendStatusTimers = new Map();
 const pendingSends = new Map();
+const BADGE_STATUS_CLASSES = ["status-sending", "status-success", "status-error"];
 
 function applyI18n(root) {
   const scope = root || document;
@@ -678,6 +679,11 @@ function handlePanelAction(panelEl, provider, action) {
   }
 
   if (action === "close") {
+    const timerId = sendStatusTimers.get(provider.id);
+    if (timerId) {
+      clearTimeout(timerId);
+      sendStatusTimers.delete(provider.id);
+    }
     activePanels.splice(index, 1);
     panelEl.remove();
     const panels = Array.from(grid.querySelectorAll(".panel"));
@@ -748,6 +754,42 @@ function getPanelIframe(providerId) {
   const panel = grid.querySelector(`.panel[data-index='${index}']`);
   if (!panel) return null;
   return panel.querySelector("iframe");
+}
+
+function getPanelBadge(providerId) {
+  const index = activePanels.indexOf(providerId);
+  if (index < 0) return null;
+  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  if (!panel) return null;
+  return panel.querySelector(".panel-badge");
+}
+
+function setPanelBadgeStatus(providerId, status) {
+  const badge = getPanelBadge(providerId);
+  if (!badge) return;
+
+  const existingTimer = sendStatusTimers.get(providerId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+    sendStatusTimers.delete(providerId);
+  }
+
+  badge.classList.remove(...BADGE_STATUS_CLASSES);
+  if (!status) return;
+
+  const className = `status-${status}`;
+  badge.classList.add(className);
+
+  if (status === "success" || status === "error") {
+    const timerId = setTimeout(() => {
+      const latest = getPanelBadge(providerId);
+      if (latest) {
+        latest.classList.remove(className);
+      }
+      sendStatusTimers.delete(providerId);
+    }, 2000);
+    sendStatusTimers.set(providerId, timerId);
+  }
 }
 
 function updateSendingState() {
@@ -834,6 +876,7 @@ async function sendPrompt() {
   completedResponses = new Set();
   startedResponses = new Set();
   failedResponses = new Set();
+  targetList.forEach((providerId) => setPanelBadgeStatus(providerId, "sending"));
 
   sendAllBtn.disabled = true;
   sendAllBtn.textContent = "Sending...";
@@ -844,8 +887,12 @@ async function sendPrompt() {
     );
     const results = await Promise.all(promises);
     results.forEach((ok, index) => {
+      const providerId = targetList[index];
       if (!ok) {
-        failedResponses.add(targetList[index]);
+        failedResponses.add(providerId);
+        setPanelBadgeStatus(providerId, "error");
+      } else {
+        setPanelBadgeStatus(providerId, "success");
       }
     });
     // Sending state should reflect dispatch completion, not provider response start.
@@ -864,6 +911,7 @@ async function sendPrompt() {
     renderTargetChips();
   } catch (error) {
     console.error("Send failed", error);
+    currentSendTargets.forEach((providerId) => setPanelBadgeStatus(providerId, "error"));
     showMessage("Send failed. Try again.", "error");
   } finally {
     currentSendTargets = [];
@@ -1117,9 +1165,11 @@ window.addEventListener("message", (event) => {
     resolvePendingSend(data.provider, data.success);
     if (data.success === false) {
       failedResponses.add(data.provider);
+      setPanelBadgeStatus(data.provider, "error");
     } else {
       // Release "Sending..." as soon as dispatch is confirmed, do not wait for responseStarted.
       startedResponses.add(data.provider);
+      setPanelBadgeStatus(data.provider, "success");
     }
     updateSendingState();
     return;
@@ -1130,6 +1180,7 @@ window.addEventListener("message", (event) => {
       console.log(`[MultiAI Dashboard] Response started for ${data.provider}`);
     }
     startedResponses.add(data.provider);
+    setPanelBadgeStatus(data.provider, "success");
     updateSendingState();
     return;
   }
@@ -1137,6 +1188,7 @@ window.addEventListener("message", (event) => {
   if (data.type === "responseComplete") {
     completedResponses.add(data.provider);
     startedResponses.add(data.provider);
+    setPanelBadgeStatus(data.provider, "success");
     updateSendingState();
   }
 });

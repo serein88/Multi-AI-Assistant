@@ -369,3 +369,74 @@
   - 无行为层风险预警；本次为纯去重改动。
 - 下一步建议：
   - 你确认后将 `TD-20260214-005` 标记为“完成”，下一轮继续 `TD-20260214-006`。
+
+## 2026-02-15（记录 13）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-006
+- 任务名：对齐发送状态徽章逻辑与样式
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 为 `panel-badge` 增加实际状态驱动逻辑，接入现有样式类：
+    - 发送开始：`status-sending`
+    - 发送成功：`status-success`
+    - 发送失败：`status-error`
+  - 增加 `setPanelBadgeStatus(providerId, status)` 与定时清理机制（成功/失败 2 秒后回落）。
+  - 在以下关键节点更新徽章状态：
+    - `sendPrompt()` 发起时（targetList）
+    - `Promise.all` 返回失败分支与成功分支
+    - `sendResult` 消息成功/失败
+    - `responseStarted` / `responseComplete`
+  - 面板关闭时清理对应 provider 的状态计时器，避免悬挂计时器。
+- 验证步骤：
+1. 语法校验：`node --check dashboard.js`。
+2. 样式-逻辑对齐检索：
+   - `rg -n "BADGE_STATUS_CLASSES|function setPanelBadgeStatus|setPanelBadgeStatus\\(|status-sending|status-success|status-error" dashboard.js dashboard.css`
+3. 关键逻辑位置核对：
+   - 发送开始：`dashboard.js:879`
+   - 结果分支：`dashboard.js:893`、`dashboard.js:895`
+   - 消息分支：`dashboard.js:1166`、`dashboard.js:1170`、`dashboard.js:1181`、`dashboard.js:1189`
+- 验证证据：
+  - 证据 A：`node --check dashboard.js` 通过。
+  - 证据 B：`dashboard.css` 已存在 `panel-badge.status-sending/success/error`，`dashboard.js` 已新增并调用对应状态更新逻辑。
+  - 证据 C：`animateDOMMove` 去重后代码仍可解析，且本轮 badge 逻辑接入点完整覆盖发送主流程与消息回调流程。
+- 风险/问题：
+  - 本轮未完成 Playwright 实机验证（MCP Transport closed），因此 UI 端视觉效果验证待你本地点击确认。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-006` 标记为“完成”，下一轮继续 `TD-20260214-007`。
+
+## 2026-02-15（记录 14）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-006（自动化补充验证）
+- 任务名：`panel-badge` 发送状态自动化验证
+- 状态流转：待确认（补充验证证据）
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 因 Playwright MCP 通道异常（Transport closed），改用本地 Node+Playwright 脚本自动验证。
+  - 自动加载扩展，打开 `dashboard.html`，将分屏固定为单个 provider（`chatgpt`），触发发送并注入 `sendResult` 事件，采样 `panel-badge` class 变化。
+- 验证步骤：
+1. 在临时目录安装并初始化 Playwright 运行环境（不改项目源码）。
+2. 脚本加载扩展并打开 `chrome-extension://<id>/dashboard.html`，执行发送流程。
+3. 采样并校验状态序列：`status-sending -> status-success -> 清理恢复`。
+- 验证证据：
+  - 自动化脚本输出：
+    - `extensionId: enccldjibfkkbmnehnmpolokknffpjpi`
+    - `result.ok: true`
+    - `hasSending: true`
+    - `hasSuccess: true`
+    - `cleared: true`
+  - 关键采样：
+    - `after-click`: `panel-badge status-sending`
+    - `after-sendResult`: `panel-badge status-success`
+    - `after-auto-clear`: `panel-badge`
+- 风险/问题：
+  - 由于内容页异步事件可能二次刷新 success 状态，清理验证窗口需留足时长（本轮使用 5.2s 采样窗口）。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-006` 标记为“完成”，继续 `TD-20260214-007`。
