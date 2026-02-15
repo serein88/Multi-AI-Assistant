@@ -440,3 +440,33 @@
   - 由于内容页异步事件可能二次刷新 success 状态，清理验证窗口需留足时长（本轮使用 5.2s 采样窗口）。
 - 下一步建议：
   - 你确认后将 `TD-20260214-006` 标记为“完成”，继续 `TD-20260214-007`。
+
+## 2026-02-15（记录 15）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-007
+- 任务名：明确扩展入口策略（popup vs 直接 dashboard）
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `readme.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 移除 `manifest.json` 中空值配置 `action.default_popup`，避免“声明了 popup 入口但实际未使用”的歧义。
+  - 保持实际入口逻辑不变：`background.js` 继续通过 `chrome.action.onClicked` 直接打开 `dashboard.html`。
+  - 文档统一结论：
+    - 默认入口为“点击扩展图标直达 `dashboard.html`”。
+    - `popup.html/js` 继续保留，但定位为“可选调试页（非默认入口）”。
+- 验证步骤：
+1. JSON 校验：`node -e "JSON.parse(require('fs').readFileSync('E:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
+2. 入口链路检索：`rg -n "default_popup|chrome\\.action\\.onClicked|openDashboard\\(" manifest.json background.js`。
+3. 文档一致性检索：`rg -n "可选调试页（非默认入口）|点击扩展图标" readme.md`，并确认 `popup.html/js` 文件仍存在。
+- 验证证据：
+  - 证据 A：命令输出 `manifest ok`，`manifest.json` 结构合法。
+  - 证据 B：`manifest.json` 已无 `default_popup`；`background.js` 仍命中 `chrome.action.onClicked` 与 `openDashboard(...)`。
+  - 证据 C：`readme.md` 命中“可选调试页（非默认入口）”与“点击扩展图标”；`popup.html`、`popup.js` 均存在。
+- 风险/问题：
+  - 当前策略下点击扩展图标不会弹出 Popup；若后续要恢复图标弹窗入口，需要重新设置 `action.default_popup` 并调整文档。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-007` 标记为“完成”，下一轮继续 `TD-20260214-008`（编码乱码修复）。

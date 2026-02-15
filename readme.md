@@ -69,11 +69,11 @@ Multi AI Assistant\
 │   └── content.js       # 注入脚本：运行在各 AI 网页内，负责 DOM 操作
 ├── providers.js         # 数据源：定义所有 AI 的元数据
 ├── rules.json           # DNR 规则：网络请求头修改（绕过 iframe 限制）
-└── popup.html/js        # 扩展图标弹窗：快速入口
+└── popup.html/js        # 可选调试页（非默认入口）
 ```
 
 ### 2. 核心工作流
-1.  **启动**：用户点击 Popup -> Background 打开 `dashboard.html`。
+1.  **启动**：用户点击扩展图标 -> Background 直接打开 `dashboard.html`。
 2.  **渲染**：Dashboard 读取 `chrome.storage` 恢复上次的面板列表和布局配置。
 3.  **发送消息**：
     - 用户输入 -> Dashboard `postMessage` 广播 -> iframe 内的 `content.js` 接收。
@@ -93,5 +93,4 @@ Multi AI Assistant\
   - 针对不同站点（React, Vue, ShadowDOM, Lexical, ProseMirror）有不同的输入注入策略。
 
 ---
-
 
