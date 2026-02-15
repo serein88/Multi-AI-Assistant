@@ -313,3 +313,31 @@
   - `background.js` 与 `dashboard/popup` 现在共享同一 Provider 源，后续新增 Provider 需先改 `providers.js`，再做回归。
 - 下一步建议：
   - 你确认后将 `TD-20260214-003` 标记为“完成”，下一轮继续 `TD-20260214-004`。
+
+## 2026-02-15（记录 11）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-004
+- 任务名：修复未消费消息与死代码通道
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 删除 `content/content.js` 中无消费者消息通道：`openAccountPage`（Gemini 账户头像点击时上报）。
+  - 保留并复核其余消息链路：`log / sendResult / responseStarted / responseComplete / pageUrl`，均有对应消费逻辑。
+- 验证步骤：
+1. 语法校验：`node --check content/content.js`。
+2. 检索死通道是否移除：`rg -n -F "openAccountPage" content/content.js dashboard.js background.js`。
+3. 检索剩余消息类型与消费端对齐：
+   - 发送端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" content/content.js`
+   - 消费端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" dashboard.js`
+- 验证证据：
+  - 证据 A：`node --check content/content.js` 通过。
+  - 证据 B：`openAccountPage` 在 `content/dashboard/background` 中检索为空。
+  - 证据 C：`content` 与 `dashboard` 对 `sendResult/responseStarted/responseComplete/pageUrl/getPageUrl` 均有对应发送/处理位置。
+- 风险/问题：
+  - 删除 `openAccountPage` 后，Gemini 头像点击不再触发额外上报（当前项目无消费方，属于预期清理）。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-004` 标记为“完成”，下一轮继续 `TD-20260214-005`。

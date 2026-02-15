@@ -1919,18 +1919,6 @@ function initializeCustomFixes() {
     });
     observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
 
-    window.addEventListener("click", (event) => {
-      const target = event.target;
-      const avatar = target.closest('[aria-label*="Account"], [aria-label*="璐︽埛"], [aria-label*="澶村儚"], [data-tooltip*="Account"], button, div[role="button"]');
-      if (avatar && avatar.closest('[class*="avatar"], [class*="account"], [class*="profile"]')) {
-        try {
-          window.parent.postMessage({
-            source: "multi-ai-content",
-            type: "openAccountPage"
-          }, "*");
-        } catch (e) { }
-      }
-    }, true);
   }
 
   if (provider === "copilot") {
