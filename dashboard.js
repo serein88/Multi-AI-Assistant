@@ -876,7 +876,10 @@ async function sendPrompt() {
         failedResponses.add(targetList[index]);
       }
     });
-    updateSendingState();
+    // Sending state should reflect dispatch completion, not provider response start.
+    currentSendTargets = [];
+    sendAllBtn.disabled = false;
+    sendAllBtn.textContent = I18N.sendAll;
     if (targetList.length === 1) {
       const targetId = targetList[0];
       showMessage(`Sent to ${PROVIDER_BY_ID[targetId]?.label || targetId}`, "success");
@@ -891,10 +894,9 @@ async function sendPrompt() {
     console.error("Send failed", error);
     showMessage("Send failed. Try again.", "error");
   } finally {
-    if (currentSendTargets.length === 0) {
-      sendAllBtn.disabled = false;
-      sendAllBtn.textContent = I18N.sendAll;
-    }
+    currentSendTargets = [];
+    sendAllBtn.disabled = false;
+    sendAllBtn.textContent = I18N.sendAll;
   }
 }
 
@@ -1143,8 +1145,11 @@ window.addEventListener("message", (event) => {
     resolvePendingSend(data.provider, data.success);
     if (data.success === false) {
       failedResponses.add(data.provider);
-      updateSendingState();
+    } else {
+      // Release "Sending..." as soon as dispatch is confirmed, do not wait for responseStarted.
+      startedResponses.add(data.provider);
     }
+    updateSendingState();
     return;
   }
 

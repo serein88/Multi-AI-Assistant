@@ -1,4 +1,4 @@
-const RESPONSE_SELECTORS = {
+﻿const RESPONSE_SELECTORS = {
   chatgpt: [
     "[data-message-author-role='assistant'] .markdown",
     "[data-message-author-role='assistant']",
@@ -91,9 +91,9 @@ const PROVIDER_CONFIGS = {
       "textarea[data-id='root']",
       "textarea[id*='prompt']",
       "textarea[aria-label*='Message']",
-      "textarea[aria-label*='消息']",
+      "textarea[aria-label*='娑堟伅']",
       "textarea[placeholder*='Message']",
-      "textarea[placeholder*='消息']",
+      "textarea[placeholder*='娑堟伅']",
       "textarea[placeholder*='Ask']",
       "form textarea",
       "div[contenteditable='true'][role='textbox'][aria-label*='Message']",
@@ -107,13 +107,13 @@ const PROVIDER_CONFIGS = {
     sendButtonSelectors: [
       "button[data-testid='send-button']",
       "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button svg[data-icon='paper-plane']",
       "button:has(svg[data-icon='paper-plane'])",
       "button:has(path[d*='M.5 1.163A1'])",
       // "button[type='submit']", // Too generic, causes false positives
-      "button[aria-label*='发送消息']",
-      "button[aria-label*='发送对话']"
+      "button[aria-label*='鍙戦€佹秷鎭?]",
+      "button[aria-label*='鍙戦€佸璇?]"
     ],
     inputType: "contenteditable"
   },
@@ -122,17 +122,17 @@ const PROVIDER_CONFIGS = {
       "div[contenteditable='true'][data-testid='chat-input']",
       "div[contenteditable='true'][data-placeholder]",
       "div[contenteditable='true'][aria-label*='Message']",
-      "div[contenteditable='true'][aria-label*='消息']",
+      "div[contenteditable='true'][aria-label*='娑堟伅']",
       "div[contenteditable='true'][role='textbox']",
       "div[contenteditable='true'][data-placeholder*='Reply']",
-      "div[contenteditable='true'][data-placeholder*='回复']",
+      "div[contenteditable='true'][data-placeholder*='鍥炲']",
       "section textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
       "button[data-testid='send-button']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button:has(svg path[d*='M15.854'])",
       "button[type='submit']",
       "button[data-testid='composer-send-button']"
@@ -142,14 +142,14 @@ const PROVIDER_CONFIGS = {
   gemini: {
     inputSelectors: [
       "textarea[aria-label*='prompt']",
-      "textarea[aria-label*='输入']",
+      "textarea[aria-label*='杈撳叆']",
       "textarea[placeholder*='Enter']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button:has(svg)",
       "button[type='submit']"
     ],
@@ -166,7 +166,7 @@ const PROVIDER_CONFIGS = {
     ],
     sendButtonSelectors: [
       "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Submit']",
       "button[title*='Submit']",
       "button[type='submit']",
@@ -182,7 +182,7 @@ const PROVIDER_CONFIGS = {
       "textarea[aria-label*='Ask Grok']",
       "textarea[aria-label*='Ask']",
       "textarea[placeholder*='Chat']",
-      "textarea[placeholder*='聊天']",
+      "textarea[placeholder*='鑱婂ぉ']",
       "textarea[aria-label*='message']",
       "textarea[aria-label*='Message']",
       "textarea[id*='message']",
@@ -198,24 +198,30 @@ const PROVIDER_CONFIGS = {
     sendButtonSelectors: [
       "button[aria-label*='Send message']",
       "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='Submit']",
+      "button[aria-label*='鎻愪氦']",
+      "button[aria-label*='鍙戦€?]",
       "button[title*='Send']",
-      "button[title*='发送']",
+      "button[title*='Submit']",
+      "button[title*='鎻愪氦']",
+      "button[title*='鍙戦€?]",
       "button[data-testid*='send']",
       "button[type='submit']",
-      "div[role='button'][aria-label*='Send']"
+      "div[role='button'][aria-label*='Send']",
+      "div[role='button'][aria-label*='Submit']",
+      "div[role='button'][aria-label*='鎻愪氦']"
     ],
     inputType: "contenteditable",
     useShadow: true
   },
   doubao: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -230,15 +236,15 @@ const PROVIDER_CONFIGS = {
       "div[class*='chat-input'] div[contenteditable='true']",
       "div.editor-content[contenteditable='true']",
       "div[contenteditable='true']",
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea"
     ],
     sendButtonSelectors: [
       "button[data-testid='send-button']",
       "button[data-testid*='send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
-      "[role='button'][aria-label*='发送']",
+      "[role='button'][aria-label*='鍙戦€?]",
       "[role='button'][aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -246,9 +252,9 @@ const PROVIDER_CONFIGS = {
   },
   ima: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea[placeholder*='说']",
-      "textarea[aria-label*='输入']",
+      "textarea[placeholder*='杈撳叆']",
+      "textarea[placeholder*='璇?]",
+      "textarea[aria-label*='杈撳叆']",
       "textarea",
       "div[contenteditable='true'][role='textbox']",
       "div[role='textbox'][contenteditable='true']",
@@ -258,21 +264,21 @@ const PROVIDER_CONFIGS = {
       "button[type='submit']",
       "button[data-testid='send-button']",
       "button[data-testid*='send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
-      "[role='button'][aria-label*='发送']",
+      "[role='button'][aria-label*='鍙戦€?]",
       "[role='button'][aria-label*='Send']"
     ],
     inputType: "contenteditable"
   },
   deepseek: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -280,12 +286,12 @@ const PROVIDER_CONFIGS = {
   },
   tongyi: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -293,12 +299,12 @@ const PROVIDER_CONFIGS = {
   },
   yuanbao: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -306,12 +312,12 @@ const PROVIDER_CONFIGS = {
   },
   zhipu: {
     inputSelectors: [
-      "textarea[placeholder*='输入']",
+      "textarea[placeholder*='杈撳叆']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[aria-label*='Send']",
       "button[type='submit']"
     ],
@@ -321,14 +327,14 @@ const PROVIDER_CONFIGS = {
     inputSelectors: [
       "textarea[data-testid='search-input']",
       "textarea[placeholder*='Ask']",
-      "textarea[placeholder*='问']",
+      "textarea[placeholder*='闂?]",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[data-testid='search-button']",
       "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
+      "button[aria-label*='鍙戦€?]",
       "button[type='submit']"
     ],
     inputType: "textarea"
@@ -413,6 +419,25 @@ function log(msg, ...args) {
       }
     }
   }
+}
+
+function postToDashboard(payload) {
+  if (!(window.parent && window.parent !== window)) return false;
+  try {
+    window.parent.postMessage(payload, "*");
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function postSendResult(provider, success) {
+  return postToDashboard({
+    source: "multi-ai-content",
+    type: "sendResult",
+    provider,
+    success: Boolean(success)
+  });
 }
 
 log(`Content script loaded for ${window.location.hostname}`);
@@ -512,7 +537,7 @@ function setInputValue(el, value) {
             el.setSelectionRange(value.length, value.length);
             resolve(true);
           } catch (error) {
-            console.error("设置输入值失败:", error);
+            console.error("璁剧疆杈撳叆鍊煎け璐?", error);
             resolve(false);
           }
         }, 10); // Reduced delay
@@ -554,14 +579,14 @@ function setInputValue(el, value) {
 
             resolve(true);
           } catch (error) {
-            console.error("设置contenteditable值失败:", error);
+            console.error("璁剧疆contenteditable鍊煎け璐?", error);
             resolve(false);
           }
         }, 10); // Reduced delay
       });
     }
   } catch (error) {
-    console.error("设置输入值失败:", error);
+    console.error("璁剧疆杈撳叆鍊煎け璐?", error);
     return Promise.resolve(false);
   }
 
@@ -570,7 +595,7 @@ function setInputValue(el, value) {
 
 function clickSendButton(selectors) {
   const button = findElement(selectors);
-  if (!button) return false;
+  if (!button || isElementDisabled(button) || !isElementVisible(button)) return false;
 
   try {
     // Scroll removed to prevent window jumping
@@ -582,7 +607,7 @@ function clickSendButton(selectors) {
     // }
     return true;
   } catch (error) {
-    console.error("点击发送按钮失败:", error);
+    console.error("鐐瑰嚮鍙戦€佹寜閽け璐?", error);
     try {
       const mouseEvent = new MouseEvent("click", {
         view: window,
@@ -741,8 +766,8 @@ function findSendButtonNearInput(selectors, input) {
         const className = typeof el.className === "string" ? el.className : "";
         const looksSend =
           label.includes("send") ||
-          label.includes("发送") ||
-          label.includes("提交") ||
+          label.includes("submit") ||
+          label.includes("鎻愪氦") ||
           /\bsend\b/i.test(className) ||
           /send-button/i.test(className) ||
           /sendButton/i.test(className) ||
@@ -977,7 +1002,7 @@ async function sendCopilotMessage(input, prompt, config) {
     log("Copilot: waiting for button to appear...");
 
     // Selectors for Shadow DOM
-    const shadowSelectors = "button[aria-label*='Send'], button[aria-label*='发送'], button[aria-label*='Submit'], button[title*='Submit'], button[icon='Send'], button[title*='Send'], button[title*='发送'], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='发送'], div[role='button'][aria-label*='Submit']";
+    const shadowSelectors = "button[aria-label*='Send'], button[aria-label*='鍙戦€?], button[aria-label*='Submit'], button[title*='Submit'], button[icon='Send'], button[title*='Send'], button[title*='鍙戦€?], div[role='button'][aria-label*='Send'], div[role='button'][aria-label*='鍙戦€?], div[role='button'][aria-label*='Submit']";
 
     const deepQuery = (root, selector) => {
       if (!root) return null;
@@ -1004,7 +1029,7 @@ async function sendCopilotMessage(input, prompt, config) {
       if (lightBtn) {
         const label = (lightBtn.getAttribute('aria-label') || lightBtn.getAttribute('title') || lightBtn.textContent || "").toLowerCase();
         const hasIcon = lightBtn.querySelector('svg, i, span[class*="icon"]');
-        const isSendLike = label.includes('send') || label.includes('发送') || hasIcon;
+        const isSendLike = label.includes("send") || label.includes("submit") || hasIcon;
         // Double check it's not the mic button or attach button if selectors are loose
         if (isSendLike && !lightBtn.disabled && lightBtn.offsetParent !== null) {
           btn = lightBtn;
@@ -1051,128 +1076,157 @@ async function sendCopilotMessage(input, prompt, config) {
 
 async function sendGrokMessage(input, prompt, config) {
   try {
-    const editable = findEditableNearSendButton(input, config.inputSelectors, config.sendButtonSelectors, config.useShadow) || normalizeEditableInput(input) || input;
+    const editable =
+      findEditableNearSendButton(input, config.inputSelectors, config.sendButtonSelectors, config.useShadow) ||
+      normalizeEditableInput(input) ||
+      input;
     if (!editable) return false;
+
     editable.focus({ preventScroll: true });
 
     let setOk = await forceSetEditableText(editable, prompt);
     if (!setOk) {
       setOk = await setInputValue(editable, prompt);
     }
-    if (!setOk) {
-      try {
-        if (editable.tagName === "TEXTAREA" || editable.tagName === "INPUT") {
-          editable.value = prompt;
-          editable.dispatchEvent(new Event("input", { bubbles: true }));
-        } else {
-          editable.innerText = prompt;
-          editable.dispatchEvent(new Event("input", { bubbles: true }));
+    if (!setOk) return false;
+
+    const hasElementDeep = (selectors, checkVisibility = true) => {
+      if (!selectors || selectors.length === 0) return false;
+      const root = document.body || document.documentElement || document;
+      for (const sel of selectors) {
+        const direct = document.querySelector(sel);
+        if (direct && (!checkVisibility || isElementVisible(direct))) {
+          return true;
         }
-      } catch (e) {}
+        const deepMatches = deepQueryAll(root, sel);
+        if (deepMatches.some((el) => !checkVisibility || isElementVisible(el))) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const findGrokSendButton = () => {
+      const pool = [];
+      const seen = new Set();
+
+      const collect = (el) => {
+        if (!el || seen.has(el)) return;
+        seen.add(el);
+        pool.push(el);
+      };
+
+      collect(findSendButtonNearInput(config.sendButtonSelectors, editable));
+      collect(config.useShadow ? deepFindElement(config.sendButtonSelectors) : findElement(config.sendButtonSelectors));
+
+      let current = editable;
+      for (let i = 0; i < 4; i += 1) {
+        current = current?.parentElement;
+        if (!current) break;
+        const candidates = current.querySelectorAll(
+          "button, div[role='button'], [role='button'], a[href='#'], [class*='button'], [class*='btn']"
+        );
+        candidates.forEach((el) => collect(el));
+      }
+
+      let best = null;
+      let bestScore = -Infinity;
+
+      for (const el of pool) {
+        if (!isElementVisible(el) || isElementDisabled(el)) continue;
+
+        const label = (
+          (el.getAttribute?.("aria-label") || "") +
+          " " +
+          (el.getAttribute?.("title") || "") +
+          " " +
+          (el.textContent || "")
+        ).toLowerCase();
+        const className = (typeof el.className === "string" ? el.className : "").toLowerCase();
+
+        let score = 0;
+        if (label.includes("send")) score += 20;
+        if (label.includes("submit")) score += 16;
+        if (label.includes("message")) score += 4;
+        if (el.getAttribute?.("type") === "submit") score += 10;
+        if (el.querySelector?.("svg")) score += 4;
+        if (/send|submit|arrow|composer/.test(className)) score += 5;
+        if (/attach|upload|voice|mic|model|menu|history|search|file|image/.test(label)) score -= 25;
+
+        if (score > bestScore) {
+          best = el;
+          bestScore = score;
+        }
+      }
+
+      return bestScore >= 12 ? best : null;
+    };
+
+    const waitForGrokSendSignal = async (baselineText, baselineStop, baselineCount, timeoutMs = 2500) => {
+      const startedAt = Date.now();
+      const stopSelectors = getStopSelectors("grok");
+
+      while (Date.now() - startedAt < timeoutMs) {
+        const stopNow = hasElementDeep(stopSelectors, false);
+        if (stopNow && !baselineStop) {
+          return true;
+        }
+
+        const textNow = getEditableText(editable).trim();
+        if (baselineText && !textNow) {
+          return true;
+        }
+
+        if (hasStreamingIndicator("grok")) {
+          return true;
+        }
+
+        const currentCount = countResponseNodes("grok");
+        if (currentCount > baselineCount) {
+          return true;
+        }
+
+        await new Promise((r) => setTimeout(r, 80));
+      }
+
+      return false;
+    };
+
+    const initialText = getEditableText(editable).trim();
+    if (!initialText) return false;
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const currentText = getEditableText(editable).trim();
+      if (!currentText) {
+        const refillOk = await forceSetEditableText(editable, prompt);
+        if (!refillOk) return false;
+      }
+
+      const beforeText = getEditableText(editable).trim();
+      if (!beforeText) return false;
+
+      const beforeStop = hasElementDeep(getStopSelectors("grok"), false);
+      const beforeCount = countResponseNodes("grok");
+
+      const sendButton = findGrokSendButton();
+      if (sendButton && clickLikeHuman(sendButton)) {
+        const hasSignal = await waitForGrokSendSignal(beforeText, beforeStop, beforeCount);
+        if (hasSignal) return true;
+      }
+
+      await new Promise((r) => setTimeout(r, 120));
     }
 
-    editable.dispatchEvent(new Event("input", { bubbles: true }));
-    editable.dispatchEvent(new Event("change", { bubbles: true }));
-    editable.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true }));
-    editable.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+    const baselineText = getEditableText(editable).trim();
+    const baselineStop = hasElementDeep(getStopSelectors("grok"), false);
+    const baselineCount = countResponseNodes("grok");
 
-    for (let attempt = 0; attempt < 15; attempt++) {
-        const currentText = getEditableText(editable).trim();
-        if (!currentText) {
-            await forceSetEditableText(editable, prompt);
-            editable.dispatchEvent(new Event("input", { bubbles: true }));
-            editable.dispatchEvent(new Event("change", { bubbles: true }));
-        }
+    dispatchEnterKey(editable);
+    dispatchEnterKey(editable.closest?.("form"));
+    dispatchEnterKey(editable.closest?.("[class*='chat-input']"));
+    dispatchEnterKey(document.body);
 
-        let clicked = config.useShadow 
-          ? clickSendButtonDeep(config.sendButtonSelectors)
-          : clickSendButton(config.sendButtonSelectors);
-        
-        if (clicked) return true;
-
-        const potentialButtons = [];
-        let current = editable;
-        for (let i = 0; i < 4; i++) {
-            if (!current || !current.parentElement) break;
-            current = current.parentElement;
-            const candidates = current.querySelectorAll("button, div[role=\"button\"], [class*=\"button\"], [class*=\"btn\"], a[href=\"#\"]");
-            for (const cand of candidates) {
-                if (cand === editable || cand.contains(editable)) continue;
-                if (!isElementVisible(cand)) continue;
-                
-                let score = 0;
-                const html = cand.outerHTML.toLowerCase();
-                const text = cand.innerText.trim().toLowerCase();
-                const ariaLabel = (cand.getAttribute("aria-label") || "").toLowerCase();
-                
-                if (ariaLabel.includes("send") || ariaLabel.includes("发送") || ariaLabel.includes("submit")) score += 20;
-                
-                const negativeKeywords = ["attach", "upload", "voice", "model", "mode", "search", "附件", "上传", "语音", "模型", "搜索", "file", "sidebar", "menu", "private", "侧边栏", "菜单", "私密", "主页", "history", "历史"];
-                if (negativeKeywords.some(k => ariaLabel.includes(k) || text.includes(k))) score -= 20;
-                
-                if (html.includes("svg") || cand.querySelector("svg")) score += 5;
-                
-                if (text) {
-                    if (text === "send" || text === "发送") score += 15;
-                    else if (text.includes("send") || text.includes("发送")) score += 5;
-                    else if (text.length > 0) score -= 5;
-                } else {
-                    if (html.includes("rounded-full") || html.includes("circle")) score += 5;
-                    if (html.includes("aspect-square") && (html.includes("h-8") || html.includes("h-10"))) score += 5;
-                }
-
-                if (html.includes("arrow") || html.includes("paper")) score += 5;
-                if (cand.disabled) score -= 10;
-                
-                if (score > 0) {
-                    potentialButtons.push({ el: cand, score });
-                }
-            }
-            if (potentialButtons.length > 0) {
-                 break; 
-            }
-        }
-
-        if (potentialButtons.length > 0) {
-            potentialButtons.sort((a, b) => b.score - a.score);
-            const best = potentialButtons[0];
-            if (best.score >= 12) {
-                best.el.click();
-                return true;
-            }
-        }
-        
-        await new Promise(r => setTimeout(r, 200));
-    }
-
-    // 4. Fallback: Enter key
-    const enterEvents = [
-      new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
-      new KeyboardEvent('keypress', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
-      new KeyboardEvent('keyup', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true }),
-      new InputEvent('beforeinput', { inputType: 'insertParagraph', data: null, bubbles: true, cancelable: true, composed: true })
-    ];
-
-    for (const evt of enterEvents) {
-      editable.dispatchEvent(evt);
-      await new Promise(r => setTimeout(r, 10));
-    }
-    
-    // Also dispatch on parent form/container just in case
-    const container = editable.closest('form') || editable.closest('[class*="input"]') || editable.parentElement;
-    if (container) {
-       for (const evt of enterEvents) {
-        container.dispatchEvent(evt);
-       }
-       // Try dispatching submit if it's a form
-       if (container.tagName === 'FORM') {
-           container.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
-           container.requestSubmit && container.requestSubmit();
-       }
-    }
-    
-    return true;
-
+    return waitForGrokSendSignal(baselineText, baselineStop, baselineCount, 2000);
   } catch (e) {
     console.error("Grok send error:", e);
     return false;
@@ -1343,11 +1397,11 @@ function getStopSelectors(provider) {
       'button[aria-label*="Stop generating"]',
       'button[aria-label*="Stop generating response"]',
       'button[aria-label*="Stop"]',
-      'button[aria-label*="停止生成"]',
-      'button[aria-label*="停止"]',
+      'button[aria-label*="鍋滄鐢熸垚"]',
+      'button[aria-label*="鍋滄"]',
       'button[aria-label*="Pause"]',
-      'button[aria-label*="暂停"]',
-      'button[aria-label*="停止流式传输"]',
+      'button[aria-label*="鏆傚仠"]',
+      'button[aria-label*="鍋滄娴佸紡浼犺緭"]',
       '[data-testid="stop-generating-button"]',
       'button:has(svg rect)', 
       'button:has(svg path[d^="M2 2h20v20H2"])',
@@ -1359,23 +1413,23 @@ function getStopSelectors(provider) {
     // Grok specific: avoid generic SVG selectors to prevent false positives
     return [
       'button[aria-label*="Stop"]',
-      'button[aria-label*="停止"]',
+      'button[aria-label*="鍋滄"]',
       'button[title*="Stop"]',
-      'button[title*="停止"]',
+      'button[title*="鍋滄"]',
       '[data-testid*="stop"]'
     ];
   }
 
   return [
     'button[aria-label*="Stop"]',
-    'button[aria-label*="停止"]',
-    'button[aria-label*="暂停"]',
+    'button[aria-label*="鍋滄"]',
+    'button[aria-label*="鏆傚仠"]',
     'button[data-testid*="stop"]',
     'button[aria-label*="Pause"]',
     'button[data-testid="stop-button"]',
     'button[title*="Stop"]',
-    'button[title*="停止"]',
-    'button[title*="暂停"]',
+    'button[title*="鍋滄"]',
+    'button[title*="鏆傚仠"]',
     '.stop-generating',
     '[class*="stop-generating"]',
     '[class*="StopGenerating"]',
@@ -1383,7 +1437,7 @@ function getStopSelectors(provider) {
     'button svg rect',
     'button svg path[d^="M2 2h20v20H2"]',
     'div[role="button"][aria-label*="Stop"]',
-    'div[role="button"][aria-label*="停止"]'
+    'div[role="button"][aria-label*="鍋滄"]'
   ];
 }
 
@@ -1636,14 +1690,14 @@ async function waitForResponseStartLegacy(provider) {
       // Expanded selectors for GPT/Copilot
       const stopSelectors = [
         'button[aria-label*="Stop"]',
-        'button[aria-label*="停止"]',
+        'button[aria-label*="鍋滄"]',
         'button[data-testid*="stop"]',
         'button[aria-label*="Pause"]', // Sometimes Pause
         // ChatGPT specific
         'button[data-testid="stop-button"]',
         // Copilot specific
         'button[title*="Stop"]',
-        'button[title*="停止"]',
+        'button[title*="鍋滄"]',
         '.stop-generating',
         // Generic icon check (square icon usually)
         'button svg rect',
@@ -1670,14 +1724,15 @@ async function waitForResponseStartLegacy(provider) {
 }
 
 async function trySendPrompt(provider, prompt, retryCount = 0) {
-  const maxRetries = 2;
+  const maxRetries = provider === "grok" ? 0 : 2;
   const config = PROVIDER_CONFIGS[provider];
   if (!config) {
-    console.error(`未找到配置: ${provider}`);
+    console.error(`鏈壘鍒伴厤缃? ${provider}`);
+    postSendResult(provider, false);
     return false;
   }
 
-  // 快速检查页面状态，不必死等 load
+  // 蹇€熸鏌ラ〉闈㈢姸鎬侊紝涓嶅繀姝荤瓑 load
   if (document.readyState === "loading") {
     await new Promise((resolve) => {
       window.addEventListener("DOMContentLoaded", resolve, { once: true });
@@ -1689,11 +1744,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     ? await waitForElementDeep(config.inputSelectors, 3000)
     : await waitForElement(config.inputSelectors, 3000);
   if (!input) {
-    console.error(`找不到输入框: ${provider}`);
+    console.error(`鎵句笉鍒拌緭鍏ユ: ${provider}`);
     if (retryCount < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 50));
       return trySendPrompt(provider, prompt, retryCount + 1);
     }
+    postSendResult(provider, false);
     return false;
   }
 
@@ -1716,11 +1772,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     // Generic handler
     const setOk = await setInputValue(input, prompt);
     if (!setOk) {
-      console.error(`设置输入值失败: ${provider}`);
+      console.error(`璁剧疆杈撳叆鍊煎け璐? ${provider}`);
       if (retryCount < maxRetries) {
         await new Promise(resolve => setTimeout(resolve, 50));
         return trySendPrompt(provider, prompt, retryCount + 1);
       }
+      postSendResult(provider, false);
       return false;
     }
 
@@ -1756,50 +1813,43 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
         sendOk = true;
       } catch (error) {
-        console.error("发送Enter事件失败:", error);
+        console.error("鍙戦€丒nter浜嬩欢澶辫触:", error);
       }
     }
   }
 
   if (window.parent && window.parent !== window) {
-    try {
-      log(`[Content] Sending sendResult to Dashboard for ${provider}: success=${sendOk}`);
-      window.parent.postMessage({
-        source: "multi-ai-content",
-        type: "sendResult",
-        provider: provider,
-        success: sendOk
-      }, "*");
-    } catch (e) {
-      console.error(`[Content] Failed to postMessage:`, e);
+    log(`[Content] Sending sendResult to Dashboard for ${provider}: success=${sendOk}`);
+    const posted = postSendResult(provider, sendOk);
+    if (!posted) {
+      console.error(`[Content] Failed to postMessage: sendResult`);
     }
 
     const responseStarted = sendOk ? await waitForResponseStart(provider) : false;
     log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
+    if (provider === "grok" && sendOk && !responseStarted) {
+      log("[Content] Grok response start not detected, downgrade sendResult to failed");
+      sendOk = false;
+      postSendResult(provider, false);
+      return sendOk;
+    }
+
     if (responseStarted) {
-      try {
-        window.parent.postMessage({
-          source: "multi-ai-content",
-          type: "responseStarted",
-          provider: provider
-        }, "*");
-      } catch (e) {
-        // ignore
-      }
+      postToDashboard({
+        source: "multi-ai-content",
+        type: "responseStarted",
+        provider: provider
+      });
 
       waitForResponseComplete(provider).then(() => {
         const latest = extractLatestResponse(provider);
-        try {
-          window.parent.postMessage({
-            source: "multi-ai-content",
-            type: "responseComplete",
-            provider: provider,
-            text: latest
-          }, "*");
-        } catch {
-          // ignore
-        }
+        postToDashboard({
+          source: "multi-ai-content",
+          type: "responseComplete",
+          provider: provider,
+          text: latest
+        });
       });
     }
   }
@@ -1841,7 +1891,7 @@ function initializeCustomFixes() {
         color-scheme: light !important;
         forced-color-adjust: none !important;
       }
-      /* 强制亮色主题变量 */
+      /* 寮哄埗浜壊涓婚鍙橀噺 */
       :root {
         --gcp-primary-color: #1a73e8 !important;
         --google-blue-600: #1a73e8 !important;
@@ -1871,7 +1921,7 @@ function initializeCustomFixes() {
 
     window.addEventListener("click", (event) => {
       const target = event.target;
-      const avatar = target.closest('[aria-label*="Account"], [aria-label*="账户"], [aria-label*="头像"], [data-tooltip*="Account"], button, div[role="button"]');
+      const avatar = target.closest('[aria-label*="Account"], [aria-label*="璐︽埛"], [aria-label*="澶村儚"], [data-tooltip*="Account"], button, div[role="button"]');
       if (avatar && avatar.closest('[class*="avatar"], [class*="account"], [class*="profile"]')) {
         try {
           window.parent.postMessage({
@@ -1886,7 +1936,7 @@ function initializeCustomFixes() {
   if (provider === "copilot") {
     const style = document.createElement("style");
     style.textContent = `
-      /* 尽量显示内容 */
+      /* 灏介噺鏄剧ず鍐呭 */
       .cib-serp-main, .cib-message {
         display: block !important;
       }
