@@ -284,3 +284,32 @@
   - `dashboard.js` 中文文案原文件存在历史编码异常（已存在问题），本轮未单独处理编码层技术债。
 - 下一步建议：
   - 你确认后将 `TD-20260214-002` 标记为“完成”，下一轮继续 `TD-20260214-003`（统一 Provider 数据源与 URL）。
+
+## 2026-02-15（记录 10）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-003
+- 任务名：统一 Provider 数据源与 URL
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `background.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `background.js` 中改为复用 `providers.js`：
+    - 增加 `importScripts("providers.js")`。
+    - 删除本地重复 Provider 配置对象。
+    - 使用 `PROVIDERS_BY_ID` 统一读取 Provider 配置（含兜底构造）。
+  - 消除了 `background.js` 与 `providers.js` 的 URL 漂移风险（如 Kimi URL）。
+- 验证步骤：
+1. 执行语法校验：`node --check background.js`。
+2. 检查复用链路：`rg -n "importScripts|PROVIDERS_BY_ID" background.js`。
+3. 检查旧分歧是否消失：`rg -n "kimi.moonshot" background.js`，并核对 `providers.js` 中 Kimi URL。
+- 验证证据：
+  - 证据 A：`node --check background.js` 通过。
+  - 证据 B：`background.js` 命中 `importScripts("providers.js")` 与多处 `PROVIDERS_BY_ID` 使用。
+  - 证据 C：`background.js` 中 `kimi.moonshot` 检索为空；`providers.js` 中 Kimi URL 为 `https://www.kimi.com/`。
+- 风险/问题：
+  - `background.js` 与 `dashboard/popup` 现在共享同一 Provider 源，后续新增 Provider 需先改 `providers.js`，再做回归。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-003` 标记为“完成”，下一轮继续 `TD-20260214-004`。

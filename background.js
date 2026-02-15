@@ -1,69 +1,30 @@
 const START_PAGE = "dashboard.html";
 const DEBUG = true; // Set to false in production
 
+try {
+  importScripts("providers.js");
+} catch (error) {
+  console.error("[MultiAI Background] Failed to import providers.js", error);
+}
+
 function log(msg, ...args) {
   if (DEBUG) {
     console.log(`[MultiAI Background] ${msg}`, ...args);
   }
 }
 
-const PROVIDERS = {
-  chatgpt: {
-    label: "ChatGPT",
-    url: "https://chatgpt.com/"
-  },
-  claude: {
-    label: "Claude",
-    url: "https://claude.ai/"
-  },
-  gemini: {
-    label: "Gemini",
-    url: "https://gemini.google.com/"
-  },
-  copilot: {
-    label: "Copilot",
-    url: "https://copilot.microsoft.com/"
-  },
-  grok: {
-    label: "Grok",
-    url: "https://grok.com/"
-  },
-  doubao: {
-    label: "豆包",
-    url: "https://www.doubao.com/"
-  },
-  kimi: {
-    label: "Kimi",
-    url: "https://kimi.moonshot.cn/"
-  },
-  deepseek: {
-    label: "DeepSeek",
-    url: "https://chat.deepseek.com/"
-  },
-  tongyi: {
-    label: "通义千问",
-    url: "https://www.qianwen.com/"
-  },
-  yuanbao: {
-    label: "元宝",
-    url: "https://yuanbao.tencent.com/"
-  },
-  zhipu: {
-    label: "智谱AI",
-    url: "https://chatglm.cn/"
-  },
-  you: {
-    label: "You.com",
-    url: "https://you.com/"
-  },
-  ima: {
-    label: "ima",
-    url: "https://ima.qq.com/"
-  }
-};
+const PROVIDERS_BY_ID =
+  typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
+    ? PROVIDER_BY_ID
+    : (typeof PROVIDERS !== "undefined" && Array.isArray(PROVIDERS)
+      ? PROVIDERS.reduce((acc, provider) => {
+          acc[provider.id] = provider;
+          return acc;
+        }, {})
+      : {});
 
 async function findOrCreateProviderTab(providerId) {
-  const config = PROVIDERS[providerId];
+  const config = PROVIDERS_BY_ID[providerId];
   if (!config) {
     throw new Error("Unknown provider");
   }
@@ -118,7 +79,7 @@ async function openProviders(providers, prompt, autoSend) {
   const openResults = [];
 
   for (const provider of providers) {
-    const config = PROVIDERS[provider];
+    const config = PROVIDERS_BY_ID[provider];
     if (!config) {
       continue;
     }
@@ -182,7 +143,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "openProviderTab") {
-    const provider = PROVIDERS[message.provider];
+    const provider = PROVIDERS_BY_ID[message.provider];
     if (!provider) {
       sendResponse({ ok: false });
       return true;
