@@ -141,6 +141,8 @@ const PROVIDER_CONFIGS = {
   },
   gemini: {
     inputSelectors: [
+      "div[contenteditable='true'][role='textbox'][aria-label*='Gemini']",
+      "div[contenteditable='true'][role='textbox'][data-placeholder]",
       "textarea[aria-label*='prompt']",
       "textarea[aria-label*='输入']",
       "textarea[placeholder*='Enter']",
@@ -148,6 +150,11 @@ const PROVIDER_CONFIGS = {
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
+      "button.send-button[aria-label='发送']",
+      "button.send-button[aria-label='Send']",
+      "button.send-button",
+      "button[aria-label='发送']",
+      "button[aria-label='Send']",
       "button[aria-label*='Send']",
       "button[aria-label*='发送']",
       "button:has(svg)",
@@ -929,15 +936,33 @@ function dispatchEnterKey(target) {
 async function sendChatGPTMessage(input, prompt, config) {
   try {
     log("ChatGPT: starting send sequence");
+
+    try {
+      const mainWorldResult = await chrome.runtime.sendMessage({
+        type: "executeChatGPTMainWorldSend",
+        prompt
+      });
+      if (mainWorldResult?.ok) {
+        log(`ChatGPT: main world send succeeded via ${mainWorldResult.method || "unknown"}`);
+        return true;
+      }
+      log(`ChatGPT: main world send unavailable, falling back`, mainWorldResult?.error);
+    } catch (error) {
+      log("ChatGPT: main world send failed, falling back", error);
+    }
+
     input.focus({ preventScroll: true });
 
-    // 1. Set text (ChatGPT uses contenteditable div usually)
-    if (input.tagName === 'TEXTAREA') {
-      input.value = prompt;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      input.innerHTML = `<p>${prompt}</p>`;
-      input.dispatchEvent(new Event('input', { bubbles: true }));
+    // ChatGPT now uses a ProseMirror editor. Direct DOM writes make the text
+    // visible but do not update the editor state, so the send button becomes a
+    // false-positive. Reuse the richer editable input path first.
+    let setOk = await forceSetEditableText(input, prompt);
+    if (!setOk) {
+      setOk = await setInputValue(input, prompt);
+    }
+    if (!setOk) {
+      log("ChatGPT: failed to set prompt text");
+      return false;
     }
 
     // 2. Poll for enabled button
@@ -952,14 +977,13 @@ async function sendChatGPTMessage(input, prompt, config) {
 
     if (!btn) {
       log("ChatGPT: button not found or disabled, trying Enter key");
-
+      await new Promise(r => setTimeout(r, 50));
       dispatchEnterKey(input);
-
       return true;
     }
 
     log("ChatGPT: clicking button");
-    btn.click();
+    clickOnce(btn);
     return true;
 
   } catch (e) {
@@ -1390,6 +1414,54 @@ async function sendImaMessage(input, prompt, config) {
   }
 }
 
+async function sendTongyiMessage(input, prompt, config) {
+  try {
+    log("Tongyi: starting send sequence");
+
+    try {
+      const mainWorldResult = await chrome.runtime.sendMessage({
+        type: "executeTongyiMainWorldSend",
+        prompt
+      });
+      if (mainWorldResult?.ok) {
+        log(`Tongyi: main world send succeeded via ${mainWorldResult.method || "unknown"}`);
+        return true;
+      }
+      log("Tongyi: main world send unavailable, falling back", mainWorldResult?.error);
+    } catch (error) {
+      log("Tongyi: main world send failed, falling back", error);
+    }
+
+    const editable = normalizeEditableInput(input);
+    if (!editable) return false;
+
+    editable.focus({ preventScroll: true });
+    const setOk = await forceSetEditableText(editable, prompt);
+    if (!setOk) return false;
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    const btn = findElement([
+      "div.operateBtn-ehxNOr",
+      "button[type='submit']",
+      "button[aria-label*='发送']",
+      "button[aria-label*='Send']"
+    ]);
+    if (btn && !isElementDisabled(btn)) {
+      clickOnce(btn);
+      return true;
+    }
+
+    dispatchEnterKey(editable);
+    dispatchEnterKey(document.body);
+    dispatchEnterKey(document);
+    return true;
+  } catch (error) {
+    console.error("Tongyi send error:", error);
+    return false;
+  }
+}
+
 function getStopSelectors(provider) {
   if (provider === "chatgpt") {
     return [
@@ -1768,6 +1840,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     sendOk = await sendKimiMessage(input, prompt, config);
   } else if (provider === "ima") {
     sendOk = await sendImaMessage(input, prompt, config);
+  } else if (provider === "tongyi") {
+    sendOk = await sendTongyiMessage(input, prompt, config);
   } else {
     // Generic handler
     const setOk = await setInputValue(input, prompt);

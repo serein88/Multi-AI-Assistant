@@ -586,3 +586,92 @@
   - 本轮未改发送链路与 provider 逻辑，影响面集中在 panel 容器滚动行为。
 - 下一步建议：
   - 你确认截图中的标题视觉差异已消失后，将 `T-20260215-001` 标记为“完成”。
+
+## 2026-03-15（记录 19）
+
+- 时间：2026-03-15
+- 任务 ID：T-20260315-001
+- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `background.js`
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 通过你已打开的 Chrome 会话复现 ChatGPT 问题：扩展链路能把文本写进 ChatGPT 输入框，但不会真正发出。
+  - 定位根因：ChatGPT 当前改为 ProseMirror 编辑器，内容脚本隔离环境里直接写 DOM 虽然“看起来有字”，但页面主世界并不把它识别为真实输入；随后点击发送也是假动作。
+  - 修复 ChatGPT：
+    - `manifest.json` 增加 `scripting` 权限。
+    - `background.js` 增加 `executeChatGPTMainWorldSend(...)`，通过 `chrome.scripting.executeScript(..., world: "MAIN")` 在页面主世界执行“输入 + 点击发送”。
+    - `content/content.js` 的 `sendChatGPTMessage(...)` 优先走主世界发送，失败时再回退到原本内容脚本路径。
+  - 顺手修复 Gemini：
+    - 复现到发送按钮选择器过宽，先命中了历史记录里的“更多选项”按钮，而不是真正的发送按钮。
+    - 收紧 `gemini.sendButtonSelectors`，优先匹配 `button.send-button[aria-label='发送']` 等精确选择器。
+  - 顺手修复千问（Tongyi/Qwen）：
+    - 复现到 Slate 编辑器同样存在“隔离环境写入不被识别”的问题，且原发送控件不是现有选择器覆盖的 `button`。
+    - 新增 `executeTongyiMainWorldSend(...)` 与 `sendTongyiMessage(...)`，改为主世界输入并点击启用态的 `operateBtn` 发送控件。
+  - 使用 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 页面反复热重载扩展；`chrome-extension://.../dashboard.html` 可被浏览器正常打开，但当前 DevTools MCP 页签列表不暴露扩展页本身，因此本轮主要以真实 Provider 页面上的扩展发送入口做回归验证。
+- 验证步骤：
+1. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+2. 分别重新加载目标站点页面，通过页面上下文执行：
+   - `window.postMessage({ source: 'multi-ai', type: 'sendPrompt', provider: '<provider>', prompt: '<probe>' }, '*')`
+   - 该入口与 `dashboard` 中 iframe 接收统一发送消息的入口一致。
+3. 观察输入框是否清空、是否进入回答态、页面是否出现探针文本与响应内容。
+4. 对其余 Provider 做一轮烟测，记录通过、受限与异常项。
+- 验证证据：
+  - 证据 A（ChatGPT 修复前复现）：
+    - 复现结果：`textboxText = "codex-chatgpt-send-probe-20260315"`、`hasStopButton = false`
+    - 说明：文本已进入输入框，但没有进入真实生成态。
+  - 证据 B（ChatGPT 修复后）：
+    - 回归结果：`inputText = ""`、`hasStop = true`、`bodyHasPrompt = true`
+    - 说明：扩展发送后输入框被清空，页面进入回答态，消息已真正发出。
+  - 证据 C（Gemini 修复后）：
+    - 回归结果：`inputText = "\\n"`、`bodyHasPrompt = true`
+    - 页面快照出现 `你说 codex-gemini-regression-probe-20260315` 与对应 `Gemini 说` 响应块。
+  - 证据 D（千问修复后）：
+    - 回归结果：`inputText = "﻿\\n\\n向千问提问"`、`sendDivClass = null`、`bodyHasPrompt = true`
+    - 页面快照出现 `codex-qianwen-regression-probe-20260315` 与对应 Qwen 响应块，输入框恢复占位态。
+  - 证据 E（未回归的正常路径抽检）：
+    - DeepSeek：`inputText = ""`，页面出现 `codex-deepseek-regression-probe-20260315`
+    - Kimi：`inputText = "\\n"`，页面快照出现 `codex-kimi-probe-20260315` 与 Kimi 回复
+    - Doubao：`inputText = ""`，页面快照出现 `codex-doubao-probe-20260315`
+    - You.com：`inputText = ""`，页面标题变为 `codex-you-probe-20260315 - You.com ...`
+    - 智谱清言：`inputText = ""`，页面出现 `codex-zhipu-probe-20260315`
+    - 元宝：`inputText = "\\n"`，页面出现 `codex-yuanbao-probe-20260315`
+  - 证据 F（受环境限制未完成实发验证）：
+    - Claude：落在 Cloudflare 安全验证页，需人工完成 `确认您是真人`
+    - Grok：落在 Cloudflare 安全验证页
+    - Copilot：`https://copilot.microsoft.com/` 与 `https://www.copilot.microsoft.com/` 均返回 `net::ERR_CONNECTION_CLOSED`
+    - ima：匿名页无可见发送控件，探针文本停留在输入区，需登录态补测
+- 风险/问题：
+  - 当前 DevTools MCP 不暴露扩展页标签本身，因此无法像普通网页一样直接对 `dashboard.html` 做页面树操作；本轮改为通过 `chrome://extensions` 热重载 + 真实 Provider 页面对扩展发送入口做验证。
+  - `Claude / Grok / Copilot / ima` 的剩余验证受外部环境影响，不足以判定为当前代码回归；若你后续要继续补测，建议优先在已登录且已过人机验证的会话里复跑。
+- 下一步建议：
+  - 你在自己的 `dashboard.html` 里再点一轮统一发送，重点看 `ChatGPT / Gemini / 千问` 是否已经恢复正常。
+  - 如果你确认通过，我下一轮把 `T-20260315-001` 标记为“完成”。
+
+## 2026-03-15（记录 20）
+
+- 时间：2026-03-15
+- 任务 ID：T-20260315-001
+- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
+- 状态流转：待确认 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你的最终验收结果，将 `T-20260315-001` 状态从“待确认”更新为“完成”。
+  - 保留本轮此前的代码修复与验证证据，不再新增业务代码改动。
+- 验证步骤：
+1. 你在实际扩展主界面中复测各站点发送功能。
+2. 核对 ChatGPT 与其余已打开站点的发送是否恢复正常。
+3. 给出最终验收结论。
+- 验证证据：
+  - 用户确认语句：`好了，除了https://copilot.microsoft.com/打不开之外，其他都测试通过了。完成任务`
+  - 结论：除 `Copilot` 站点当前不可达外，本轮发送修复已满足验收要求。
+- 风险/问题：
+  - `Copilot` 当前问题仍表现为站点可达性异常（`ERR_CONNECTION_CLOSED`），不属于本轮已修复的发送链路回归。
+- 下一步建议：
+  - 后续若要继续维护 `Copilot`，建议单独建任务，先确认站点访问链路与地区/网络限制，再判断是否需要调整 Provider 适配逻辑。

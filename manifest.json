@@ -12,7 +12,8 @@
   "permissions": [
     "tabs",
     "storage",
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "scripting"
   ],
   "declarative_net_request": {
     "rule_resources": [
