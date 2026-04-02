@@ -757,3 +757,651 @@ describe('Chrome Runtime', () => {
     });
   });
 });
+
+/**
+ * Task 6: Doctor orchestration tests
+ * 
+ * These tests cover the doctor lifecycle for DeepSeek:
+ * - Chrome connection ok
+ * - page reachable
+ * - login detected
+ * - input located
+ * - structured unhealthy result when any check fails
+ */
+describe('Doctor Orchestration', () => {
+  let doctor;
+  let chrome;
+  let tabs;
+  let deepseekAdapter;
+  let sharedHelpers;
+
+  beforeEach(() => {
+    // Clear module cache
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('cli/runtime') || key.includes('cli/providers')) {
+        delete require.cache[key];
+      }
+    });
+  });
+
+  describe('DeepSeek doctor checks', () => {
+    it('returns healthy when all checks pass', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      // Mock adapter that reports all checks passing
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true }),
+        checkInput: async () => ({ passed: true, selector: 'textarea' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'deepseek');
+      assert.strictEqual(result.healthy, true);
+      assert.ok(result.checks);
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, true);
+      assert.strictEqual(result.checks.inputLocated, true);
+    });
+
+    it('returns unhealthy when Chrome not connected', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockCDP = {
+        connect: async () => ({
+          connected: false,
+          error: {
+            code: 'BROWSER_NOT_CONNECTED',
+            message: 'Could not connect',
+            suggestion: 'Start Chrome with --remote-debugging-port=9222',
+          },
+        }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'BROWSER_NOT_CONNECTED');
+      assert.ok(result.error.message);
+      assert.ok(result.error.suggestion);
+      assert.strictEqual(result.checks.connection, false);
+    });
+
+    it('returns unhealthy when provider page not reachable', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      // No DeepSeek tab open
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://example.com' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+        createTarget: async () => null, // Simulate creation failure
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, false);
+    });
+
+    it('returns unhealthy when login not detected', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      // Mock adapter that reports login check failed
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: false, reason: 'Login page detected' }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, false);
+    });
+
+    it('returns unhealthy when input not located', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      // Mock adapter that reports input check failed
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true }),
+        checkInput: async () => ({ passed: false, reason: 'Input element not found' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'INPUT_NOT_FOUND');
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, true);
+      assert.strictEqual(result.checks.inputLocated, false);
+    });
+
+    it('includes all check details in result', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true, details: 'User logged in as test@example.com' }),
+        checkInput: async () => ({ passed: true, selector: 'textarea#chat-input' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, true);
+      assert.ok(result.checks.loginDetails);
+      assert.ok(result.checks.inputSelector);
+    });
+  });
+
+  describe('Shared doctor helpers', () => {
+    it('normalizes check results to canonical format', async () => {
+      sharedHelpers = require('../../cli/providers/shared.js');
+      
+      const result = sharedHelpers.normalizeCheckResult({
+        passed: true,
+        details: 'Some details',
+      });
+      
+      assert.strictEqual(result.passed, true);
+      assert.strictEqual(result.details, 'Some details');
+    });
+
+    it('creates canonical error from check failure', async () => {
+      sharedHelpers = require('../../cli/providers/shared.js');
+      
+      const error = sharedHelpers.makeCheckError('LOGIN_REQUIRED', 'Not logged in', 'Please log in');
+      
+      assert.strictEqual(error.code, 'LOGIN_REQUIRED');
+      assert.strictEqual(error.message, 'Not logged in');
+      assert.strictEqual(error.suggestion, 'Please log in');
+    });
+
+    it('provides common DOM query helpers', async () => {
+      sharedHelpers = require('../../cli/providers/shared.js');
+      
+      assert.ok(typeof sharedHelpers.waitForElement === 'function');
+      assert.ok(typeof sharedHelpers.checkElementExists === 'function');
+    });
+  });
+
+  describe('DeepSeek adapter', () => {
+    it('exports required doctor interface', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      assert.ok(typeof deepseekAdapter.checkLogin === 'function');
+      assert.ok(typeof deepseekAdapter.checkInput === 'function');
+      assert.ok(typeof deepseekAdapter.getDoctorAdapter === 'function');
+    });
+
+    it('checkLogin returns passed when login detected', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { loginPage: false, authenticated: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+    });
+
+    it('checkLogin returns failed when not logged in', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { loginPage: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+
+    it('checkInput returns passed when input found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { found: true, selector: 'textarea', visible: true, usable: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.selector);
+    });
+
+    it('checkInput returns failed when input not found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { found: false };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+  });
+
+  describe('Doctor command integration', () => {
+    it('wires doctor command to runtime for DeepSeek', async () => {
+      const doctorCommand = require('../../cli/commands/doctor.js');
+      
+      // Mock runtime dependencies
+      const mockRuntime = {
+        connect: async () => ({
+          connected: true,
+          targets: [{ id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' }],
+        }),
+        runDoctor: async (provider, options) => ({
+          command: 'doctor',
+          provider,
+          healthy: true,
+          checks: {
+            connection: true,
+            pageReachable: true,
+            loginDetected: true,
+            inputLocated: true,
+          },
+        }),
+      };
+      
+      const result = await doctorCommand.run({
+        options: { provider: 'deepseek' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'deepseek');
+      assert.strictEqual(result.healthy, true);
+    });
+
+    it('returns error for unsupported provider', async () => {
+      const doctorCommand = require('../../cli/commands/doctor.js');
+      
+      const result = await doctorCommand.run({
+        options: { provider: 'unknown-provider' },
+        positional: [],
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'PROVIDER_NOT_FOUND');
+    });
+
+    it('requires --provider option', async () => {
+      const doctorCommand = require('../../cli/commands/doctor.js');
+      
+      const result = await doctorCommand.run({
+        options: {},
+        positional: [],
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.message.includes('provider'));
+    });
+  });
+
+  describe('Runtime seam normalization', () => {
+    it('normalizes adapter throwing during checkLogin', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        checkLogin: async () => { throw new Error('Network timeout'); },
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: throwingAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+      assert.ok(result.error.message.includes('threw'));
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, false);
+    });
+
+    it('normalizes adapter throwing during checkInput', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        checkLogin: async () => ({ passed: true }),
+        checkInput: async () => { throw new Error('DOM query failed'); },
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: throwingAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'INPUT_NOT_FOUND');
+      assert.ok(result.error.message.includes('threw'));
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, true);
+      assert.strictEqual(result.checks.inputLocated, false);
+    });
+
+    it('normalizes malformed adapter result shape (missing passed)', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const malformedAdapter = {
+        checkLogin: async () => ({ status: 'ok' }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: malformedAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+      assert.ok(result.error.message.includes('invalid'));
+    });
+
+    it('normalizes malformed adapter result shape (passed is not boolean)', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const malformedAdapter = {
+        checkLogin: async () => ({ passed: 'yes' }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: malformedAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+    });
+
+    it('normalizes null adapter result', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const nullAdapter = {
+        checkLogin: async () => null,
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('deepseek', {
+        connection,
+        adapter: nullAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+    });
+  });
+
+  describe('DeepSeek adapter stronger seams', () => {
+    it('checkLogin detects login page via sign-in button', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          const loginIndicators = [
+            'button[class*="login"]',
+            'button[class*="sign-in"]',
+          ];
+          const authIndicators = [
+            '[class*="user-menu"]',
+          ];
+          return fn(loginIndicators, authIndicators);
+        },
+      };
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { loginPage: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('Login page'));
+    });
+
+    it('checkLogin detects authenticated user via user-menu', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { loginPage: false, authenticated: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+    });
+
+    it('checkInput rejects hidden input element', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { found: true, selector: 'textarea', visible: false, usable: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not visible'));
+    });
+
+    it('checkInput rejects disabled input element', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { found: true, selector: 'textarea', visible: true, usable: false };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not usable'));
+    });
+
+    it('checkInput accepts visible and usable input', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const pageEvaluate = async (callback, ...args) => {
+        return { found: true, selector: 'textarea#chat-input', visible: true, usable: true };
+      };
+      
+      const adapter = deepseekAdapter.getDoctorAdapter({ 
+        page: { evaluate: pageEvaluate } 
+      });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, true);
+      assert.strictEqual(result.selector, 'textarea#chat-input');
+    });
+  });
+
+  describe('Shared helpers validation', () => {
+    it('isValidCheckResult returns true for valid result', async () => {
+      sharedHelpers = require('../../cli/providers/shared.js');
+      
+      assert.strictEqual(sharedHelpers.isValidCheckResult({ passed: true }), true);
+      assert.strictEqual(sharedHelpers.isValidCheckResult({ passed: false }), true);
+    });
+
+    it('isValidCheckResult returns false for invalid result', async () => {
+      sharedHelpers = require('../../cli/providers/shared.js');
+      
+      assert.strictEqual(sharedHelpers.isValidCheckResult(null), false);
+      assert.strictEqual(sharedHelpers.isValidCheckResult(undefined), false);
+      assert.strictEqual(sharedHelpers.isValidCheckResult({}), false);
+      assert.strictEqual(sharedHelpers.isValidCheckResult({ passed: 'yes' }), false);
+      assert.strictEqual(sharedHelpers.isValidCheckResult({ status: 'ok' }), false);
+    });
+  });
+});

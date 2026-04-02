@@ -48,9 +48,9 @@ describe('CLI Command Routing', () => {
       const result = await cli.run(['doctor', '--provider', 'deepseek']);
       
       assert.strictEqual(result.command, 'doctor');
-      assert.strictEqual(result.status, 'skeleton');
+      assert.strictEqual(result.status, 'error');
       assert.strictEqual(result.json, true);
-      assert.strictEqual(result.provider, 'deepseek');
+      assert.ok(result.error);
     });
 
     it('routes "help" command to help handler', async () => {
@@ -527,14 +527,16 @@ describe('Handler dispatch verification', () => {
     const result = await cli.run(['doctor', '--provider', 'grok']);
     
     assert.strictEqual(result.command, 'doctor');
-    assert.strictEqual(result.provider, 'grok');
+    assert.strictEqual(result.status, 'error');
+    assert.ok(result.error);
   });
 
-  it('doctor handler returns null for missing provider', async () => {
+  it('doctor handler returns error for missing provider', async () => {
     const result = await cli.run(['doctor']);
     
     assert.strictEqual(result.command, 'doctor');
-    assert.strictEqual(result.provider, null);
+    assert.strictEqual(result.status, 'error');
+    assert.ok(result.error);
   });
 
   it('providers handler returns provider list from registry', async () => {
