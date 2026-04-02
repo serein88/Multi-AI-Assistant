@@ -2555,3 +2555,968 @@ describe('Ask Orchestration', () => {
     });
   });
 });
+
+/**
+ * Task 8: Gemini adapter support tests
+ * 
+ * These tests cover Gemini-specific doctor and ask behavior:
+ * - Gemini login detection (Google account)
+ * - Gemini input detection (different selectors than DeepSeek)
+ * - Gemini response detection
+ * - Gemini-specific failure hints (verification surface, login redirect, input variant)
+ */
+describe('Gemini Adapter Support', () => {
+  let doctor;
+  let ask;
+  let chrome;
+  let tabs;
+  let geminiAdapter;
+
+  beforeEach(() => {
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('cli/runtime') || key.includes('cli/providers')) {
+        delete require.cache[key];
+      }
+    });
+  });
+
+  describe('Gemini doctor checks', () => {
+    it('returns healthy when all Gemini checks pass', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true, details: 'Google account authenticated' }),
+        checkInput: async () => ({ passed: true, selector: 'div[contenteditable="true"]' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'gemini');
+      assert.strictEqual(result.healthy, true);
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, true);
+      assert.strictEqual(result.checks.inputLocated, true);
+    });
+
+    it('detects login redirect to accounts.google.com', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: false, reason: 'Redirected to Google login page' }),
+        checkInput: async () => ({ passed: false, reason: 'Input not available on login page' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+      assert.ok(result.error.message.includes('login') || result.error.message.includes('Login'));
+    });
+
+    it('detects verification surface present (CAPTCHA/challenge)', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: false, verificationRequired: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('verification') || result.reason.includes('Verification'));
+    });
+
+    it('detects input surface variant not ready', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'div[contenteditable="true"]', visible: true, usable: false, reason: 'Input surface variant not ready - still loading' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not ready') || result.reason.includes('not usable'));
+    });
+  });
+
+  describe('Gemini adapter doctor interface', () => {
+    it('exports required doctor interface', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      assert.ok(typeof geminiAdapter.checkLogin === 'function');
+      assert.ok(typeof geminiAdapter.checkInput === 'function');
+      assert.ok(typeof geminiAdapter.getDoctorAdapter === 'function');
+    });
+
+    it('checkLogin returns passed when Google account detected', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+    });
+
+    it('checkLogin returns failed when on login page', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+
+    it('checkInput returns passed when contenteditable found', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'div[contenteditable="true"]', visible: true, usable: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.selector);
+    });
+
+    it('checkInput returns failed when input not found', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: false };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+  });
+
+  describe('Gemini ask lifecycle', () => {
+    it('returns success when all phases complete', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true, requestMarker: { timestamp: Date.now() } }),
+        triggerSend: async () => ({ success: true, timestamp: Date.now() }),
+        detectResponseStart: async () => ({ started: true, indicator: 'streaming-indicator' }),
+        detectResponseComplete: async () => ({ completed: true, confirmationSignal: 'no-active-indicators' }),
+        extractFinalText: async () => ({ text: 'Hello! I am Gemini, how can I help you?' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('gemini', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'gemini');
+      assert.strictEqual(result.status, 'success');
+      assert.ok(result.response);
+      assert.strictEqual(result.response.text, 'Hello! I am Gemini, how can I help you?');
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, true);
+      assert.strictEqual(result.phases.responseCompleted, true);
+    });
+
+    it('returns failure when dispatch fails', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: false, reason: 'Contenteditable input not found' }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('gemini', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.strictEqual(result.phases.dispatch, false);
+    });
+
+    it('returns failure when response start not detected', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: false, reason: 'Timeout waiting for Gemini response' }),
+        detectResponseComplete: async () => ({ completed: false }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('gemini', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_TIMEOUT');
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, false);
+    });
+  });
+
+  describe('Gemini ask adapter interface', () => {
+    it('exports required ask interface', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      assert.ok(typeof geminiAdapter.injectPrompt === 'function');
+      assert.ok(typeof geminiAdapter.triggerSend === 'function');
+      assert.ok(typeof geminiAdapter.detectResponseStart === 'function');
+      assert.ok(typeof geminiAdapter.detectResponseComplete === 'function');
+      assert.ok(typeof geminiAdapter.extractFinalText === 'function');
+      assert.ok(typeof geminiAdapter.getAskAdapter === 'function');
+    });
+
+    it('injectPrompt returns success when contenteditable found', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: true, selector: 'div[contenteditable="true"]', requestMarker: { timestamp: Date.now() } };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('injectPrompt returns failure when input not found', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: false, reason: 'No contenteditable input found' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, false);
+      assert.ok(result.reason);
+    });
+
+    it('triggerSend returns success when button clicked', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { clicked: true, selector: 'button[aria-label="Send"]', timestamp: Date.now() };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.triggerSend();
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('detectResponseStart returns true when streaming begins', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { started: true, indicator: 'streaming-indicator' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+    });
+
+    it('detectResponseComplete returns true when done', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { completed: true, confirmationSignal: 'no-active-indicators' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+    });
+
+    it('extractFinalText returns response text', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const expectedText = 'This is a Gemini response.';
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { text: expectedText, selector: '.response-content' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({});
+      
+      assert.strictEqual(result.text, expectedText);
+    });
+
+    it('getAskAdapter accepts tab parameter', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => ({ injected: true }),
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ tab: { page: mockPage } });
+      assert.ok(typeof adapter.injectPrompt === 'function');
+    });
+
+    it('getAskAdapter throws when neither page nor tab provided', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      assert.throws(() => {
+        geminiAdapter.getAskAdapter({});
+      }, /requires either page or tab/);
+    });
+  });
+
+  describe('Gemini-specific failure hints', () => {
+    it('checkLogin detects verification surface (reCAPTCHA/challenge)', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: false, verificationRequired: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.toLowerCase().includes('verification'));
+    });
+
+    it('checkLogin detects redirect to accounts.google.com', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: true, redirectedToLogin: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('Login') || result.reason.includes('login'));
+    });
+
+    it('checkInput detects input surface variant not ready', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'div[contenteditable="true"]', visible: true, usable: false, notReadyReason: 'Input surface variant not ready - model loading' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not usable') || result.reason.includes('not ready'));
+    });
+
+    it('checkInput rejects hidden contenteditable', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'div[contenteditable="true"]', visible: false, usable: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not visible'));
+    });
+
+    it('checkInput rejects disabled contenteditable', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'div[contenteditable="false"]', visible: true, usable: false };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+    });
+  });
+
+  describe('Gemini command integration', () => {
+    it('wires doctor command to runtime for Gemini', async () => {
+      const doctorCommand = require('../../cli/commands/doctor.js');
+      
+      const mockRuntime = {
+        connect: async () => ({
+          connected: true,
+          targets: [{ id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' }],
+        }),
+        runDoctor: async (provider, options) => ({
+          command: 'doctor',
+          provider,
+          healthy: true,
+          checks: {
+            connection: true,
+            pageReachable: true,
+            loginDetected: true,
+            inputLocated: true,
+          },
+        }),
+      };
+      
+      const result = await doctorCommand.run({
+        options: { provider: 'gemini' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'gemini');
+      assert.strictEqual(result.healthy, true);
+    });
+
+    it('wires ask command to runtime for Gemini', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      let receivedProvider = null;
+      let receivedPrompt = null;
+      
+      const mockRuntime = {
+        runAsk: async (provider, prompt, options) => {
+          receivedProvider = provider;
+          receivedPrompt = prompt;
+          return {
+            command: 'ask',
+            provider,
+            status: 'success',
+            response: { text: 'Gemini response' },
+            phases: {
+              dispatch: true,
+              responseStarted: true,
+              responseCompleted: true,
+            },
+          };
+        },
+      };
+      
+      const result = await askCommand.run({
+        options: { provider: 'gemini', prompt: 'Hello Gemini' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'gemini');
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(receivedProvider, 'gemini');
+      assert.strictEqual(receivedPrompt, 'Hello Gemini');
+    });
+  });
+
+  describe('Gemini brittle seams', () => {
+    it('detectResponseStart rejects stale pre-existing content', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const requestTimestamp = Date.now();
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            started: false, 
+            reason: 'Response content exists but predates request (stale content)',
+            staleContentDetected: true,
+          };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({ requestTimestamp });
+      
+      assert.strictEqual(result.started, false);
+      assert.ok(result.staleContentDetected);
+    });
+
+    it('detectResponseComplete uses multiple confirmation signals', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { 
+            completed: true, 
+            confirmationSignal: 'copy-button-available',
+          };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+      assert.ok(result.confirmationSignal);
+    });
+
+    it('extractFinalText prefers request-scoped content', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const requestTimestamp = Date.now() - 1000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'New Gemini response',
+            selector: '.response-content',
+            extractionMethod: 'request-scoped',
+          };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.text, 'New Gemini response');
+      assert.strictEqual(result.extractionMethod, 'request-scoped');
+    });
+  });
+
+  describe('Gemini quality fixes', () => {
+    it('detectResponseComplete fails on idle page without prior response start', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          const [stopSelectors, streamingIndicators, hasResponseStarted] = args;
+          if (!hasResponseStarted) {
+            return { 
+              completed: false, 
+              reason: 'No positive evidence of response lifecycle - cannot confirm completion on idle page',
+              noLifecycleEvidence: true,
+            };
+          }
+          return { completed: true, confirmationSignal: 'no-active-indicators-with-prior-start' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({ responseStarted: false });
+      
+      assert.strictEqual(result.completed, false);
+      assert.ok(result.noLifecycleEvidence);
+      assert.ok(result.reason.includes('idle page') || result.reason.includes('lifecycle'));
+    });
+
+    it('detectResponseComplete succeeds on idle page when response started', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          const [stopSelectors, streamingIndicators, hasResponseStarted] = args;
+          if (!hasResponseStarted) {
+            return { completed: false, noLifecycleEvidence: true };
+          }
+          return { completed: true, confirmationSignal: 'no-active-indicators-with-prior-start' };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({ responseStarted: true });
+      
+      assert.strictEqual(result.completed, true);
+      assert.ok(result.confirmationSignal.includes('prior-start'));
+    });
+
+    it('extractFinalText does not treat undated historical nodes as request-scoped', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const requestTimestamp = Date.now() - 1000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'Historical undated response',
+            selector: '.response-content',
+            extractionMethod: 'fallback-latest',
+            warning: 'No request-scoped content found; using latest response candidate by DOM position',
+          };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.extractionMethod, 'fallback-latest');
+      assert.ok(result.warning);
+    });
+
+    it('extractFinalText fallback prefers latest DOM position over longest text', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const requestTimestamp = Date.now();
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'Short latest response',
+            selector: '.response-content',
+            extractionMethod: 'fallback-latest',
+          };
+        },
+      };
+      
+      const adapter = geminiAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.extractionMethod, 'fallback-latest');
+    });
+
+    it('verification_required loginType survives doctor normalization', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ 
+          passed: false, 
+          reason: 'Verification surface detected - CAPTCHA or challenge required',
+          loginType: 'verification_required',
+        }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'VERIFICATION_REQUIRED');
+      assert.strictEqual(result.checks.loginType, 'verification_required');
+    });
+
+    it('login_redirect loginType survives doctor normalization', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ 
+          passed: false, 
+          reason: 'Redirected to Google login page - authentication required',
+          loginType: 'login_redirect',
+        }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REDIRECT');
+      assert.strictEqual(result.checks.loginType, 'login_redirect');
+    });
+
+    it('generic login failure uses default LOGIN_REQUIRED code', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ 
+          passed: false, 
+          reason: 'No authenticated user indicators found',
+        }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+    });
+
+    it('request context passes responseStarted to detectResponseComplete', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      let receivedContext = null;
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true, requestMarker: { timestamp: Date.now() } }),
+        triggerSend: async () => ({ success: true, timestamp: Date.now() }),
+        detectResponseStart: async () => ({ started: true, indicator: 'streaming-indicator', responseMarker: { type: 'streaming' } }),
+        detectResponseComplete: async (ctx) => {
+          receivedContext = ctx;
+          return { completed: true, confirmationSignal: 'no-active-indicators-with-prior-start' };
+        },
+        extractFinalText: async () => ({ text: 'Response' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      await ask.runAsk('gemini', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.ok(receivedContext);
+      assert.strictEqual(receivedContext.responseStarted, true);
+    });
+
+    it('real Gemini adapter checkLogin returns loginType for verification_required', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { verificationRequired: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.loginType, 'verification_required');
+      assert.ok(result.reason.includes('verification') || result.reason.includes('Verification'));
+    });
+
+    it('real Gemini adapter checkLogin returns loginType for login_redirect', async () => {
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { loginPage: true, redirectedToLogin: true };
+        },
+      };
+      
+      const adapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.loginType, 'login_redirect');
+      assert.ok(result.reason.includes('login') || result.reason.includes('Login'));
+    });
+
+    it('real Gemini adapter loginType survives through doctor.runDoctor', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { verificationRequired: true };
+        },
+      };
+      
+      const realAdapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: realAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'VERIFICATION_REQUIRED');
+      assert.strictEqual(result.checks.loginType, 'verification_required');
+    });
+
+    it('real Gemini adapter login_redirect survives through doctor.runDoctor', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      geminiAdapter = require('../../cli/providers/gemini.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://gemini.google.com/app' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { loginPage: true, redirectedToLogin: true };
+        },
+      };
+      
+      const realAdapter = geminiAdapter.getDoctorAdapter({ page: mockPage });
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('gemini', {
+        connection,
+        adapter: realAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REDIRECT');
+      assert.strictEqual(result.checks.loginType, 'login_redirect');
+    });
+  });
+});

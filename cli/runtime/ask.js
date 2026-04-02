@@ -201,6 +201,8 @@ async function runAsk(providerId, prompt, options = {}) {
     requestContext.responseMarker = startResult.responseMarker;
   }
   
+  requestContext.responseStarted = true;
+  
   const completeResult = await safeDetectResponseComplete(adapter, requestContext);
   if (!completeResult.completed) {
     const partialResult = await safeExtractFinalText(adapter, requestContext);

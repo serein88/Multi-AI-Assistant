@@ -96,16 +96,28 @@ async function runDoctor(providerId, options = {}) {
   
   const loginResult = await safeCheckLogin(adapter);
   if (!loginResult.passed) {
+    let code = 'LOGIN_REQUIRED';
+    let suggestion = 'Log in to the provider website';
+    
+    if (loginResult.loginType === 'verification_required') {
+      code = 'VERIFICATION_REQUIRED';
+      suggestion = 'Complete the CAPTCHA or verification challenge to continue';
+    } else if (loginResult.loginType === 'login_redirect') {
+      code = 'LOGIN_REDIRECT';
+      suggestion = 'You were redirected to the login page. Please authenticate to continue';
+    }
+    
     return makeDoctorResult({
       provider: providerId,
       healthy: false,
       checks: {
         ...checks,
         loginDetected: false,
+        loginType: loginResult.loginType,
       },
-      code: 'LOGIN_REQUIRED',
+      code,
       message: loginResult.reason || 'Login required',
-      suggestion: 'Log in to the provider website',
+      suggestion,
     });
   }
   

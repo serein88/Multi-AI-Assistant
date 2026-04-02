@@ -10,6 +10,7 @@ function normalizeCheckResult(result) {
     reason: result.reason || null,
     details: result.details || null,
     selector: result.selector || null,
+    loginType: result.loginType || null,
   };
 }
 
