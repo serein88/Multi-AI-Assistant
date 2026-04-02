@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-04-02（记录 23）
+
+- 时间：2026-04-02
+- 任务 ID：T-20260402-001
+- 任务名：设计并规划 CLI Runtime MVP（agent-first/browser-first）
+- 状态流转：进行中
+- 变更文件：
+  - `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`
+  - `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 基于头脑风暴结论，固化 CLI Runtime 最终方向：`browser-first runtime + CLI frontend`，内部按未来可演进为 daemon 的方式设计。
+  - 明确 MVP 命令面：`ask`、`providers`、`doctor`、`help`。
+  - 明确关键产品约束：复用日常已登录 Chrome、优先复用现有 tab、默认 JSON 输出、显式 `--provider`、错误需包含 `code + suggestion`。
+  - 明确首批 Provider：`Grok`、`DeepSeek`、`Gemini`。
+  - 输出实施计划，要求后续编码阶段使用子 agent、每轮有可回滚备份、并由独立 review agent 审查代码。
+- 验证步骤：
+1. 打开 `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`，确认包含目标、架构方向、MVP 范围、命令语义、结果协议、错误协议与浏览器运行模型。
+2. 打开 `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`，确认包含文件结构、逐任务分解、TDD 步骤、验证命令和独立 review 要求。
+3. 打开 `task.md`，确认新增 `T-20260402-001` 且状态为“进行中”。
+- 验证证据：
+  - 新增正式设计文档与实施计划文档，覆盖 CLI 化最终方案与实施路径。
+  - 计划文档中已显式写入：子 agent 可用、代码变更前需有可回滚备份、独立 review agent 必需。
+- 风险/问题：
+  - 当前工作区存在既有未提交改动（如 `content/content.js`、`dashboard.js`、`rules.json` 等），后续编码必须严格按文件路径暂存，避免误混入。
+  - 本轮只完成方案固化与计划拆分，尚未开始 CLI 实现代码。
+- 下一步建议：
+  - 先由独立 agent 审核 spec/plan 文档，再选择执行模式（推荐按任务分派子 agent 实施）。
+
 ## 2026-02-14（记录 1）
 
 - 时间：2026-02-14
@@ -675,3 +705,99 @@
   - `Copilot` 当前问题仍表现为站点可达性异常（`ERR_CONNECTION_CLOSED`），不属于本轮已修复的发送链路回归。
 - 下一步建议：
   - 后续若要继续维护 `Copilot`，建议单独建任务，先确认站点访问链路与地区/网络限制，再判断是否需要调整 Provider 适配逻辑。
+
+## 2026-03-19（记录 21）
+
+- 时间：2026-03-19
+- 任务 ID：T-20260319-001
+- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复核 `dashboard.js` 后确认当前实现会把所有 Provider 都默认塞进 iframe，因为 `IFRAME_BLOCKED_PROVIDERS` 为空。
+  - 在浏览器里直接打开 `https://grok.com/`，确认 Grok 顶层页面可正常加载和登录，不是站点整体宕机。
+  - 结合你描述的主页面内报错 `Something went wrong / Something unexpected happened...`，判定问题出在 Grok 的 iframe 嵌入场景，而不是发送链路或站点首页可达性。
+  - 修复方式采用已有降级机制，不再继续硬嵌 Grok：
+    - 将 `grok` 加入 `IFRAME_BLOCKED_PROVIDERS`
+    - 保持现有 `panel-blocked` 占位层与 `openProviderTab` / `sendPromptToProviderTab` 逻辑生效
+  - 本轮刻意没有覆盖你工作区里 `rules.json` 现有的未提交 Grok 规则实验改动，只在 `dashboard.js` 上做最小修复。
+- 验证步骤：
+1. 检查 `dashboard.js` 当前 iframe 降级名单，确认包含 `grok`。
+2. 运行语法校验：`node --check dashboard.js`。
+3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+4. 在顶层页打开 `https://grok.com/`，确认站点本身可正常访问；据此将分屏内报错归因为 iframe 嵌入失败。
+- 验证证据：
+  - 证据 A（代码命中）：
+    - `dashboard.js:92` 为 `const IFRAME_BLOCKED_PROVIDERS = new Set(["grok"]);`
+  - 证据 B（降级链路仍完整）：
+    - `dashboard.js:559` 和 `dashboard.js:1274`：Grok 命中 `panel-blocked` 占位层
+    - `dashboard.js:565` / `dashboard.js:1284`：点击占位层时走 `openProviderTab`
+    - `dashboard.js:836-837`：统一发送时，blocked provider 走 `sendPromptToProviderTab`
+  - 证据 C（语法校验）：
+    - `node --check dashboard.js` 通过，无语法错误。
+  - 证据 D（浏览器热重载）：
+    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
+  - 证据 E（顶层 Grok 可用）：
+    - `https://grok.com/` 页面可正常打开，快照包含输入框占位文本 `你想知道什么？`
+    - 说明：问题不是 Grok 整站不可用，而是扩展主页面中的 iframe 嵌入方式不可靠。
+- 风险/问题：
+  - 当前 DevTools MCP 仍不暴露 `chrome-extension://.../dashboard.html` 活动页签本身，因此本轮无法直接读取扩展主页面的最新 DOM 快照；验证主要依赖代码路径、扩展热重载结果和顶层 Grok 页面状态。
+  - 该修复的策略是“显式降级到新标签”，不是“恢复 Grok iframe 真嵌入”。如果后续你一定要在分屏里内嵌 Grok，需要单独做更深的嵌入兼容研究。
+- 下一步建议：
+  - 你在扩展主页面里重新打开 Grok 面板，预期结果应是不再出现站点原生 `Something went wrong` 错误，而是显示扩展自己的占位提示，并可点击在新标签页打开。
+  - 如果你确认这个行为符合预期，我下一轮把 `T-20260319-001` 标记为“完成”。
+
+## 2026-03-19（记录 22）
+
+- 时间：2026-03-19
+- 任务 ID：T-20260319-001（继续排障）
+- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
+- 状态流转：待确认 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 继续按“先找根因再修”的方式排查 Grok 主界面报错。
+  - 在浏览器中构造 `iframe -> https://grok.com/` 场景，确认 Grok 在嵌入态下会先经历 Cloudflare 挑战，再进入 Grok 自己的前端启动流程。
+  - 从 Grok 返回内容中确认该站点前端存在全局错误边界，报错文案正是你看到的：
+    - `Something went wrong`
+    - `Something unexpected happened. We're working to prevent this in the future.`
+  - 进一步复核项目代码后发现：`content/content.js` 会在 `provider === "grok"` 时启动“自动 Cloudflare 验证”逻辑，包括 `setInterval` 轮询、`MutationObserver` 监听和自动点击验证控件。
+  - 该逻辑对 Grok 这种本身强依赖挑战页与会话状态的站点风险很高，容易在嵌入页启动过程中制造额外干扰，进而触发 Grok 的全局错误边界。
+  - 本轮最小修复：
+    - 将自动验证逻辑的触发条件从 `grok/gemini/cloudflare` 收紧为 `gemini/显式 Cloudflare challenge host`
+    - 不再在 Grok 主页面里主动探测、轮询、点击 Cloudflare/Turnstile 控件
+  - 本轮刻意没有覆盖你工作区里已有的 `dashboard.js` / `rules.json` 未提交实验改动，只修改 `content/content.js` 这一处高风险干扰点。
+- 验证步骤：
+1. 语法校验：执行 `node --check content/content.js`。
+2. 在浏览器中构造 `iframe -> https://grok.com/` 的复现场景，抓取网络请求与页面返回内容。
+3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+4. 复核 `content/content.js` 中 Grok 已不再命中自动验证逻辑。
+- 验证证据：
+  - 证据 A（Grok 响应头与嵌入限制）：
+    - 嵌入态请求最初返回 `403` 挑战页，响应头包含 `x-frame-options: SAMEORIGIN`
+    - 挑战成功后的正式 HTML 响应仍包含：
+      - `x-frame-options: DENY`
+      - `content-security-policy` 中的 `frame-ancestors https://x.com https://starfleet.teachx.ai`
+    - 说明：Grok 官方本身明确不欢迎任意祖先页面嵌入，扩展侧任何额外干预都需要非常克制。
+  - 证据 B（错误文案来源）：
+    - 从 Grok 前端 bundle 中定位到全局错误边界组件，文案与用户反馈完全一致：
+      - `Something went wrong`
+      - `Something unexpected happened. We're working to prevent this in the future.`
+  - 证据 C（自家高风险干扰点）：
+    - 修复前：`content/content.js` 中条件为 `if (provider === "grok" || provider === "gemini" || location.host.includes("cloudflare")) { ... }`
+    - 修复后：仅 `gemini` 或显式 `challenges.cloudflare.com` 页面才会启动这套自动验证逻辑。
+  - 证据 D（代码可解析）：
+    - `node --check content/content.js` 通过，无语法错误。
+  - 证据 E（扩展热重载）：
+    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
+- 风险/问题：
+  - 当前 DevTools 工具仍无法稳定直接接管 `chrome-extension://.../dashboard.html` 视图本身，因此本轮无法像普通网页一样读取扩展主界面里 Grok 面板的最终 DOM 快照。
+  - Grok 官方嵌入限制依然很强，这次修复针对的是“避免扩展内容脚本把页面主动打挂”；如果站点后续继续加强 iframe 防护，仍可能需要进一步做专门兼容。
+- 下一步建议：
+  - 你先在扩展主界面里重新打开 Grok 面板，重点看原来的 `Something went wrong` 是否已经消失。
+  - 如果还有异常，我下一轮会继续沿“Grok 前端嵌入态异常”这条线追，优先检查是否需要在 `document_start` 更早阶段做 Grok 专项兼容。

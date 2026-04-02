@@ -2014,8 +2014,13 @@ function initializeCustomFixes() {
     document.head.appendChild(style);
   }
 
-  // Generic Cloudflare / Verification Handler for Grok & Gemini
-  if (provider === "grok" || provider === "gemini" || location.host.includes("cloudflare")) {
+  // Only run the generic verification helper on explicit verification surfaces.
+  // Running it inside Grok itself is risky: repeated probing/clicking can interfere
+  // with Grok's own bootstrap and trigger the site's global error boundary.
+  const isCloudflareChallengeHost =
+    location.host === "challenges.cloudflare.com" ||
+    location.hostname.endsWith(".challenges.cloudflare.com");
+  if (provider === "gemini" || isCloudflareChallengeHost) {
     const attemptVerification = () => {
       const cfSelectors = [
         "input[type='checkbox'][name*='turnstile']",
