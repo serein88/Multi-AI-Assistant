@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const registry = require('./registry');
+const contracts = require('./runtime/contracts');
 const ask = require('./commands/ask');
 const providers = require('./commands/providers');
 const doctor = require('./commands/doctor');
@@ -73,24 +74,7 @@ function parseArgs(args) {
   return result;
 }
 
-function makeResponse(command, status, extra = {}) {
-  const base = {
-    command,
-    status,
-    json: true,
-  };
-  return { ...base, ...extra };
-}
-
-function makeErrorResponse(command, code, message, suggestion) {
-  return makeResponse(command, 'error', {
-    error: {
-      code,
-      message,
-      suggestion,
-    },
-  });
-}
+const { makeResponse, makeErrorResponse } = contracts;
 
 function resolveHelp(targetCommand) {
   if (!targetCommand) {
