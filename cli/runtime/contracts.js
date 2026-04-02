@@ -4,6 +4,9 @@ const EXIT_CODE_MAP = {
   PROVIDER_NOT_FOUND: 4,
   INPUT_NOT_FOUND: 5,
   RESPONSE_TIMEOUT: 6,
+  DISPATCH_FAILED: 7,
+  RESPONSE_INCOMPLETE: 8,
+  TEXT_EXTRACTION_FAILED: 9,
   UNKNOWN_COMMAND: 1,
   UNKNOWN_TOPIC: 1,
   CHECK_FAILED: 1,
@@ -55,7 +58,7 @@ function makeErrorResponse(command, code, message, suggestion) {
   });
 }
 
-function makeAskSuccess({ provider, response, timing }) {
+function makeAskSuccess({ provider, response, timing, phases }) {
   const result = makeResponse('ask', 'success', {
     provider,
     response,
@@ -65,15 +68,23 @@ function makeAskSuccess({ provider, response, timing }) {
     result.timing = timing;
   }
   
+  if (phases) {
+    result.phases = phases;
+  }
+  
   return result;
 }
 
-function makeAskFailure({ provider, code, message, suggestion, partial }) {
+function makeAskFailure({ provider, code, message, suggestion, partial, phases }) {
   const result = makeErrorResponse('ask', code, message, suggestion);
   result.provider = provider;
   
   if (partial) {
     result.partial = partial;
+  }
+  
+  if (phases) {
+    result.phases = phases;
   }
   
   return result;

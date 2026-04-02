@@ -1405,3 +1405,1153 @@ describe('Doctor Orchestration', () => {
     });
   });
 });
+
+/**
+ * Task 7: Ask lifecycle tests
+ * 
+ * These tests cover the ask lifecycle for DeepSeek:
+ * - dispatch ok/fail
+ * - response started true/false
+ * - response completed true/false
+ * - final text extraction
+ */
+describe('Ask Orchestration', () => {
+  let ask;
+  let chrome;
+  let tabs;
+  let deepseekAdapter;
+
+  beforeEach(() => {
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('cli/runtime') || key.includes('cli/providers')) {
+        delete require.cache[key];
+      }
+    });
+  });
+
+  describe('DeepSeek ask lifecycle', () => {
+    it('returns success when all phases complete', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: 'Hello! How can I help you?' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'deepseek');
+      assert.strictEqual(result.status, 'success');
+      assert.ok(result.response);
+      assert.strictEqual(result.response.text, 'Hello! How can I help you?');
+      assert.ok(result.phases);
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, true);
+      assert.strictEqual(result.phases.responseCompleted, true);
+    });
+
+    it('returns failure when dispatch fails', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: false, reason: 'Input not found' }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.ok(result.error.message);
+      assert.ok(result.error.suggestion);
+      assert.strictEqual(result.phases.dispatch, false);
+    });
+
+    it('returns failure when response start not detected', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: false, reason: 'Timeout waiting for response' }),
+        detectResponseComplete: async () => ({ completed: false }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_TIMEOUT');
+      assert.ok(result.error.suggestion);
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, false);
+    });
+
+    it('returns failure when response not completed', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: false, reason: 'Response interrupted' }),
+        extractFinalText: async () => ({ text: 'Partial response...' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_INCOMPLETE');
+      assert.ok(result.partial);
+      assert.strictEqual(result.partial.text, 'Partial response...');
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, true);
+      assert.strictEqual(result.phases.responseCompleted, false);
+    });
+
+    it('extracts final text correctly', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const expectedText = 'This is a detailed response from DeepSeek with multiple paragraphs.\n\nSecond paragraph here.';
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: expectedText }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Tell me a story', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(result.response.text, expectedText);
+    });
+
+    it('returns failure when Chrome not connected', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockCDP = {
+        connect: async () => ({
+          connected: false,
+          error: {
+            code: 'BROWSER_NOT_CONNECTED',
+            message: 'Could not connect',
+            suggestion: 'Start Chrome with --remote-debugging-port=9222',
+          },
+        }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'BROWSER_NOT_CONNECTED');
+      assert.ok(result.error.suggestion);
+    });
+
+    it('returns failure when provider tab not found', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://example.com' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+        createTarget: async () => null,
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.code);
+    });
+
+    it('passes tab to adapter factory', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      let receivedTab = null;
+      const mockAdapterFactory = ({ tab }) => {
+        receivedTab = tab;
+        return {
+          injectPrompt: async () => ({ success: true }),
+          triggerSend: async () => ({ success: true }),
+          detectResponseStart: async () => ({ started: true }),
+          detectResponseComplete: async () => ({ completed: true }),
+          extractFinalText: async () => ({ text: 'Response' }),
+        };
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.ok(receivedTab);
+      assert.strictEqual(receivedTab.id, 'tab-1');
+    });
+
+    it('returns error when adapter factory returns invalid adapter', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapterFactory = () => null;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'INTERNAL_ERROR');
+      assert.ok(result.error.message.includes('invalid adapter'));
+    });
+
+    it('returns error when no adapter factory provided', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'INTERNAL_ERROR');
+      assert.ok(result.error.message.includes('adapter factory'));
+    });
+  });
+
+  describe('DeepSeek ask adapter', () => {
+    it('exports required ask interface', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      assert.ok(typeof deepseekAdapter.injectPrompt === 'function');
+      assert.ok(typeof deepseekAdapter.triggerSend === 'function');
+      assert.ok(typeof deepseekAdapter.detectResponseStart === 'function');
+      assert.ok(typeof deepseekAdapter.detectResponseComplete === 'function');
+      assert.ok(typeof deepseekAdapter.extractFinalText === 'function');
+      assert.ok(typeof deepseekAdapter.getAskAdapter === 'function');
+    });
+
+    it('injectPrompt returns success when input found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: true, selector: 'textarea', requestMarker: { timestamp: Date.now() } };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('injectPrompt returns failure when input not found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: false, reason: 'Input element not found' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, false);
+      assert.ok(result.reason);
+    });
+
+    it('triggerSend returns success when button clicked', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { clicked: true, selector: 'button', timestamp: Date.now() };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.triggerSend();
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('triggerSend returns failure when button not found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { clicked: false, reason: 'Send button not found' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.triggerSend();
+      
+      assert.strictEqual(result.success, false);
+      assert.ok(result.reason);
+    });
+
+    it('detectResponseStart returns true when response begins', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { started: true, indicator: 'stop-button' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+    });
+
+    it('detectResponseStart returns false on timeout', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { started: false, reason: 'Timeout' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, false);
+      assert.ok(result.reason);
+    });
+
+    it('detectResponseComplete returns true when done', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { completed: true, confirmationSignal: 'no-active-indicators' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+    });
+
+    it('detectResponseComplete returns false when still streaming', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { completed: false, reason: 'Still streaming' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, false);
+      assert.ok(result.reason);
+    });
+
+    it('extractFinalText returns response text', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const expectedText = 'This is the AI response.';
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { text: expectedText, selector: '.response' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({});
+      
+      assert.strictEqual(result.text, expectedText);
+    });
+
+    it('extractFinalText returns empty string when no response', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { text: '', reason: 'No response content found' };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({});
+      
+      assert.strictEqual(result.text, '');
+    });
+
+    it('getAskAdapter accepts tab parameter', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => ({ injected: true }),
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ tab: { page: mockPage } });
+      assert.ok(typeof adapter.injectPrompt === 'function');
+    });
+
+    it('getAskAdapter throws when neither page nor tab provided', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      assert.throws(() => {
+        deepseekAdapter.getAskAdapter({});
+      }, /requires either page or tab/);
+    });
+  });
+
+  describe('Ask command integration', () => {
+    it('wires ask command to runtime for DeepSeek with correct arguments', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      let receivedProvider = null;
+      let receivedPrompt = null;
+      let receivedOptions = null;
+      
+      const mockRuntime = {
+        runAsk: async (provider, prompt, options) => {
+          receivedProvider = provider;
+          receivedPrompt = prompt;
+          receivedOptions = options;
+          return {
+            command: 'ask',
+            provider,
+            status: 'success',
+            response: { text: 'Response text' },
+            phases: {
+              dispatch: true,
+              responseStarted: true,
+              responseCompleted: true,
+            },
+          };
+        },
+      };
+      
+      const result = await askCommand.run({
+        options: { provider: 'deepseek', prompt: 'Hello world' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'deepseek');
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(receivedProvider, 'deepseek');
+      assert.strictEqual(receivedPrompt, 'Hello world');
+      assert.ok(receivedOptions);
+    });
+
+    it('passes additional options to runtime', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      let receivedOptions = null;
+      
+      const mockRuntime = {
+        runAsk: async (provider, prompt, options) => {
+          receivedOptions = options;
+          return { command: 'ask', provider, status: 'success' };
+        },
+      };
+      
+      await askCommand.run({
+        options: { provider: 'deepseek', prompt: 'Hello', timeout: 30000 },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(receivedOptions.timeout, 30000);
+    });
+
+    it('returns error for unsupported provider', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      const result = await askCommand.run({
+        options: { provider: 'unknown-provider', prompt: 'Hello' },
+        positional: [],
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'PROVIDER_NOT_FOUND');
+    });
+
+    it('requires --provider option', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      const result = await askCommand.run({
+        options: { prompt: 'Hello' },
+        positional: [],
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.message.includes('provider'));
+    });
+
+    it('requires --prompt option', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      const result = await askCommand.run({
+        options: { provider: 'deepseek' },
+        positional: [],
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.message.includes('prompt'));
+    });
+  });
+
+  describe('Ask runtime seam normalization', () => {
+    it('normalizes adapter throwing during injectPrompt', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        injectPrompt: async () => { throw new Error('DOM error'); },
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => throwingAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.ok(result.error.message.includes('threw'));
+    });
+
+    it('normalizes adapter throwing during triggerSend', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => { throw new Error('Click failed'); },
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => throwingAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.ok(result.error.message.includes('threw'));
+    });
+
+    it('normalizes adapter throwing during detectResponseStart', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => { throw new Error('Observer error'); },
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => throwingAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_TIMEOUT');
+      assert.ok(result.error.message.includes('threw'));
+    });
+
+    it('normalizes adapter throwing during detectResponseComplete', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => { throw new Error('Stream error'); },
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => throwingAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_INCOMPLETE');
+      assert.ok(result.error.message.includes('threw'));
+    });
+
+    it('normalizes adapter throwing during extractFinalText', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const throwingAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => { throw new Error('Extraction failed'); },
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => throwingAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'TEXT_EXTRACTION_FAILED');
+      assert.ok(result.error.message.includes('threw'));
+    });
+
+    it('normalizes malformed adapter result shape', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const malformedAdapter = {
+        injectPrompt: async () => ({ status: 'ok' }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => malformedAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.ok(result.error.message.includes('invalid'));
+    });
+  });
+
+  describe('Structured failure recovery suggestions', () => {
+    it('includes recovery suggestion for dispatch failure', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: false, reason: 'Input not found' }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.suggestion);
+      assert.ok(result.error.suggestion.length > 0);
+    });
+
+    it('includes recovery suggestion for response timeout', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: false, reason: 'Timeout' }),
+        detectResponseComplete: async () => ({ completed: false }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.suggestion);
+      assert.ok(result.error.suggestion.length > 0);
+    });
+
+    it('includes recovery suggestion for incomplete response', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: false, reason: 'Interrupted' }),
+        extractFinalText: async () => ({ text: 'Partial' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.suggestion);
+      assert.ok(result.error.suggestion.length > 0);
+    });
+  });
+
+  describe('Brittle seams: stale content and false positives', () => {
+    it('detectResponseStart rejects stale pre-existing assistant content', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const requestTimestamp = Date.now();
+      const staleTimestamp = requestTimestamp - 60000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          const [stopSelectors, responseSelectors, streamingIndicators, reqTimestamp] = args;
+          
+          return { 
+            started: false, 
+            reason: 'Response content exists but predates request (stale content)',
+            staleContentDetected: true,
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({ requestTimestamp });
+      
+      assert.strictEqual(result.started, false);
+      assert.ok(result.staleContentDetected);
+    });
+
+    it('detectResponseStart accepts new content after request timestamp', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const requestTimestamp = Date.now() - 1000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            started: true, 
+            indicator: 'response-content',
+            responseMarker: { type: 'content-detected', timestamp: Date.now() },
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({ requestTimestamp });
+      
+      assert.strictEqual(result.started, true);
+    });
+
+    it('detectResponseComplete uses multiple confirmation signals', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { 
+            completed: true, 
+            confirmationSignal: 'regenerate-button-available',
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+      assert.ok(result.confirmationSignal);
+    });
+
+    it('detectResponseComplete returns false when stop button visible', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { 
+            completed: false, 
+            reason: 'Stop button still visible - response in progress',
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, false);
+    });
+
+    it('extractFinalText prefers request-scoped content over historical', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const requestTimestamp = Date.now() - 1000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'New response text',
+            selector: '.assistant-message',
+            extractionMethod: 'request-scoped',
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.text, 'New response text');
+      assert.strictEqual(result.extractionMethod, 'request-scoped');
+    });
+
+    it('extractFinalText uses fallback when no request-scoped content found', async () => {
+      deepseekAdapter = require('../../cli/providers/deepseek.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'Fallback response text',
+            selector: '.response',
+            extractionMethod: 'fallback-newest',
+            warning: 'Could not definitively identify request-scoped response',
+          };
+        },
+      };
+      
+      const adapter = deepseekAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp: Date.now() });
+      
+      assert.strictEqual(result.text, 'Fallback response text');
+      assert.ok(result.warning);
+    });
+  });
+
+  describe('Incomplete response extraction failure handling', () => {
+    it('preserves extraction failure signal in incomplete response', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: false, reason: 'Interrupted' }),
+        extractFinalText: async () => ({ text: '', extractionFailed: true, reason: 'DOM error' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_INCOMPLETE');
+      assert.ok(result.partial);
+      assert.strictEqual(result.partial.extractionFailed, true);
+      assert.ok(result.partial.extractionReason);
+    });
+
+    it('distinguishes empty text from extraction failure', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: false, reason: 'Interrupted' }),
+        extractFinalText: async () => ({ text: '', extractionFailed: false }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.partial.text, '');
+      assert.strictEqual(result.partial.extractionFailed, false);
+    });
+
+    it('returns TEXT_EXTRACTION_FAILED when extraction fails after completion', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://chat.deepseek.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '', extractionFailed: true, reason: 'No content found' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('deepseek', 'Hello', {
+        connection,
+        adapterFactory: () => mockAdapter,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'TEXT_EXTRACTION_FAILED');
+    });
+  });
+});

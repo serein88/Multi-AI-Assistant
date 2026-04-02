@@ -28,10 +28,11 @@ describe('CLI Command Routing', () => {
       const result = await cli.run(['ask', '--provider', 'deepseek', '--prompt', 'test']);
       
       assert.strictEqual(result.command, 'ask');
-      assert.strictEqual(result.status, 'skeleton');
+      assert.strictEqual(result.status, 'error');
       assert.strictEqual(result.json, true);
-      assert.strictEqual(result.provider, 'deepseek');
-      assert.strictEqual(result.prompt, 'test');
+      assert.ok(result.error);
+      assert.strictEqual(result.error.code, 'INTERNAL_ERROR');
+      assert.ok(result.error.message.includes('Runtime'));
     });
 
     it('routes "providers" command to providers handler', async () => {
@@ -351,9 +352,8 @@ describe('Parser', () => {
       const result = await cli.run(['ask', '--provider=deepseek', '--prompt=test']);
       
       assert.strictEqual(result.command, 'ask');
-      assert.strictEqual(result.status, 'skeleton');
-      assert.strictEqual(result.provider, 'deepseek');
-      assert.strictEqual(result.prompt, 'test');
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error);
     });
 
     it('parses --timeout=30000', async () => {
@@ -366,7 +366,8 @@ describe('Parser', () => {
       const result = await cli.run(['ask', '--provider=', '--prompt=test']);
       
       assert.strictEqual(result.command, 'ask');
-      assert.strictEqual(result.provider, null);
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error.code, 'PROVIDER_NOT_FOUND');
     });
   });
 
@@ -375,15 +376,16 @@ describe('Parser', () => {
       const result = await cli.run(['ask', '--provider', 'deepseek', '--prompt', '-hello']);
       
       assert.strictEqual(result.command, 'ask');
-      assert.strictEqual(result.provider, 'deepseek');
-      assert.strictEqual(result.prompt, '-hello');
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error);
     });
 
     it('allows --dashed-value as value when attached with =', async () => {
       const result = await cli.run(['ask', '--provider=deepseek', '--prompt=--dashed-value']);
       
       assert.strictEqual(result.command, 'ask');
-      assert.strictEqual(result.prompt, '--dashed-value');
+      assert.strictEqual(result.status, 'error');
+      assert.ok(result.error);
     });
 
     it('treats -x (single letter) as short flag, not value', () => {
@@ -507,20 +509,40 @@ describe('Handler dispatch verification', () => {
     cli = require('../../cli/index.js');
   });
 
-  it('ask handler receives parsed options', async () => {
+  it('ask handler validates provider option', async () => {
+    const result = await cli.run(['ask', '--prompt', 'hello']);
+    
+    assert.strictEqual(result.command, 'ask');
+    assert.strictEqual(result.status, 'error');
+    assert.ok(result.error);
+    assert.ok(result.error.message.includes('provider'));
+  });
+
+  it('ask handler validates prompt option', async () => {
+    const result = await cli.run(['ask', '--provider', 'deepseek']);
+    
+    assert.strictEqual(result.command, 'ask');
+    assert.strictEqual(result.status, 'error');
+    assert.ok(result.error);
+    assert.ok(result.error.message.includes('prompt'));
+  });
+
+  it('ask handler returns error when runtime not available', async () => {
     const result = await cli.run(['ask', '--provider', 'gemini', '--prompt', 'hello']);
     
     assert.strictEqual(result.command, 'ask');
-    assert.strictEqual(result.provider, 'gemini');
-    assert.strictEqual(result.prompt, 'hello');
+    assert.strictEqual(result.status, 'error');
+    assert.ok(result.error);
+    assert.strictEqual(result.error.code, 'INTERNAL_ERROR');
+    assert.ok(result.error.message.includes('Runtime'));
   });
 
-  it('ask handler returns null for missing options', async () => {
-    const result = await cli.run(['ask']);
+  it('ask handler returns error for unknown provider', async () => {
+    const result = await cli.run(['ask', '--provider', 'unknown', '--prompt', 'hello']);
     
     assert.strictEqual(result.command, 'ask');
-    assert.strictEqual(result.provider, null);
-    assert.strictEqual(result.prompt, null);
+    assert.strictEqual(result.status, 'error');
+    assert.strictEqual(result.error.code, 'PROVIDER_NOT_FOUND');
   });
 
   it('doctor handler receives parsed options', async () => {
