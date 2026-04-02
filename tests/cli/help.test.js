@@ -38,8 +38,10 @@ describe('CLI Command Routing', () => {
       const result = await cli.run(['providers']);
       
       assert.strictEqual(result.command, 'providers');
-      assert.strictEqual(result.status, 'skeleton');
+      assert.strictEqual(result.status, 'success');
       assert.strictEqual(result.json, true);
+      assert.ok(Array.isArray(result.providers));
+      assert.strictEqual(result.providers.length, 3);
     });
 
     it('routes "doctor" command to doctor handler', async () => {
@@ -535,12 +537,18 @@ describe('Handler dispatch verification', () => {
     assert.strictEqual(result.provider, null);
   });
 
-  it('providers handler returns skeleton without options', async () => {
+  it('providers handler returns provider list from registry', async () => {
     const result = await cli.run(['providers']);
     
     assert.strictEqual(result.command, 'providers');
-    assert.strictEqual(result.status, 'skeleton');
+    assert.strictEqual(result.status, 'success');
     assert.strictEqual(result.json, true);
+    assert.ok(Array.isArray(result.providers));
+    assert.strictEqual(result.providers.length, 3);
+    assert.deepStrictEqual(
+      result.providers.map(p => p.id).sort(),
+      ['deepseek', 'gemini', 'grok']
+    );
   });
 
   it('help handler returns skeleton', async () => {
