@@ -116,6 +116,7 @@ function mapErrorCodeToExitCode(code) {
 module.exports = {
   makeResponse,
   makeErrorResponse,
+  makeCanonicalError,
   makeAskSuccess,
   makeAskFailure,
   makeDoctorResult,
