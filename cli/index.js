@@ -76,22 +76,12 @@ function parseArgs(args) {
 
 const { makeResponse, makeErrorResponse } = contracts;
 
-function resolveHelp(targetCommand) {
+async function resolveHelp(targetCommand) {
   if (!targetCommand) {
-    return makeResponse('help', 'skeleton', {
-      helpText: registry.getHelpText('help'),
-    });
+    return help.run({ options: {}, positional: [] });
   }
 
-  const helpText = registry.getHelpText(targetCommand);
-  
-  if (helpText) {
-    return makeResponse('help', 'skeleton', { helpText });
-  }
-
-  return makeErrorResponse('help', 'UNKNOWN_TOPIC', 
-    `No help available for: ${targetCommand}`,
-    `Available topics: ${registry.getCommandIds().join(', ')}`);
+  return help.run({ options: {}, positional: [targetCommand] });
 }
 
 async function run(argv = process.argv.slice(2)) {
@@ -105,8 +95,7 @@ async function run(argv = process.argv.slice(2)) {
   }
 
   if (targetCommand === 'help') {
-    const helpTarget = positional[0] || options.topic;
-    return resolveHelp(helpTarget);
+    return help.run({ options, positional });
   }
 
   if (!registry.isValidCommand(targetCommand)) {
