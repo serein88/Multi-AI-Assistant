@@ -3520,3 +3520,1041 @@ describe('Gemini Adapter Support', () => {
     });
   });
 });
+
+/**
+ * Task 9: Grok adapter support tests
+ * 
+ * These tests cover Grok-specific doctor and ask behavior:
+ * - Grok login detection (X/Twitter account)
+ * - Grok input detection
+ * - Grok response detection with explicit unstable/challenge classification
+ * - Grok-specific failure hints (response-start reliability, unstable conditions)
+ * 
+ * Key constraints from project history:
+ * - response-start is more trustworthy than button-click alone
+ * - unstable/challenge conditions need explicit classification
+ */
+describe('Grok Adapter Support', () => {
+  let doctor;
+  let ask;
+  let chrome;
+  let tabs;
+  let grokAdapter;
+
+  beforeEach(() => {
+    Object.keys(require.cache).forEach(key => {
+      if (key.includes('cli/runtime') || key.includes('cli/providers')) {
+        delete require.cache[key];
+      }
+    });
+  });
+
+  describe('Grok doctor checks', () => {
+    it('returns healthy when all Grok checks pass', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: true, details: 'X/Twitter account authenticated' }),
+        checkInput: async () => ({ passed: true, selector: 'textarea[placeholder*="Ask"]' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'grok');
+      assert.strictEqual(result.healthy, true);
+      assert.strictEqual(result.checks.connection, true);
+      assert.strictEqual(result.checks.pageReachable, true);
+      assert.strictEqual(result.checks.loginDetected, true);
+      assert.strictEqual(result.checks.inputLocated, true);
+    });
+
+    it('detects login required when not authenticated', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ passed: false, reason: 'X/Twitter login required' }),
+        checkInput: async () => ({ passed: false, reason: 'Input not available on login page' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'LOGIN_REQUIRED');
+    });
+
+    it('detects challenge/verification surface', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: false, challengeRequired: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('challenge') || result.reason.includes('Challenge'));
+      assert.strictEqual(result.loginType, 'challenge_required');
+    });
+
+    it('detects unstable conditions explicitly', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: true, unstableDetected: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.unstable === true || result.warnings);
+    });
+  });
+
+  describe('Grok adapter doctor interface', () => {
+    it('exports required doctor interface', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      assert.ok(typeof grokAdapter.checkLogin === 'function');
+      assert.ok(typeof grokAdapter.checkInput === 'function');
+      assert.ok(typeof grokAdapter.getDoctorAdapter === 'function');
+    });
+
+    it('checkLogin returns passed when X/Twitter account detected', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+    });
+
+    it('checkLogin returns failed when on login page', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+
+    it('checkInput returns passed when textarea found', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'textarea[placeholder*="Ask"]', visible: true, usable: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.selector);
+    });
+
+    it('checkInput returns failed when input not found', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: false };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason);
+    });
+  });
+
+  describe('Grok ask lifecycle', () => {
+    it('returns success when all phases complete', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true, requestMarker: { timestamp: Date.now() } }),
+        triggerSend: async () => ({ success: true, timestamp: Date.now() }),
+        detectResponseStart: async () => ({ started: true, indicator: 'stop-button', responseMarker: { type: 'stop-button-visible', timestamp: Date.now() } }),
+        detectResponseComplete: async () => ({ completed: true, confirmationSignal: 'no-active-indicators' }),
+        extractFinalText: async () => ({ text: 'Hello! I am Grok, how can I help you?' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('grok', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'grok');
+      assert.strictEqual(result.status, 'success');
+      assert.ok(result.response);
+      assert.strictEqual(result.response.text, 'Hello! I am Grok, how can I help you?');
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, true);
+      assert.strictEqual(result.phases.responseCompleted, true);
+    });
+
+    it('returns failure when dispatch fails', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: false, reason: 'Grok input not found' }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: true }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('grok', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'DISPATCH_FAILED');
+      assert.strictEqual(result.phases.dispatch, false);
+    });
+
+    it('returns failure when response start not detected', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: false, reason: 'Timeout waiting for Grok response' }),
+        detectResponseComplete: async () => ({ completed: false }),
+        extractFinalText: async () => ({ text: '' }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('grok', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_TIMEOUT');
+      assert.strictEqual(result.phases.dispatch, true);
+      assert.strictEqual(result.phases.responseStarted, false);
+    });
+
+    it('runAsk preserves fallback extraction metadata from Grok adapter', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true, requestMarker: { timestamp: Date.now() } }),
+        triggerSend: async () => ({ success: true, timestamp: Date.now() }),
+        detectResponseStart: async () => ({ started: true, indicator: 'stop-button', responseMarker: { type: 'stop-button-visible', timestamp: Date.now() } }),
+        detectResponseComplete: async () => ({ completed: true, confirmationSignal: 'no-active-indicators' }),
+        extractFinalText: async () => ({ 
+          text: 'Fallback response',
+          extractionMethod: 'fallback-latest',
+          confidence: 'low',
+          warning: 'No request-scoped content found',
+          fallbackReason: 'no-request-scoped-evidence',
+        }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('grok', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(result.response.text, 'Fallback response');
+      assert.strictEqual(result.response.confidence, 'low');
+      assert.strictEqual(result.response.fallbackReason, 'no-request-scoped-evidence');
+      assert.ok(result.response.warning);
+      assert.strictEqual(result.response.extractionMethod, 'fallback-latest');
+    });
+
+    it('runAsk preserves fallback metadata in incomplete response', async () => {
+      ask = require('../../cli/runtime/ask.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets }),
+      };
+      
+      const mockAdapter = {
+        injectPrompt: async () => ({ success: true }),
+        triggerSend: async () => ({ success: true }),
+        detectResponseStart: async () => ({ started: true }),
+        detectResponseComplete: async () => ({ completed: false, reason: 'Interrupted' }),
+        extractFinalText: async () => ({ 
+          text: 'Partial fallback',
+          confidence: 'low',
+          fallbackReason: 'no-request-scoped-evidence',
+          extractionMethod: 'fallback-latest',
+        }),
+      };
+      
+      const mockAdapterFactory = () => mockAdapter;
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await ask.runAsk('grok', 'Hello', {
+        connection,
+        adapterFactory: mockAdapterFactory,
+      });
+      
+      assert.strictEqual(result.status, 'error');
+      assert.strictEqual(result.error.code, 'RESPONSE_INCOMPLETE');
+      assert.ok(result.partial);
+      assert.strictEqual(result.partial.text, 'Partial fallback');
+      assert.strictEqual(result.partial.confidence, 'low');
+      assert.strictEqual(result.partial.fallbackReason, 'no-request-scoped-evidence');
+      assert.strictEqual(result.partial.extractionMethod, 'fallback-latest');
+    });
+  });
+
+  describe('Grok ask adapter interface', () => {
+    it('exports required ask interface', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      assert.ok(typeof grokAdapter.injectPrompt === 'function');
+      assert.ok(typeof grokAdapter.triggerSend === 'function');
+      assert.ok(typeof grokAdapter.detectResponseStart === 'function');
+      assert.ok(typeof grokAdapter.detectResponseComplete === 'function');
+      assert.ok(typeof grokAdapter.extractFinalText === 'function');
+      assert.ok(typeof grokAdapter.getAskAdapter === 'function');
+    });
+
+    it('injectPrompt returns success when textarea found', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: true, selector: 'textarea[placeholder*="Ask"]', requestMarker: { timestamp: Date.now() } };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('injectPrompt returns failure when input not found', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { injected: false, reason: 'No Grok input found' };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.injectPrompt('Hello');
+      
+      assert.strictEqual(result.success, false);
+      assert.ok(result.reason);
+    });
+
+    it('triggerSend returns success when button clicked', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { clicked: true, selector: 'button[type="submit"]', timestamp: Date.now() };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.triggerSend();
+      
+      assert.strictEqual(result.success, true);
+    });
+
+    it('detectResponseStart returns true when Stop button appears (strong signal)', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { started: true, indicator: 'stop-button', responseMarker: { type: 'stop-button-visible', timestamp: Date.now() } };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+      assert.strictEqual(result.indicator, 'stop-button');
+    });
+
+    it('detectResponseStart returns true when input field clears (strong signal)', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { started: true, indicator: 'input-cleared', responseMarker: { type: 'input-cleared', timestamp: Date.now() } };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+      assert.strictEqual(result.indicator, 'input-cleared');
+    });
+
+    it('detectResponseComplete returns true when done', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { completed: true, confirmationSignal: 'no-active-indicators' };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+    });
+
+    it('extractFinalText returns response text', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const expectedText = 'This is a Grok response.';
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { text: expectedText, selector: '.response-content' };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({});
+      
+      assert.strictEqual(result.text, expectedText);
+    });
+
+    it('getAskAdapter accepts tab parameter', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => ({ injected: true }),
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ tab: { page: mockPage } });
+      assert.ok(typeof adapter.injectPrompt === 'function');
+    });
+
+    it('getAskAdapter throws when neither page nor tab provided', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      assert.throws(() => {
+        grokAdapter.getAskAdapter({});
+      }, /requires either page or tab/);
+    });
+  });
+
+  describe('Grok-specific failure hints', () => {
+    it('checkLogin detects challenge/verification surface', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: false, challengeRequired: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.toLowerCase().includes('challenge'));
+      assert.strictEqual(result.loginType, 'challenge_required');
+    });
+
+    it('checkLogin detects rate limiting', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { loginPage: false, authenticated: true, rateLimited: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.warnings || result.rateLimited);
+    });
+
+    it('checkInput detects input not ready (still loading)', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { found: true, selector: 'textarea', visible: true, usable: false, reason: 'Input not ready - still loading' };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkInput();
+      
+      assert.strictEqual(result.passed, false);
+      assert.ok(result.reason.includes('not usable') || result.reason.includes('not ready'));
+    });
+  });
+
+  describe('Grok command integration', () => {
+    it('wires doctor command to runtime for Grok', async () => {
+      const doctorCommand = require('../../cli/commands/doctor.js');
+      
+      const mockRuntime = {
+        connect: async () => ({
+          connected: true,
+          targets: [{ id: 'tab-1', type: 'page', url: 'https://grok.com/' }],
+        }),
+        runDoctor: async (provider, options) => ({
+          command: 'doctor',
+          provider,
+          healthy: true,
+          checks: {
+            connection: true,
+            pageReachable: true,
+            loginDetected: true,
+            inputLocated: true,
+          },
+        }),
+      };
+      
+      const result = await doctorCommand.run({
+        options: { provider: 'grok' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'doctor');
+      assert.strictEqual(result.provider, 'grok');
+      assert.strictEqual(result.healthy, true);
+    });
+
+    it('wires ask command to runtime for Grok', async () => {
+      const askCommand = require('../../cli/commands/ask.js');
+      
+      let receivedProvider = null;
+      let receivedPrompt = null;
+      
+      const mockRuntime = {
+        runAsk: async (provider, prompt, options) => {
+          receivedProvider = provider;
+          receivedPrompt = prompt;
+          return {
+            command: 'ask',
+            provider,
+            status: 'success',
+            response: { text: 'Grok response' },
+            phases: {
+              dispatch: true,
+              responseStarted: true,
+              responseCompleted: true,
+            },
+          };
+        },
+      };
+      
+      const result = await askCommand.run({
+        options: { provider: 'grok', prompt: 'Hello Grok' },
+        positional: [],
+        runtime: mockRuntime,
+      });
+      
+      assert.strictEqual(result.command, 'ask');
+      assert.strictEqual(result.provider, 'grok');
+      assert.strictEqual(result.status, 'success');
+      assert.strictEqual(receivedProvider, 'grok');
+      assert.strictEqual(receivedPrompt, 'Hello Grok');
+    });
+  });
+
+  describe('Grok brittle seams', () => {
+    it('detectResponseStart prefers Stop button over button-click success', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            started: true, 
+            indicator: 'stop-button',
+            responseMarker: { type: 'stop-button-visible', timestamp: Date.now() },
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+      assert.strictEqual(result.indicator, 'stop-button');
+    });
+
+    it('detectResponseStart detects input field clearing as strong signal', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            started: true, 
+            indicator: 'input-cleared',
+            responseMarker: { type: 'input-cleared', timestamp: Date.now() },
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({});
+      
+      assert.strictEqual(result.started, true);
+      assert.strictEqual(result.indicator, 'input-cleared');
+    });
+
+    it('detectResponseStart rejects stale pre-existing content', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const requestTimestamp = Date.now();
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            started: false, 
+            reason: 'Response content exists but predates request (stale content)',
+            staleContentDetected: true,
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseStart({ requestTimestamp });
+      
+      assert.strictEqual(result.started, false);
+      assert.ok(result.staleContentDetected);
+    });
+
+    it('detectResponseComplete uses multiple confirmation signals', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn) => {
+          return { 
+            completed: true, 
+            confirmationSignal: 'copy-button-available',
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({});
+      
+      assert.strictEqual(result.completed, true);
+      assert.ok(result.confirmationSignal);
+    });
+
+    it('extractFinalText prefers request-scoped content', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const requestTimestamp = Date.now() - 1000;
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'New Grok response',
+            selector: '.response-content',
+            extractionMethod: 'request-scoped',
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.text, 'New Grok response');
+      assert.strictEqual(result.extractionMethod, 'request-scoped');
+    });
+
+    it('detectResponseStart rejects empty input without proof of transition', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          const [stopSelectors, responseSelectors, streamingIndicators, reqTimestamp, reqMarker, inputSel] = args;
+          
+          const hasProofOfNonEmptyToEmptyTransition = 
+            inputSel && 
+            reqMarker && 
+            reqMarker.afterValue && 
+            reqMarker.afterValue.length > 0;
+          
+          if (hasProofOfNonEmptyToEmptyTransition) {
+            return { started: true, indicator: 'input-cleared' };
+          }
+          
+          return { started: false, reason: 'No response start indicators found' };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      
+      const resultWithoutProof = await adapter.detectResponseStart({
+        requestMarker: { inputSelector: 'textarea', afterValue: '' }
+      });
+      
+      assert.strictEqual(resultWithoutProof.started, false);
+      
+      const resultWithProof = await adapter.detectResponseStart({
+        requestMarker: { inputSelector: 'textarea', afterValue: 'previous text' }
+      });
+      
+      assert.strictEqual(resultWithProof.started, true);
+      assert.strictEqual(resultWithProof.indicator, 'input-cleared');
+    });
+
+    it('detectResponseComplete rejects copy/regenerate buttons without lifecycle evidence', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          const [stopSelectors, streamingIndicators, hasResponseStarted] = args;
+          
+          return { 
+            completed: false, 
+            reason: 'Copy button found but no prior response lifecycle evidence - cannot confirm completion',
+            noLifecycleEvidence: true,
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.detectResponseComplete({ responseStarted: false });
+      
+      assert.strictEqual(result.completed, false);
+      assert.ok(result.noLifecycleEvidence);
+    });
+
+    it('extractFinalText provides explicit confidence signal on fallback', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const requestTimestamp = Date.now();
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { 
+            text: 'Fallback response',
+            selector: '.response-content',
+            extractionMethod: 'fallback-latest',
+            confidence: 'low',
+            warning: 'No request-scoped content found; using latest response candidate by DOM position',
+            fallbackReason: 'no-request-scoped-evidence',
+          };
+        },
+      };
+      
+      const adapter = grokAdapter.getAskAdapter({ page: mockPage });
+      const result = await adapter.extractFinalText({ requestTimestamp });
+      
+      assert.strictEqual(result.extractionMethod, 'fallback-latest');
+      assert.strictEqual(result.confidence, 'low');
+      assert.strictEqual(result.fallbackReason, 'no-request-scoped-evidence');
+      assert.ok(result.warning);
+    });
+
+    it('checkLogin preserves machine-readable unstable reason/category', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { loginPage: false, authenticated: true, unstableDetected: true, rateLimited: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+      assert.strictEqual(result.unstable, true);
+      assert.strictEqual(result.unstableReason, 'rate-limiting');
+      assert.strictEqual(result.unstableCategory, 'rate-limit');
+    });
+  });
+
+  describe('Grok unstable/challenge classification', () => {
+    it('challenge_required loginType survives doctor normalization', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ 
+          passed: false, 
+          reason: 'Challenge surface detected - verification required',
+          loginType: 'challenge_required',
+        }),
+        checkInput: async () => ({ passed: true }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'CHALLENGE_REQUIRED');
+      assert.strictEqual(result.checks.loginType, 'challenge_required');
+    });
+
+    it('unstable condition is reported but does not fail doctor', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockAdapter = {
+        checkLogin: async () => ({ 
+          passed: true, 
+          details: 'X/Twitter account authenticated',
+          unstable: true,
+          unstableReason: 'Rate limiting detected',
+        }),
+        checkInput: async () => ({ passed: true, selector: 'textarea' }),
+      };
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: mockAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, true);
+      assert.ok(result.checks.unstable === true || result.warnings);
+    });
+
+    it('real Grok adapter checkLogin returns loginType for challenge_required', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { challengeRequired: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, false);
+      assert.strictEqual(result.loginType, 'challenge_required');
+      assert.ok(result.reason.includes('challenge') || result.reason.includes('Challenge'));
+    });
+
+    it('real Grok adapter checkLogin reports unstable conditions', async () => {
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { loginPage: false, authenticated: true, unstableDetected: true };
+        },
+      };
+      
+      const adapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      const result = await adapter.checkLogin();
+      
+      assert.strictEqual(result.passed, true);
+      assert.ok(result.unstable === true || result.warnings);
+    });
+
+    it('real Grok adapter loginType survives through doctor.runDoctor', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          return { challengeRequired: true };
+        },
+      };
+      
+      const realAdapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: realAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, false);
+      assert.strictEqual(result.error.code, 'CHALLENGE_REQUIRED');
+      assert.strictEqual(result.checks.loginType, 'challenge_required');
+    });
+
+    it('runDoctor preserves unstableReason and unstableCategory from Grok adapter', async () => {
+      doctor = require('../../cli/runtime/doctor.js');
+      chrome = require('../../cli/runtime/chrome.js');
+      tabs = require('../../cli/runtime/tabs.js');
+      grokAdapter = require('../../cli/providers/grok.js');
+      
+      const mockTargets = [
+        { id: 'tab-1', type: 'page', url: 'https://grok.com/' },
+      ];
+      
+      const mockCDP = {
+        connect: async () => ({ connected: true, targets: mockTargets, cdp: {} }),
+      };
+      
+      let evaluateCallCount = 0;
+      const mockPage = {
+        evaluate: async (fn, ...args) => {
+          evaluateCallCount++;
+          if (evaluateCallCount === 1) {
+            return { loginPage: false, authenticated: true, unstableDetected: true, rateLimited: true };
+          } else {
+            return { found: true, selector: 'textarea', visible: true, usable: true };
+          }
+        },
+      };
+      
+      const realAdapter = grokAdapter.getDoctorAdapter({ page: mockPage });
+      
+      const connection = await chrome.connect({ cdp: mockCDP, port: 9222 });
+      const result = await doctor.runDoctor('grok', {
+        connection,
+        adapter: realAdapter,
+      });
+      
+      assert.strictEqual(result.healthy, true);
+      assert.strictEqual(result.checks.unstable, true);
+      assert.strictEqual(result.checks.unstableReason, 'rate-limiting');
+      assert.strictEqual(result.checks.unstableCategory, 'rate-limit');
+      assert.strictEqual(result.checks.rateLimited, true);
+    });
+  });
+});

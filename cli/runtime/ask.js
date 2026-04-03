@@ -82,12 +82,27 @@ async function safeExtractFinalText(adapter, requestContext) {
     if (!isValidTextResult(result)) {
       return { text: '', extractionFailed: true, reason: 'extractFinalText returned invalid result shape' };
     }
-    return { 
+    
+    const safeResult = { 
       text: result.text || '', 
       extractionFailed: result.extractionFailed === true,
       reason: result.reason || null,
       extractionMethod: result.extractionMethod || null,
     };
+    
+    if (result.confidence !== undefined) {
+      safeResult.confidence = result.confidence;
+    }
+    
+    if (result.warning !== undefined) {
+      safeResult.warning = result.warning;
+    }
+    
+    if (result.fallbackReason !== undefined) {
+      safeResult.fallbackReason = result.fallbackReason;
+    }
+    
+    return safeResult;
   } catch (err) {
     return { text: '', extractionFailed: true, reason: `extractFinalText threw: ${err.message}` };
   }
@@ -216,6 +231,22 @@ async function runAsk(providerId, prompt, options = {}) {
       partial.extractionReason = partialResult.reason;
     }
     
+    if (partialResult.confidence) {
+      partial.confidence = partialResult.confidence;
+    }
+    
+    if (partialResult.warning) {
+      partial.warning = partialResult.warning;
+    }
+    
+    if (partialResult.fallbackReason) {
+      partial.fallbackReason = partialResult.fallbackReason;
+    }
+    
+    if (partialResult.extractionMethod) {
+      partial.extractionMethod = partialResult.extractionMethod;
+    }
+    
     return makeAskFailure({
       provider: providerId,
       code: 'RESPONSE_INCOMPLETE',
@@ -240,9 +271,27 @@ async function runAsk(providerId, prompt, options = {}) {
     });
   }
   
+  const response = { text: textResult.text };
+  
+  if (textResult.confidence) {
+    response.confidence = textResult.confidence;
+  }
+  
+  if (textResult.warning) {
+    response.warning = textResult.warning;
+  }
+  
+  if (textResult.fallbackReason) {
+    response.fallbackReason = textResult.fallbackReason;
+  }
+  
+  if (textResult.extractionMethod) {
+    response.extractionMethod = textResult.extractionMethod;
+  }
+  
   return makeAskSuccess({
     provider: providerId,
-    response: { text: textResult.text },
+    response,
     phases,
   });
 }

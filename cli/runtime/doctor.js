@@ -105,6 +105,9 @@ async function runDoctor(providerId, options = {}) {
     } else if (loginResult.loginType === 'login_redirect') {
       code = 'LOGIN_REDIRECT';
       suggestion = 'You were redirected to the login page. Please authenticate to continue';
+    } else if (loginResult.loginType === 'challenge_required') {
+      code = 'CHALLENGE_REQUIRED';
+      suggestion = 'Complete the challenge or verification to continue';
     }
     
     return makeDoctorResult({
@@ -123,6 +126,26 @@ async function runDoctor(providerId, options = {}) {
   
   checks.loginDetected = true;
   checks.loginDetails = loginResult.details;
+  
+  if (loginResult.unstable) {
+    checks.unstable = true;
+  }
+  
+  if (loginResult.warnings) {
+    checks.warnings = loginResult.warnings;
+  }
+  
+  if (loginResult.unstableReason) {
+    checks.unstableReason = loginResult.unstableReason;
+  }
+  
+  if (loginResult.unstableCategory) {
+    checks.unstableCategory = loginResult.unstableCategory;
+  }
+  
+  if (loginResult.rateLimited !== undefined) {
+    checks.rateLimited = loginResult.rateLimited;
+  }
   
   const inputResult = await safeCheckInput(adapter);
   if (!inputResult.passed) {

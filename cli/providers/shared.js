@@ -5,13 +5,35 @@ function normalizeCheckResult(result) {
     return { passed: false, reason: 'Invalid check result' };
   }
   
-  return {
+  const normalized = {
     passed: !!result.passed,
     reason: result.reason || null,
     details: result.details || null,
     selector: result.selector || null,
     loginType: result.loginType || null,
   };
+  
+  if (result.unstable !== undefined) {
+    normalized.unstable = !!result.unstable;
+  }
+  
+  if (result.warnings !== undefined) {
+    normalized.warnings = result.warnings;
+  }
+  
+  if (result.rateLimited !== undefined) {
+    normalized.rateLimited = !!result.rateLimited;
+  }
+  
+  if (result.unstableReason !== undefined) {
+    normalized.unstableReason = result.unstableReason;
+  }
+  
+  if (result.unstableCategory !== undefined) {
+    normalized.unstableCategory = result.unstableCategory;
+  }
+  
+  return normalized;
 }
 
 function isValidCheckResult(result) {
