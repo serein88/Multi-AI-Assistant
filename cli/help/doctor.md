@@ -46,11 +46,12 @@ multi-ai doctor --provider grok
   "command": "doctor",
   "status": "success",
   "provider": "deepseek",
+  "healthy": true,
   "checks": {
-    "browser_connected": true,
-    "page_reachable": true,
-    "login_detected": true,
-    "input_located": true
+    "connection": true,
+    "pageReachable": true,
+    "loginDetected": true,
+    "inputLocated": true
   },
   "json": true
 }
@@ -63,14 +64,15 @@ multi-ai doctor --provider grok
   "command": "doctor",
   "status": "error",
   "provider": "deepseek",
+  "healthy": false,
   "checks": {
-    "browser_connected": true,
-    "page_reachable": true,
-    "login_detected": false,
-    "input_located": false
+    "connection": true,
+    "pageReachable": true,
+    "loginDetected": false,
+    "inputLocated": false
   },
   "error": {
-    "code": "CHECK_FAILED",
+    "code": "LOGIN_REQUIRED",
     "message": "Login not detected",
     "suggestion": "Please log in to DeepSeek in your browser"
   },
@@ -82,10 +84,27 @@ multi-ai doctor --provider grok
 
 | Check | Description |
 |-------|-------------|
-| `browser_connected` | Chrome is running with remote debugging |
-| `page_reachable` | Provider page can be loaded |
-| `login_detected` | User is logged in to the provider |
-| `input_located` | Input element is found on the page |
+| `connection` | Chrome is running with remote debugging |
+| `pageReachable` | Provider page can be loaded |
+| `loginDetected` | User is logged in to the provider |
+| `inputLocated` | Input element is found on the page |
+
+### Optional Check Fields
+
+The following fields may appear in `checks` depending on the provider state:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `loginType` | string | Type of login issue detected (e.g., `verification_required`, `login_redirect`, `challenge_required`) |
+| `loginDetails` | object | Additional details about the login state |
+| `unstable` | boolean | Login state may be unreliable |
+| `unstableReason` | string | Reason for unstable login detection |
+| `unstableCategory` | string | Category of instability |
+| `warnings` | array | Warning messages about the provider state |
+| `rateLimited` | boolean | Provider may be rate limiting requests |
+| `inputSelector` | string | CSS selector used to locate the input element |
+
+When no adapter is available for a provider, `loginDetected` and `inputLocated` will be `null` instead of boolean values.
 
 ## PREREQUISITES
 

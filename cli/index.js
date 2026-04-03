@@ -6,6 +6,7 @@ const ask = require('./commands/ask');
 const providers = require('./commands/providers');
 const doctor = require('./commands/doctor');
 const help = require('./commands/help');
+const defaultRuntime = require('./runtime/default');
 
 const HANDLERS = {
   ask,
@@ -74,7 +75,7 @@ function parseArgs(args) {
   return result;
 }
 
-const { makeResponse, makeErrorResponse } = contracts;
+const { makeResponse, makeErrorResponse, mapErrorCodeToExitCode } = contracts;
 
 async function resolveHelp(targetCommand) {
   if (!targetCommand) {
@@ -106,7 +107,29 @@ async function run(argv = process.argv.slice(2)) {
   }
 
   const handler = HANDLERS[targetCommand];
-  return handler.run({ options, positional });
+  return handler.run({ options, positional, runtime: defaultRuntime });
 }
 
-module.exports = { run, parseArgs, makeResponse, makeErrorResponse, resolveHelp, HANDLERS };
+async function main() {
+  try {
+    const result = await run(process.argv.slice(2));
+    const json = JSON.stringify(result, null, 2);
+    console.log(json);
+    
+    const exitCode = result.status === 'error' 
+      ? mapErrorCodeToExitCode(result.error?.code)
+      : 0;
+    process.exit(exitCode);
+  } catch (err) {
+    const errorResult = makeErrorResponse(null, 'INTERNAL_ERROR', err.message, 'This is a bug. Please report it.');
+    console.log(JSON.stringify(errorResult, null, 2));
+    process.exit(1);
+  }
+}
+
+// Run main when executed directly
+if (require.main === module) {
+  main();
+}
+
+module.exports = { run, parseArgs, makeResponse, makeErrorResponse, resolveHelp, HANDLERS, main };

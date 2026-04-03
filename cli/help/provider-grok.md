@@ -29,9 +29,9 @@ If response detection fails, the CLI may report a timeout even when Grok is resp
 
 If you experience issues with Grok:
 
-1. Increase the timeout: `--timeout 120000`
-2. Run `doctor` first to verify connectivity
-3. Try a simpler prompt to test
+1. Run `doctor` first to verify connectivity
+2. Try a simpler prompt to test
+3. Refresh the page and try again
 
 ## USAGE
 
@@ -56,10 +56,9 @@ multi-ai doctor --provider grok
 
 If you get `RESPONSE_TIMEOUT` errors:
 
-```bash
-# Increase timeout
-multi-ai ask --provider grok --prompt "Hello" --timeout 120000
-```
+1. The AI may be slow to respond. Try again.
+2. Check your network connection.
+3. Run `doctor` first to verify connectivity.
 
 ### Login Not Detected
 

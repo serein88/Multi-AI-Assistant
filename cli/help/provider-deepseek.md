@@ -39,10 +39,9 @@ multi-ai doctor --provider deepseek
 
 If you get `RESPONSE_TIMEOUT` errors:
 
-```bash
-# Increase timeout
-multi-ai ask --provider deepseek --prompt "Hello" --timeout 120000
-```
+1. The AI may be slow to respond. Try again.
+2. Check your network connection.
+3. Run `doctor` first to verify connectivity.
 
 ### Login Not Detected
 

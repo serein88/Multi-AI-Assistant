@@ -49,12 +49,12 @@ All responses include these fields:
   "status": "success",
   "provider": "deepseek",
   "response": {
-    "text": "The AI response text",
-    "phases": {
-      "dispatched": true,
-      "responseStarted": true,
-      "responseComplete": true
-    }
+    "text": "The AI response text"
+  },
+  "phases": {
+    "dispatch": true,
+    "responseStarted": true,
+    "responseCompleted": true
   },
   "json": true
 }
@@ -69,7 +69,12 @@ All responses include these fields:
   "error": {
     "code": "RESPONSE_TIMEOUT",
     "message": "Response timed out",
-    "suggestion": "Increase timeout with --timeout <ms>"
+    "suggestion": "The AI may be slow to respond. Try again or check your network connection."
+  },
+  "phases": {
+    "dispatch": true,
+    "responseStarted": false,
+    "responseCompleted": false
   },
   "json": true
 }
@@ -106,10 +111,10 @@ All responses include these fields:
   "provider": "deepseek",
   "healthy": true,
   "checks": {
-    "browser_connected": true,
-    "page_reachable": true,
-    "login_detected": true,
-    "input_located": true
+    "connection": true,
+    "pageReachable": true,
+    "loginDetected": true,
+    "inputLocated": true
   },
   "json": true
 }
@@ -123,13 +128,13 @@ All responses include these fields:
   "provider": "deepseek",
   "healthy": false,
   "checks": {
-    "browser_connected": true,
-    "page_reachable": true,
-    "login_detected": false,
-    "input_located": false
+    "connection": true,
+    "pageReachable": true,
+    "loginDetected": false,
+    "inputLocated": false
   },
   "error": {
-    "code": "CHECK_FAILED",
+    "code": "LOGIN_REQUIRED",
     "message": "Login not detected",
     "suggestion": "Please log in to DeepSeek in your browser"
   },

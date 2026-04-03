@@ -52,9 +52,9 @@ Provider ID is required but not provided.
 ### PROVIDER_NOT_FOUND
 The specified provider is not supported.
 
-**Message:** `Provider not found: <id>`
+**Message:** `Unknown provider: <id>`
 
-**Suggestion:** Run `multi-ai providers` to see available providers.
+**Suggestion:** Use a supported provider: deepseek, gemini, grok
 
 ## Browser Errors
 
@@ -109,9 +109,9 @@ Could not find the input element on the page.
 ### RESPONSE_TIMEOUT
 The AI did not respond within the timeout period.
 
-**Message:** `Response timed out`
+**Message:** `Response did not start within timeout`
 
-**Suggestion:** Increase timeout with `--timeout <ms>` or try again.
+**Suggestion:** The AI may be slow to respond. Try again or check your network connection.
 
 ### DISPATCH_FAILED
 Failed to dispatch the prompt to the provider.

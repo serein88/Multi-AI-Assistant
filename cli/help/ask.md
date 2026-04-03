@@ -23,7 +23,6 @@ multi-ai ask --provider <id> --prompt <text> [options]
 
 | Argument | Description |
 |----------|-------------|
-| `--timeout <ms>` | Maximum time to wait for response (default: 60000) |
 | `--json` | Force JSON output (default behavior) |
 
 ## EXAMPLES
@@ -31,9 +30,6 @@ multi-ai ask --provider <id> --prompt <text> [options]
 ```bash
 # Basic usage
 multi-ai ask --provider deepseek --prompt "What is 2+2?"
-
-# With timeout
-multi-ai ask --provider gemini --prompt "Explain quantum computing" --timeout 30000
 
 # Using = syntax
 multi-ai ask --provider=grok --prompt="Hello, world!"
@@ -49,12 +45,12 @@ multi-ai ask --provider=grok --prompt="Hello, world!"
   "status": "success",
   "provider": "deepseek",
   "response": {
-    "text": "The AI response text",
-    "phases": {
-      "dispatched": true,
-      "responseStarted": true,
-      "responseComplete": true
-    }
+    "text": "The AI response text"
+  },
+  "phases": {
+    "dispatch": true,
+    "responseStarted": true,
+    "responseCompleted": true
   },
   "json": true
 }

@@ -18,6 +18,133 @@
 
 ---
 
+## 2026-04-03（记录 26 - Final Handoff）
+
+- 时间：2026-04-03
+- 任务 ID：T-20260403-001
+- 任务名：CLI Runtime MVP 最终验证与交接
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `cli/help/provider-deepseek.md`（移除 stale --timeout 示例）
+  - `cli/help/provider-gemini.md`（移除 stale --timeout 示例）
+  - `cli/help/provider-grok.md`（移除 stale --timeout 示例）
+  - `cli/help/errors.md`（对齐 PROVIDER_NOT_FOUND 实际消息）
+  - `cli/help/doctor.md`（补充可选检查字段文档）
+  - `task.md`（更新 CLI MVP 最终交付状态）
+  - `progress.md`（本记录）
+- 操作摘要：
+  - 修复文档与实际运行时行为的不一致：
+    - 移除三个 provider 帮助文档中未实现的 `--timeout` 参数示例
+    - 对齐 `errors.md` 中 `PROVIDER_NOT_FOUND` 错误消息与实际代码输出
+    - 扩展 `doctor.md` 文档，补充运行时可能出现的可选检查字段
+  - CLI MVP 实施状态总结：
+    - **命令面**：`ask`、`providers`、`doctor`、`help` 四个命令已实现
+    - **Provider 支持**：DeepSeek、Gemini、Grok 三个 provider 已适配
+    - **测试覆盖**：全量 CLI 测试 390 项全部通过（`node --test tests/cli/help.test.js tests/cli/contracts.test.js tests/cli/providers.test.js tests/cli/runtime.test.js tests/cli/entrypoint.test.js`）
+    - **运行时依赖**：需要 Chrome 以 `--remote-debugging-port=9222` 启动
+  - 已知限制：
+    - `doctor` 和 `ask` 命令在 provider tab/browser state 不可用时会返回结构化运行时错误
+    - 当前 smoke test 环境未连接到可复用 provider tab，因此验证到的是结构化错误路径而非真实网页对话路径
+- 验证步骤：
+  1. CLI 入口烟测：
+     - `node cli/index.js help` - 显示帮助概览
+     - `node cli/index.js providers` - 列出支持的 provider
+     - `node cli/index.js doctor --provider deepseek` - 返回结构化错误（无法解析 provider tab 时）
+     - `node cli/index.js ask --provider deepseek --prompt "test"` - 返回结构化错误（无法解析 provider tab 时）
+  2. 测试套件运行：
+     - `node --test tests/cli/help.test.js tests/cli/contracts.test.js tests/cli/providers.test.js tests/cli/runtime.test.js tests/cli/entrypoint.test.js` - 390 测试全部通过
+  3. 文档一致性检查：
+     - `grep -n "timeout" cli/help/provider-*.md` - 确认无 stale --timeout 示例
+     - `grep -n "PROVIDER_NOT_FOUND" cli/help/errors.md` - 确认消息与代码一致
+- 验证证据：
+  - 证据 A（测试套件）：
+    - `ℹ tests 390 ℹ pass 390 ℹ fail 0`
+  - 证据 B（CLI 烟测 - help）：
+    ```json
+    {
+      "command": "help",
+      "status": "success",
+      "helpText": "multi-ai help - Show help for commands and topics...",
+      "json": true
+    }
+    ```
+  - 证据 C（CLI 烟测 - providers）：
+    ```json
+    {
+      "command": "providers",
+      "status": "success",
+      "providers": [
+        {"id": "deepseek", "implemented": true, "ask_supported": true, "doctor_supported": true, "login_required": true},
+        {"id": "gemini", "implemented": true, "ask_supported": true, "doctor_supported": true, "login_required": true},
+        {"id": "grok", "implemented": true, "ask_supported": true, "doctor_supported": true, "login_required": true}
+      ],
+      "json": true
+    }
+    ```
+  - 证据 D（CLI 烟测 - doctor 无可复用 provider tab 时）：
+    ```json
+    {
+      "command": "doctor",
+      "status": "error",
+      "provider": "deepseek",
+      "healthy": false,
+      "checks": {"connection": true, "pageReachable": false, "loginDetected": false, "inputLocated": false},
+      "error": {
+        "code": "INTERNAL_ERROR",
+        "message": "Could not resolve provider tab",
+        "suggestion": "Ensure the provider page is accessible"
+      },
+      "json": true
+    }
+    ```
+  - 证据 E（CLI 烟测 - ask 无可复用 provider tab 时）：
+    ```json
+    {
+      "command": "ask",
+      "status": "error",
+      "provider": "deepseek",
+      "error": {
+        "code": "INTERNAL_ERROR",
+        "message": "Could not resolve provider tab",
+        "suggestion": "Ensure the provider page is accessible"
+      },
+      "json": true
+    }
+    ```
+- 风险/问题：
+  - CLI MVP 当前依赖外部 Chrome 实例，无内置浏览器管理
+  - 若 Chrome 未开启远程调试或未打开可复用 provider tab，CLI 会返回结构化错误而非真实网页对话结果
+- 下一步建议：
+  - 用户确认后，将本任务标记为“完成”
+  - CLI MVP 可进入维护阶段
+  - 可考虑添加 daemon 模式以减少 Chrome 连接开销
+
+---
+
+## 2026-04-03（记录 27）
+
+- 时间：2026-04-03
+- 任务 ID：T-20260402-003
+- 任务名：添加安全、备份与审查工作流强制执行
+- 状态流转：待确认 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 结合 Task 12 最终验证完成情况，将 Task 11 的流程文档化任务状态收口为“完成”。
+  - 保留 Task 11 的职责边界：负责规则文档化与流程证据沉淀；最终独立 review 的执行证据已在 Task 12 中完成。
+- 验证步骤：
+1. 检查 `task.md`，确认 `T-20260402-003` 状态为“完成”。
+2. 检查 `progress.md`，确认 Task 12 已记录最终独立 review 通过。
+- 验证证据：
+  - Task 11 文档规则已固化；Task 12 最终独立 review 已通过。
+- 风险/问题：
+  - 无新增风险。
+- 下一步建议：
+  - 用户确认后保持“完成”状态。
+
+---
+
 ## 2026-04-03（记录 25）
 
 - 时间：2026-04-03
