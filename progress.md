@@ -18,6 +18,104 @@
 
 ---
 
+## 2026-04-03（记录 25）
+
+- 时间：2026-04-03
+- 任务 ID：T-20260402-003
+- 任务名：添加安全、备份与审查工作流强制执行
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `task.md`（更新）
+  - `progress.md`（更新）
+  - `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`（更新）
+- 操作摘要：
+  - 文档化 CLI 实施期间遵循的安全工作流规则：
+    - **备份规则（最低可接受标准）**：在开始一系列代码任务前，必须存在至少一个可回滚的 git 提交边界；每个任务完成后应独立提交，形成可回滚的提交序列。不要求每个任务开始前都有独立的备份点，但整体实施过程必须保持可回滚性。
+    - **子代理使用策略**：实施任务可由一个子代理完成，但完成声明前必须由独立的审查子代理验证。
+    - **独立审查要求**：代码审查必须由独立于实施者的代理执行，不能自我审查。此要求为强制性，非可选。
+  - 记录 CLI 实施期间如何遵循这些规则：
+    - **整体备份点**：在 CLI 化前创建显式备份提交（`fd6f9e8 cli化前 备份`），作为整个 CLI 实施的可回滚基线。
+    - **任务级提交边界**：Tasks 1-10 每个任务完成后独立提交，形成可回滚的提交序列。
+    - **提交信息规范**：提交信息包含任务功能描述，便于追踪和回滚（未强制要求包含任务 ID）。
+  - 明确工作流执行边界：
+    - Task 11（本轮）：文档化工作流规则与遵循证据。
+    - Task 12（后续）：执行独立审查，由独立于实施者的代理完成最终验证。
+  - 更新实施计划文档，标记 Task 11 的步骤为已完成。
+- 验证步骤：
+1. 检查 `task.md`，确认 `T-20260402-003` 状态为"待确认"，与本条记录的状态流转一致。
+2. 检查 `progress.md`，确认新增本条记录并明确工作流规则。
+3. 检查实施计划文档，确认 Task 11 的步骤已标记为完成。
+4. 检查 git 历史，确认存在备份提交和任务级提交。
+- 验证证据：
+  - 证据 A（整体备份点）：
+    - `fd6f9e8 cli化前 备份`：在 CLI 实施前创建的显式备份点，作为整个 CLI 实施的可回滚基线。
+  - 证据 B（任务级提交边界）：
+    - `1529f61 chore: ignore .worktrees directory`（Task 1）
+    - `9c00e68 feat: add CLI command routing skeleton`（Task 2）
+    - `85458c9 feat: add CLI result and error contracts`（Task 3）
+    - `0367d42 feat: add CLI provider capability registry`（Task 4）
+    - `bb3397c feat: add Chrome connection and tab runtime`（Task 5）
+    - `d8ae943 feat: add DeepSeek doctor support`（Task 6）
+    - `4be2ed0 feat: add DeepSeek ask lifecycle`（Task 7）
+    - `23c3c57 feat: add Gemini CLI adapter support`（Task 8）
+    - `16904ee feat: add Grok CLI adapter support`（Task 9）
+    - `63412bd feat: add semantic help system`（Task 10）
+    - 说明：每个任务完成后独立提交，形成可回滚的提交序列。提交信息包含功能描述，便于追踪。
+  - 证据 C（工作流规则文档化）：
+    - 实施计划文档中已包含备份规则、子代理策略、独立审查要求。
+    - 本条记录显式记录了 CLI 实施期间如何遵循这些规则。
+  - 证据 D（工作流执行边界明确）：
+    - Task 11 职责：文档化工作流规则与遵循证据。
+    - Task 12 职责：执行独立审查（由独立代理完成）。
+- 风险/问题：
+  - 本轮为文档化任务，不涉及功能代码改动。
+  - 工作流执行边界：Task 11 仅文档化规则与遵循证据；独立审查执行属于 Task 12 职责，不在本轮范围内。
+  - 提交信息规范：当前提交信息包含功能描述，未强制要求包含任务 ID，后续可考虑统一规范。
+- 下一步建议：
+  - 用户确认后，将 `T-20260402-003` 标记为"完成"。
+  - 继续执行 Task 12：最终验证与交接。
+
+---
+
+## 2026-04-02（记录 24）
+
+- 时间：2026-04-02
+- 任务 ID：T-20260402-002
+- 任务名：实现 CLI 入口与命令路由骨架
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `package.json`（新增）
+  - `cli/index.js`（新增）
+  - `cli/commands/ask.js`（新增）
+  - `cli/commands/providers.js`（新增）
+  - `cli/commands/doctor.js`（新增）
+  - `cli/commands/help.js`（新增）
+  - `tests/cli/help.test.js`（新增）
+  - `task.md`（更新）
+  - `progress.md`（更新）
+- 操作摘要：
+  - 遵循 TDD 流程：先写失败测试，再实现最小代码使测试通过。
+  - 创建 CLI 入口 `cli/index.js`，实现参数解析、命令分发、`--help` 透传、JSON-first 输出包装。
+  - 创建四个命令处理器骨架：`ask`、`providers`、`doctor`、`help`。
+  - 每个命令包含标准帮助文本：purpose、required arguments、examples、JSON behavior。
+  - 未知命令返回结构化错误（code + message + suggestion）。
+- 验证步骤：
+1. 运行 `node --test tests/cli/help.test.js`，确认 23 测试全部通过。
+2. 运行 `git status --short`，确认仅新增 `cli/`、`package.json`、`tests/`。
+3. 检查每个命令的帮助文本包含 purpose、arguments、examples、JSON behavior。
+- 验证证据：
+  - 测试输出：`ℹ tests 23 ℹ pass 23 ℹ fail 0`
+  - Git status：`?? cli/ ?? package.json ?? tests/`
+  - 所有命令返回 JSON-serializable 结果，错误结果包含 `code`、`message`、`suggestion`。
+- 风险/问题：
+  - 本轮仅实现骨架，未实现浏览器运行时、Provider 适配器、Contracts、Doctor 内部逻辑、Ask 生命周期内部逻辑。
+  - 后续任务需按计划逐步填充实现。
+- 下一步建议：
+  - Task 3：定义 result、error、exit-code contracts。
+  - Task 4：添加 Provider registry 和 capability metadata。
+
+---
+
 ## 2026-04-02（记录 23）
 
 - 时间：2026-04-02

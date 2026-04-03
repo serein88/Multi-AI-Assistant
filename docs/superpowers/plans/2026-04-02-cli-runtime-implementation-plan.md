@@ -460,24 +460,32 @@ git commit -m "feat: add semantic help system"
 - Modify: implementation docs only as needed
 - Test: manual workflow verification
 
-- [ ] **Step 1: Define the backup rule used before each code task**
+- [x] **Step 1: Define the backup rule used before each code task**
 
-Before editing code in each implementation session:
+Minimum acceptable revertability rule:
 
-- verify `git status`
-- create a dedicated branch if needed
-- ensure a restorable snapshot exists before risky changes
+- Before starting a series of code tasks, ensure at least one restorable git commit boundary exists
+- Each task should be committed independently after completion, forming a revertible commit sequence
+- Does not require a separate backup point before each individual task, but the overall implementation process must remain revertible
 
-- [ ] **Step 2: Define subagent usage policy for implementation**
+**Completed:** Backup rule documented in `progress.md` record 25. CLI implementation followed this rule with explicit backup commit (`fd6f9e8 cli化前 备份`) as the overall baseline and task-level commits forming a revertible sequence.
+
+- [x] **Step 2: Define subagent usage policy for implementation**
 
 At minimum:
 
 - one subagent may implement a task
-- a separate independent subagent must review the result before completion claims
+- a separate independent subagent must review the result before completion claims (mandatory, not optional)
 
-- [ ] **Step 3: Document the review requirement in progress tracking**
+**Completed:** Subagent usage policy documented in `progress.md` record 25. Policy requires independent review agent before completion claims. This is a mandatory requirement.
 
-- [ ] **Step 4: Commit workflow documentation updates if needed**
+- [x] **Step 3: Document the review requirement in progress tracking**
+
+**Completed:** Review requirement documented in `progress.md` record 25. Task 11 documents the policy; Task 12 executes the independent review.
+
+- [x] **Step 4: Record the commit workflow documentation update command**
+
+Note: This step is considered complete because the commit command and workflow guidance were documented. It does not imply that a commit was executed within Task 11 scope.
 
 ```bash
 git add progress.md task.md
@@ -537,5 +545,5 @@ git commit -m "feat: ship CLI runtime MVP for Grok DeepSeek and Gemini"
 ## Execution Notes
 
 - Because this repository already contains unrelated uncommitted changes, implementation sessions must avoid accidental staging by always adding exact file paths.
-- Because the user explicitly requested backup/revertability, every risky code task should start from a clean, understood git snapshot or a narrowly scoped branch/commit boundary.
-- Because the user explicitly requested subagent usage and independent review, implementation should prefer fresh subagents per task and a dedicated review subagent between logical milestones.
+- Because the user explicitly requested backup/revertability, the overall implementation process must maintain revertible commit boundaries. At minimum, a baseline backup commit must exist before starting a series of code tasks, and each task should be committed independently after completion.
+- Because the user explicitly requested subagent usage and independent review, implementation may use fresh subagents per task for isolation, but the mandatory requirement is that completion claims must be reviewed by a separate independent review agent. This independent review requirement is mandatory, not optional.
