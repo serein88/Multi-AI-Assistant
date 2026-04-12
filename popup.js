@@ -11,9 +11,22 @@ const statusEl = document.getElementById("status");
 
 let sessionCache = [];
 let selectedSessionId = null;
+let pendingAction = false;
 
 function setStatus(text) {
   statusEl.textContent = text || "";
+}
+
+function setPendingState(isPending) {
+  pendingAction = isPending;
+  createSessionButton.disabled = isPending;
+  loadSessionsButton.disabled = isPending;
+  confirmRestoreButton.disabled = isPending || !selectedSessionId;
+  closeRestorePanelButton.disabled = isPending;
+
+  sessionListEl.querySelectorAll("button").forEach((button) => {
+    button.disabled = isPending;
+  });
 }
 
 function formatTimestamp(value) {
@@ -52,36 +65,76 @@ async function sendRuntimeMessage(message) {
 function hideRestorePanel() {
   selectedSessionId = null;
   restorePanelEl.classList.add("hidden");
-  restoreSummaryEl.innerHTML = "";
+  restoreSummaryEl.replaceChildren();
+  setPendingState(pendingAction);
 }
 
 function renderRestorePanel(session) {
   const summary = formatSessionSummary(session);
-  const childrenHtml = summary.children.map((child) => `
-    <div class="child-row">
-      <div>
-        <div class="child-provider">${child.provider}</div>
-        <div class="child-title">${child.title}</div>
-      </div>
-      <div class="child-meta">
-        <span class="badge ${child.recoverable ? "ok" : "muted"}">${child.recoverable ? "可恢复" : "不可恢复"}</span>
-        <span>${child.lastActiveAt}</span>
-      </div>
-    </div>
-  `).join("");
+  restoreSummaryEl.replaceChildren();
 
-  restoreSummaryEl.innerHTML = `
-    <div class="summary-head">
-      <div class="summary-title">${summary.title}</div>
-      <div class="summary-subtitle">${summary.subtitle}</div>
-    </div>
-    <div class="summary-children">${childrenHtml || '<div class="empty small">没有子会话记录。</div>'}</div>
-  `;
+  const summaryHead = document.createElement("div");
+  summaryHead.className = "summary-head";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "summary-title";
+  titleEl.textContent = summary.title;
+
+  const subtitleEl = document.createElement("div");
+  subtitleEl.className = "summary-subtitle";
+  subtitleEl.textContent = summary.subtitle;
+
+  summaryHead.append(titleEl, subtitleEl);
+
+  const childrenWrap = document.createElement("div");
+  childrenWrap.className = "summary-children";
+
+  if (summary.children.length === 0) {
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "empty small";
+    emptyEl.textContent = "没有子会话记录。";
+    childrenWrap.appendChild(emptyEl);
+  } else {
+    summary.children.forEach((child) => {
+      const row = document.createElement("div");
+      row.className = "child-row";
+
+      const left = document.createElement("div");
+
+      const providerEl = document.createElement("div");
+      providerEl.className = "child-provider";
+      providerEl.textContent = child.provider;
+
+      const childTitleEl = document.createElement("div");
+      childTitleEl.className = "child-title";
+      childTitleEl.textContent = child.title;
+
+      left.append(providerEl, childTitleEl);
+
+      const meta = document.createElement("div");
+      meta.className = "child-meta";
+
+      const badge = document.createElement("span");
+      badge.className = `badge ${child.recoverable ? "ok" : "muted"}`;
+      badge.textContent = child.recoverable ? "可恢复" : "不可恢复";
+
+      const lastActiveEl = document.createElement("span");
+      lastActiveEl.textContent = child.lastActiveAt;
+
+      meta.append(badge, lastActiveEl);
+      row.append(left, meta);
+      childrenWrap.appendChild(row);
+    });
+  }
+
+  restoreSummaryEl.append(summaryHead, childrenWrap);
   restorePanelEl.classList.remove("hidden");
+  setPendingState(pendingAction);
 }
 
 function renderSessionList(sessions) {
-  sessionListEl.innerHTML = "";
+  sessionListEl.replaceChildren();
+  hideRestorePanel();
   emptyStateEl.classList.toggle("hidden", sessions.length > 0);
 
   sessions.forEach((session) => {
@@ -89,13 +142,26 @@ function renderSessionList(sessions) {
     const card = document.createElement("button");
     card.type = "button";
     card.className = "session-item";
-    card.innerHTML = `
-      <div class="session-title">${summary.title}</div>
-      <div class="session-subtitle">${summary.subtitle}</div>
-      <div class="session-children">${summary.children.map((child) => `
-        <span class="badge ${child.recoverable ? "ok" : "muted"}">${child.provider}</span>
-      `).join("")}</div>
-    `;
+    card.disabled = pendingAction;
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "session-title";
+    titleEl.textContent = summary.title;
+
+    const subtitleEl = document.createElement("div");
+    subtitleEl.className = "session-subtitle";
+    subtitleEl.textContent = summary.subtitle;
+
+    const childrenEl = document.createElement("div");
+    childrenEl.className = "session-children";
+    summary.children.forEach((child) => {
+      const badge = document.createElement("span");
+      badge.className = `badge ${child.recoverable ? "ok" : "muted"}`;
+      badge.textContent = child.provider;
+      childrenEl.appendChild(badge);
+    });
+
+    card.append(titleEl, subtitleEl, childrenEl);
     card.addEventListener("click", () => {
       selectedSessionId = summary.id;
       renderRestorePanel(session);
@@ -104,20 +170,31 @@ function renderSessionList(sessions) {
   });
 }
 
-async function loadSessions() {
-  setStatus("正在读取历史会话...");
+async function loadSessions(options = {}) {
+  const { preserveStatus = false } = options;
+  if (!preserveStatus) {
+    setStatus("正在读取历史会话...");
+  }
   const sessions = await sendRuntimeMessage({ type: "session:list" });
   sessionCache = Array.isArray(sessions) ? sessions : [];
   renderSessionList(sessionCache);
-  setStatus(sessionCache.length > 0 ? "已加载历史会话。" : "还没有已保存会话。");
+  if (!preserveStatus) {
+    setStatus(sessionCache.length > 0 ? "已加载历史会话。" : "还没有已保存会话。");
+  }
 }
 
 async function createSession() {
+  if (pendingAction) return;
+  setPendingState(true);
   setStatus("正在创建会话...");
   const mode = backgroundModeInput.checked ? "background" : "foreground";
-  const result = await sendRuntimeMessage({ type: "session:create", mode });
-  setStatus(`会话已创建：${result.session?.name || result.session?.sessionId || "unknown"}`);
-  await loadSessions();
+  try {
+    const result = await sendRuntimeMessage({ type: "session:create", mode });
+    await loadSessions({ preserveStatus: true });
+    setStatus(`会话已创建：${result.session?.name || result.session?.sessionId || "unknown"}`);
+  } finally {
+    setPendingState(false);
+  }
 }
 
 async function restoreSession() {
@@ -126,16 +203,22 @@ async function restoreSession() {
     return;
   }
 
+  if (pendingAction) return;
+  setPendingState(true);
   setStatus("正在恢复会话...");
-  const result = await sendRuntimeMessage({
-    type: "session:restore",
-    sessionId: selectedSessionId
-  });
+  try {
+    const result = await sendRuntimeMessage({
+      type: "session:restore",
+      sessionId: selectedSessionId
+    });
 
-  const restoredCount = Array.isArray(result.restored) ? result.restored.length : 0;
-  setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话。` : "该会话没有可恢复的子会话。");
-  hideRestorePanel();
-  await loadSessions();
+    const restoredCount = Array.isArray(result.restored) ? result.restored.length : 0;
+    hideRestorePanel();
+    await loadSessions({ preserveStatus: true });
+    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话。` : "该会话没有可恢复的子会话。");
+  } finally {
+    setPendingState(false);
+  }
 }
 
 createSessionButton.addEventListener("click", () => {
