@@ -32,9 +32,12 @@ function createSessionRecord({ sessionId, providers, mode, now }) {
 }
 
 function updateChildSessionRecord(session, provider, patch) {
+  if (!Object.prototype.hasOwnProperty.call(session.childSessions, provider)) {
+    throw new Error(`Unknown provider "${provider}"`);
+  }
   return {
     ...session,
-    lastActiveAt: patch.lastActiveAt || session.lastActiveAt,
+    lastActiveAt: patch.lastActiveAt ?? session.lastActiveAt,
     childSessions: {
       ...session.childSessions,
       [provider]: {
