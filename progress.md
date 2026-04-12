@@ -18,6 +18,33 @@
 
 ---
 
+## 2026-04-12（记录 30）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-005
+- 任务名：扩展会话层 Task6：同步子会话元数据（Provider 页）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `background.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - Provider 页面新增轻量元数据同步：仅上报 `provider/url/title/lastActiveAt`，不含回答内容。
+  - 同步触发点覆盖初始加载、`popstate`/`hashchange` 与低频去抖的 title/body 变更。
+  - 后台 `session:sync-child` 根据 `tabId/windowId` 绑定会话子项，使用 `normalizeChildSessionBinding` 统一字段并更新 `SessionRegistry`。
+  - 登录/挑战/空白 URL 由 `normalizeChildSessionBinding` 判定为 `recoverable=false`。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --check background.js`。
+- 验证证据：
+  - `node --check content/content.js` 通过（无语法错误）。
+  - `node --check background.js` 通过（无语法错误）。
+- 风险/问题：
+  - 未进行 Chrome 手工验证，`session:sync-child` 的后台日志与会话账本需按任务说明人工确认。
+- 下一步建议：
+  - 按任务 6 的手工验证清单在 Chrome 中验证 DeepSeek/Gemini/Grok 的 URL 与 title 记录。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

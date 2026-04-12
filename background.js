@@ -216,9 +216,52 @@ async function handleSessionRestore(sessionId) {
   return { session: updated, windowId, restored: recoverableChildren };
 }
 
-async function handleSessionSyncChild(message) {
+async function handleSessionSyncChild(message, sender) {
   log("Received session:sync-child payload", message);
-  return { ok: true };
+
+  if (!sessionRegistry || !SESSION_MODEL.updateChildSessionRecord || !SESSION_BINDINGS.normalizeChildSessionBinding) {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const provider = message?.provider;
+  const isSupported =
+    typeof SESSION_BINDINGS.isSessionProviderSupported === "function"
+      ? SESSION_BINDINGS.isSessionProviderSupported(provider)
+      : getSessionProviderIds().includes(provider);
+  if (!isSupported) {
+    return { ok: false, reason: "unsupported-provider" };
+  }
+
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (typeof tabId !== "number" || typeof windowId !== "number") {
+    return { ok: false, reason: "missing-tab-context" };
+  }
+
+  const sessions = await sessionRegistry.listSessions();
+  const session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    return { ok: false, reason: "session-not-found" };
+  }
+
+  if (!session.childSessions || !Object.prototype.hasOwnProperty.call(session.childSessions, provider)) {
+    return { ok: false, reason: "provider-not-in-session" };
+  }
+
+  const now = typeof message?.lastActiveAt === "string" ? message.lastActiveAt : new Date().toISOString();
+  const normalized = SESSION_BINDINGS.normalizeChildSessionBinding({
+    provider,
+    url: message?.url,
+    title: message?.title,
+    tabId,
+    now
+  });
+
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+    SESSION_MODEL.updateChildSessionRecord(record, provider, normalized)
+  );
+
+  return { ok: true, sessionId: updated.sessionId, child: updated.childSessions?.[provider] };
 }
 
 async function findOrCreateProviderTab(providerId) {

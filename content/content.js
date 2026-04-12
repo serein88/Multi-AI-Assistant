@@ -447,6 +447,95 @@ function postSendResult(provider, success) {
   });
 }
 
+const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
+const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
+let childSessionSyncStarted = false;
+let lastSyncedUrl = "";
+let lastSyncedTitle = "";
+
+function createDebouncedSync(fn, delay) {
+  let timer = null;
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      fn();
+    }, delay);
+  };
+}
+
+function sendChildSessionSync(provider) {
+  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
+  const url = window.location.href;
+  const title = document.title || "";
+  if (url === lastSyncedUrl && title === lastSyncedTitle) return;
+
+  lastSyncedUrl = url;
+  lastSyncedTitle = title;
+
+  const payload = {
+    type: "session:sync-child",
+    provider,
+    url,
+    title,
+    lastActiveAt: new Date().toISOString()
+  };
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch (error) {
+    // ignore sync errors
+  }
+}
+
+function startChildSessionSync(provider) {
+  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
+  if (childSessionSyncStarted) return;
+  childSessionSyncStarted = true;
+
+  const debouncedSync = createDebouncedSync(() => sendChildSessionSync(provider), CHILD_SESSION_SYNC_DEBOUNCE_MS);
+
+  sendChildSessionSync(provider);
+
+  window.addEventListener("popstate", debouncedSync);
+  window.addEventListener("hashchange", debouncedSync);
+
+  const titleObserver = new MutationObserver(() => debouncedSync());
+  const bodyObserver = new MutationObserver(() => debouncedSync());
+  const headObserver = new MutationObserver(() => {
+    const titleEl = document.querySelector("title");
+    if (titleEl) {
+      titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
+    }
+  });
+
+  const titleEl = document.querySelector("title");
+  if (titleEl) {
+    titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
+  }
+
+  if (document.head) {
+    headObserver.observe(document.head, { childList: true, subtree: true });
+  }
+
+  if (document.body) {
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener("DOMContentLoaded", () => {
+      if (document.body) {
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+      }
+    }, { once: true });
+  }
+}
+
 log(`Content script loaded for ${window.location.hostname}`);
 
 function waitForElement(selectors, timeout = 3000) {
@@ -1957,6 +2046,8 @@ window.addEventListener("message", (event) => {
 
 function initializeCustomFixes() {
   const provider = getProviderFromHost();
+
+  startChildSessionSync(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");
