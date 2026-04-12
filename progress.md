@@ -45,6 +45,175 @@
 - 下一步建议：
   - 按任务 6 的手工验证清单在 Chrome 中验证 DeepSeek/Gemini/Grok 的 URL 与 title 记录。
 
+## 2026-04-12（记录 31）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-005
+- 任务名：扩展会话层 Task6：同步子会话元数据（Provider 页）（模块加载修复）
+- 状态流转：待确认 -> 进行中
+- 变更文件：
+  - `background.js`
+  - `session/session-constants.js`
+  - `session/session-model.js`
+  - `session/session-registry.js`
+  - `session/provider-session-bindings.js`
+  - `session/window-manager.js`
+  - `tests/session/worker-module-compat.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据手工验证结果，定位 `session-modules-unavailable` / `session-registry-unavailable` 的根因是 service worker 用 `importScripts` 顺序加载脚本时，旧的伪 `require` 模块系统把多个脚本注入同一全局作用域，导致 `session-model.js` 顶层常量重复声明。
+  - 将会话模块统一改为“双运行时导出”：Node 测试环境保留 `module.exports`，Chrome service worker 环境改为挂载到 `globalThis.MultiAI*`。
+  - 删除 `background.js` 中的自定义 `loadSessionModules()` / `requireShim`，改为直接顺序 `importScripts` 后读取全局导出的会话 API。
+  - 新增 worker 兼容测试，模拟共享 worker 全局顺序加载 `providers.js` 与 5 个 session 模块，确保不再出现重复声明或 `module is not defined`。
+- 验证步骤：
+1. 执行 `node --test tests/session/worker-module-compat.test.js`。
+2. 执行 `node --test tests/session/session-model.test.js tests/session/session-registry.test.js tests/session/provider-session-bindings.test.js tests/session/window-manager.test.js tests/session/worker-module-compat.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node --check content/content.js`。
+- 验证证据：
+  - `node --test tests/session/worker-module-compat.test.js` 通过：`pass 1, fail 0`。
+  - `node --test tests/session/session-model.test.js tests/session/session-registry.test.js tests/session/provider-session-bindings.test.js tests/session/window-manager.test.js tests/session/worker-module-compat.test.js` 通过：`pass 29, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check content/content.js` 通过（无语法错误）。
+- 风险/问题：
+  - 目前只完成本地模块级验证，仍需在 Chrome 中重新加载扩展，确认 `新建会话` 与 `刷新列表` 不再报错。
+  - Task4/Task6 的集成状态仍依赖真实浏览器窗口创建与子会话同步链路的手工回归。
+- 下一步建议：
+  - 在 `chrome://extensions` 中重载当前 worktree 扩展后，重新验证 `新建会话`、`刷新列表` 与 `恢复对话`。
+
+## 2026-04-12（记录 32）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-005
+- 任务名：扩展会话层 Task6：同步子会话元数据（Provider 页）（dashboard 会话模型与 Gemini 历史修复）
+- 状态流转：进行中 -> 进行中
+- 变更文件：
+  - `background.js`
+  - `dashboard.js`
+  - `session/provider-session-bindings.js`
+  - `session/window-manager.js`
+  - `tests/session/provider-session-bindings.test.js`
+  - `tests/session/window-manager.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 按用户确认的模型，把 `session:create` / `session:restore` 从“直接打开多个 provider 原生页”改回“打开一个 `dashboard.html` 会话窗口”，会话窗口通过 query 参数绑定 `sessionId`。
+  - 新增扩展侧会话 dashboard 状态持久化，按 `sessionId` 保存本会话的 `panels + childSessionUrls`，避免多个会话窗口共享同一份全局面板配置。
+  - `dashboard.js` 现在按 `sessionId` 读取当前会话的面板与子会话 URL，面板 iframe 优先恢复到已保存的对子会话 URL，否则回退到 provider 默认首页。
+  - `provider-session-bindings` 增加 Gemini 内部 frame 过滤规则，明确忽略 `https://gemini.google.com/_/bscframe` 这类不可恢复地址。
+  - `background.js` 增加历史脏数据清洗：旧会话中若 Gemini 子会话已错误保存为 `/_/bscframe`，会在 `session:list/get/restore` 时自动降级为 `recoverable=false` 且清空 URL，避免后续恢复继续落到错误地址。
+- 验证步骤：
+1. 执行 `node --test tests/session/provider-session-bindings.test.js tests/session/window-manager.test.js tests/session/session-model.test.js tests/session/session-registry.test.js tests/session/worker-module-compat.test.js`。
+2. 执行 `node --check background.js`。
+3. 执行 `node --check dashboard.js`。
+4. 执行 `node --check content/content.js`。
+5. 使用 MCP 重载扩展，打开 `popup.html`，点击 `新建会话`。
+6. 使用 MCP 在 popup 页执行 `chrome.runtime.sendMessage({ type: "session:list" })`，检查新会话和历史会话里的 `childSessions` 数据。
+- 验证证据：
+  - Node 测试通过：`pass 32, fail 0`。
+  - `node --check background.js` / `node --check dashboard.js` / `node --check content/content.js` 全部通过。
+  - MCP 验证中，点击 `新建会话` 后 popup 状态显示 `会话已创建`，且浏览器页面列表未再出现 3 个独立 provider 顶层标签页，符合 dashboard 会话窗口模型。
+  - MCP 读取 `session:list` 返回结果显示：
+    - 新会话 `sess_20260412_is2mqf` 的 Gemini 子会话 URL 为 `https://gemini.google.com/app`，`recoverable=true`。
+    - 旧脏数据会话 `sess_20260412_sp6wdx` 与 `sess_20260412_jemleo` 的 Gemini 子会话已被清洗为 `url:\"\"` 且 `recoverable=false`，不再保留 `/_/bscframe`。
+- 风险/问题：
+  - popup 在“刚创建会话、iframe 尚未完成首轮同步”的短窗口内，恢复确认面板可能仍暂时显示 `不可恢复 / 未知时间`；刷新列表后会读取到最新账本状态。
+  - 目前尚未用用户手工路径再次验证“从 popup 点击恢复会话后，dashboard 中各 iframe 的恢复视觉效果”，这一步仍建议用户实际回归。
+- 下一步建议：
+  - 请用户基于当前 worktree 扩展再次手工验证：`新建会话` 是否打开多 AI 主界面、`恢复对话` 是否不再把 Gemini 落到 `/_/bscframe`。
+
+## 2026-04-12（记录 33）
+
+- 时间：2026-04-12
+- 任务 ID：
+  - `T-20260412-003`
+  - `T-20260412-005`
+- 任务名：
+  - 扩展会话层 Task4：后台窗口编排
+  - 扩展会话层 Task6：同步子会话元数据（Provider 页）
+- 状态流转：
+  - `T-20260412-002`：待确认 -> 完成
+  - `T-20260412-003`：待确认 -> 完成
+  - `T-20260412-005`：进行中 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据用户最新手工验收结果，正式收口扩展会话层 MVP 的核心链路：
+    - `新建会话` 已恢复为打开 `dashboard` 多 AI 主界面
+    - `恢复对话` 已在 `dashboard` 中工作正常
+    - Gemini 错误恢复地址 `https://gemini.google.com/_/bscframe` 已修复并完成历史脏数据清洗
+  - 同步关闭实施计划任务 `T-20260412-002`，因为该计划已被实际执行并贯穿到当前实现。
+  - 新增下一条推荐任务 `T-20260412-006`：历史子会话适配 Phase 1，建议先以 `DeepSeek` 作为样板 provider，避免优先落入 Gemini iframe/内部路由适配复杂度。
+- 验证步骤：
+1. 用户手工点击 `新建会话`，确认打开的是多 AI 主界面而非 3 个独立 provider 页面。
+2. 用户手工点击 `恢复对话`，确认恢复在 `dashboard` 中正常工作。
+3. 用户确认 Gemini 不再恢复到 `https://gemini.google.com/_/bscframe`。
+- 验证证据：
+  - 用户明确反馈：`现在新建会话和恢复对话功能正常，而且都是在dashboard中。`
+  - 用户此前已确认：Gemini 错误恢复地址问题已解决。
+- 风险/问题：
+  - 当前历史能力仍然停留在“恢复扩展已记录的当前对子会话 URL”，尚未进入 provider 原生历史列表适配阶段。
+  - `DeepSeek / Gemini / Grok` 三者中，`Gemini` 的页面内部路由最复杂，不适合作为下一条历史适配的首个样板。
+- 下一步建议：
+  - 下一轮领取 `T-20260412-006`，先做 `DeepSeek` 的历史子会话适配设计与任务拆解，再决定是否推广到 `Grok` 或 `Gemini`。
+
+## 2026-04-12（记录 34）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-007
+- 任务名：设计并规划扩展会话转录层 MVP
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `docs/superpowers/specs/2026-04-12-extension-transcript-layer-design.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 基于用户确认的方向，输出扩展会话转录层 MVP 设计文档。
+  - 明确本阶段只记录“扩展接管后的新增轮次”，不导入接管前旧消息。
+  - 固化核心目标：子会话原始多轮记录、总会话时间线、实时回答状态、dashboard 查看入口。
+  - 固化成功标准与风险边界，为下一步实施计划提供输入。
+- 验证步骤：
+1. 打开 `docs/superpowers/specs/2026-04-12-extension-transcript-layer-design.md`。
+2. 确认文档包含目标、范围、核心产物、记录内容、界面方向、成功标准和实施顺序。
+3. 确认文档明确写入“不导入接管前旧消息”。
+- 验证证据：
+  - 新增正式 spec 文档，已经固化转录层 MVP 的宏观范围。
+  - 文档内容与用户确认一致：只管扩展接管后的会话，不处理旧子会话消息导入。
+- 风险/问题：
+  - 当前仅完成设计收敛，尚未开始实现转录数据结构和页面监听。
+- 下一步建议：
+  - 进入实施计划阶段，拆出转录层的实现任务与验证矩阵。
+
+## 2026-04-12（记录 35）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-008
+- 任务名：输出扩展会话转录层 MVP 实施计划
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `docs/superpowers/plans/2026-04-12-extension-transcript-layer-implementation-plan.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 基于转录层 spec 输出正式实施计划。
+  - 将实现拆成 7 个任务：数据结构、实时状态消息、统一发送记录、手动继续聊记录、总时间线、dashboard 展示、整体回归。
+  - 明确文件边界主要集中在 `background.js / content/content.js / dashboard.js / dashboard.html / dashboard.css / transcript tests`。
+  - 固化手工验证矩阵：新建会话、统一发送、手动继续聊、dashboard 查看、恢复后读取记录。
+- 验证步骤：
+1. 打开 `docs/superpowers/plans/2026-04-12-extension-transcript-layer-implementation-plan.md`。
+2. 确认包含计划头、文件结构、任务拆分、手工验证矩阵和验证命令。
+3. 确认计划范围没有提前进入 provider 原生历史适配。
+- 验证证据：
+  - 新增正式 implementation plan 文档，已把转录层 MVP 实施顺序落成任务。
+  - 计划文档中的验证命令覆盖 Node 测试和语法检查，验证矩阵覆盖会话级录制和恢复场景。
+- 风险/问题：
+  - 本轮只完成文档化和计划拆解，尚未进入代码实现。
+  - 计划默认需要新增 transcript 相关测试文件，实施时要避免把现有会话层代码搅乱。
+- 下一步建议：
+  - 由你先审阅 spec 与 plan；如果通过，下一轮直接进入实现。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

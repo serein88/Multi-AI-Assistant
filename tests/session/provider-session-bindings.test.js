@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const providersModule = require("../../providers.js");
 const {
   normalizeChildSessionBinding,
-  isSessionProviderSupported
+  isSessionProviderSupported,
+  shouldIgnoreChildSessionUrl
 } = require("../../session/provider-session-bindings.js");
 
 const SUPPORTED_SESSION_PROVIDERS = [
@@ -54,6 +55,28 @@ test("normalizeChildSessionBinding treats empty urls as non-recoverable", () => 
     provider: "gemini",
     url: "",
     title: "Gemini Empty"
+  });
+
+  assert.equal(binding.recoverable, false);
+});
+
+test("shouldIgnoreChildSessionUrl rejects Gemini internal frame urls", () => {
+  assert.equal(
+    shouldIgnoreChildSessionUrl("gemini", "https://gemini.google.com/_/bscframe"),
+    true
+  );
+  assert.equal(
+    shouldIgnoreChildSessionUrl("gemini", "https://gemini.google.com/app"),
+    false
+  );
+});
+
+test("normalizeChildSessionBinding marks Gemini internal frame urls as non-recoverable", () => {
+  const binding = normalizeChildSessionBinding({
+    provider: "gemini",
+    url: "https://gemini.google.com/_/bscframe",
+    title: "Gemini Internal Frame",
+    tabId: 9
   });
 
   assert.equal(binding.recoverable, false);

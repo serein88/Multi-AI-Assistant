@@ -1,99 +1,114 @@
-const {
-  SESSION_STATUS_ARCHIVED,
-  SESSION_STORAGE_KEY
-} = require('./session-constants.js');
+(() => {
+  const constants =
+    typeof require === "function"
+      ? require("./session-constants.js")
+      : (globalThis.MultiAISessionConstants || {});
 
-function createSessionRegistry({ storage }) {
-  let pending = Promise.resolve();
+  const {
+    SESSION_STATUS_ARCHIVED,
+    SESSION_STORAGE_KEY
+  } = constants;
 
-  function enqueueWork(task) {
-    const run = pending.then(() => task());
-    pending = run.catch(() => {});
-    return run;
-  }
+  function createSessionRegistry({ storage }) {
+    let pending = Promise.resolve();
 
-  async function loadAll() {
-    const result = await storage.get(SESSION_STORAGE_KEY);
-    const sessions = result?.[SESSION_STORAGE_KEY];
-    return Array.isArray(sessions) ? sessions : [];
-  }
-
-  async function saveAll(sessions) {
-    await storage.set({ [SESSION_STORAGE_KEY]: sessions });
-  }
-
-  async function persistSession(session) {
-    return enqueueWork(async () => {
-      const sessions = await loadAll();
-      const next = sessions.filter((item) => item.sessionId !== session.sessionId);
-      next.push(session);
-      await saveAll(next);
-      return session;
-    });
-  }
-
-  async function updateSession(sessionId, updater) {
-    if (!sessionId) {
-      throw new Error('sessionId is required');
+    function enqueueWork(task) {
+      const run = pending.then(() => task());
+      pending = run.catch(() => {});
+      return run;
     }
 
-    return enqueueWork(async () => {
-      const sessions = await loadAll();
-      const index = sessions.findIndex((item) => item.sessionId === sessionId);
-      if (index === -1) {
-        throw new Error(`Session not found: ${sessionId}`);
+    async function loadAll() {
+      const result = await storage.get(SESSION_STORAGE_KEY);
+      const sessions = result?.[SESSION_STORAGE_KEY];
+      return Array.isArray(sessions) ? sessions : [];
+    }
+
+    async function saveAll(sessions) {
+      await storage.set({ [SESSION_STORAGE_KEY]: sessions });
+    }
+
+    async function persistSession(session) {
+      return enqueueWork(async () => {
+        const sessions = await loadAll();
+        const next = sessions.filter((item) => item.sessionId !== session.sessionId);
+        next.push(session);
+        await saveAll(next);
+        return session;
+      });
+    }
+
+    async function updateSession(sessionId, updater) {
+      if (!sessionId) {
+        throw new Error("sessionId is required");
       }
 
-      const existing = sessions[index];
-      const patched = updater(existing);
-      const merged = {
-        ...existing,
-        ...patched,
-        sessionId: existing.sessionId
-      };
+      return enqueueWork(async () => {
+        const sessions = await loadAll();
+        const index = sessions.findIndex((item) => item.sessionId === sessionId);
+        if (index === -1) {
+          throw new Error(`Session not found: ${sessionId}`);
+        }
 
-      sessions[index] = merged;
-      await saveAll(sessions);
-      return merged;
-    });
-  }
+        const existing = sessions[index];
+        const patched = updater(existing);
+        const merged = {
+          ...existing,
+          ...patched,
+          sessionId: existing.sessionId
+        };
 
-  async function touchSession(sessionId, timestamp) {
-    const lastActiveAt = timestamp ?? new Date().toISOString();
-    return updateSession(sessionId, (session) => ({ ...session, lastActiveAt }));
-  }
+        sessions[index] = merged;
+        await saveAll(sessions);
+        return merged;
+      });
+    }
 
-  async function archiveSession(sessionId, options = {}) {
-    const archivedAt = options.archivedAt ?? new Date().toISOString();
-    return updateSession(sessionId, (session) => ({
-      ...session,
-      status: SESSION_STATUS_ARCHIVED,
-      archivedAt
-    }));
-  }
+    async function touchSession(sessionId, timestamp) {
+      const lastActiveAt = timestamp ?? new Date().toISOString();
+      return updateSession(sessionId, (session) => ({ ...session, lastActiveAt }));
+    }
 
-  async function getSession(sessionId) {
-    const sessions = await loadAll();
-    return sessions.find((item) => item.sessionId === sessionId);
-  }
+    async function archiveSession(sessionId, options = {}) {
+      const archivedAt = options.archivedAt ?? new Date().toISOString();
+      return updateSession(sessionId, (session) => ({
+        ...session,
+        status: SESSION_STATUS_ARCHIVED,
+        archivedAt
+      }));
+    }
 
-  return {
-    async listSessions() {
+    async function getSession(sessionId) {
       const sessions = await loadAll();
-      return sessions
-        .slice()
-        .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
-    },
-    async saveSession(session) {
-      return persistSession(session);
-    },
-    getSession,
-    updateSession,
-    touchSession,
-    archiveSession
-  };
-}
+      return sessions.find((item) => item.sessionId === sessionId);
+    }
 
-module.exports = {
-  createSessionRegistry
-};
+    return {
+      async listSessions() {
+        const sessions = await loadAll();
+        return sessions
+          .slice()
+          .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+      },
+      async saveSession(session) {
+        return persistSession(session);
+      },
+      getSession,
+      updateSession,
+      touchSession,
+      archiveSession
+    };
+  }
+
+  const api = {
+    createSessionRegistry
+  };
+
+  if (typeof globalThis !== "undefined") {
+    globalThis.MultiAISessionRegistry = api;
+  }
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+})();

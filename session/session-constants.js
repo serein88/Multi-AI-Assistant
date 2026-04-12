@@ -1,11 +1,16 @@
-const SESSION_STATUS_ACTIVE = "active";
-const SESSION_STATUS_ARCHIVED = "archived";
-const SESSION_MODE_FOREGROUND = "foreground";
-const SESSION_STORAGE_KEY = "multi-ai-sessions";
+(() => {
+  const api = {
+    SESSION_STATUS_ACTIVE: "active",
+    SESSION_STATUS_ARCHIVED: "archived",
+    SESSION_MODE_FOREGROUND: "foreground",
+    SESSION_STORAGE_KEY: "multi-ai-sessions"
+  };
 
-module.exports = {
-  SESSION_STATUS_ACTIVE,
-  SESSION_STATUS_ARCHIVED,
-  SESSION_MODE_FOREGROUND,
-  SESSION_STORAGE_KEY
-};
+  if (typeof globalThis !== "undefined") {
+    globalThis.MultiAISessionConstants = api;
+  }
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = api;
+  }
+})();

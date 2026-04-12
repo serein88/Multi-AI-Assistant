@@ -2,9 +2,16 @@ const START_PAGE = "dashboard.html";
 const DEBUG = true; // Set to false in production
 
 try {
-  importScripts("providers.js");
+  importScripts(
+    "providers.js",
+    "session/session-constants.js",
+    "session/session-model.js",
+    "session/session-registry.js",
+    "session/provider-session-bindings.js",
+    "session/window-manager.js"
+  );
 } catch (error) {
-  console.error("[MultiAI Background] Failed to import providers.js", error);
+  console.error("[MultiAI Background] Failed to import session modules", error);
 }
 
 function log(msg, ...args) {
@@ -13,73 +20,14 @@ function log(msg, ...args) {
   }
 }
 
-function loadSessionModules() {
-  if (typeof importScripts !== "function") {
-    return {};
-  }
-
-  const moduleCache = {};
-  const normalizeModulePath = (path) => {
-    if (path.startsWith("./")) {
-      return `session/${path.slice(2)}`;
-    }
-    if (path.startsWith("../")) {
-      return path.slice(3);
-    }
-    return path;
-  };
-
-  const loadModule = (path) => {
-    const normalized = normalizeModulePath(path);
-    if (moduleCache[normalized]) {
-      return moduleCache[normalized];
-    }
-
-    const previousModule = self.module;
-    const previousExports = self.exports;
-    const module = { exports: {} };
-    self.module = module;
-    self.exports = module.exports;
-
-    importScripts(normalized);
-
-    moduleCache[normalized] = module.exports;
-    self.module = previousModule;
-    self.exports = previousExports;
-    return moduleCache[normalized];
-  };
-
-  const requireShim = (path) => {
-    const normalized = normalizeModulePath(path);
-    if (normalized === "providers.js") {
-      return { SESSION_PROVIDER_IDS: globalThis.SESSION_PROVIDER_IDS };
-    }
-    return loadModule(normalized);
-  };
-
-  self.require = requireShim;
-
-  try {
-    return {
-      constants: loadModule("session/session-constants.js"),
-      model: loadModule("session/session-model.js"),
-      registry: loadModule("session/session-registry.js"),
-      bindings: loadModule("session/provider-session-bindings.js"),
-      windowManager: loadModule("session/window-manager.js")
-    };
-  } catch (error) {
-    console.error("[MultiAI Background] Failed to import session modules", error);
-    return {};
-  }
-}
-
-const SESSION_MODULES = loadSessionModules();
-const SESSION_CONSTANTS = SESSION_MODULES.constants || {};
-const SESSION_MODEL = SESSION_MODULES.model || {};
-const SESSION_REGISTRY = SESSION_MODULES.registry || {};
-const SESSION_BINDINGS = SESSION_MODULES.bindings || {};
-const SESSION_WINDOW_MANAGER = SESSION_MODULES.windowManager || {};
+const SESSION_CONSTANTS = globalThis.MultiAISessionConstants || {};
+const SESSION_MODEL = globalThis.MultiAISessionModel || {};
+const SESSION_REGISTRY = globalThis.MultiAISessionRegistry || {};
+const SESSION_BINDINGS = globalThis.MultiAISessionProviderBindings || {};
+const SESSION_WINDOW_MANAGER = globalThis.MultiAISessionWindowManager || {};
+const buildManagedDashboardUrl = SESSION_WINDOW_MANAGER.buildManagedDashboardUrl;
 const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
+const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -114,19 +62,105 @@ function generateSessionId(now) {
   return `sess_${dateToken}_${randomToken}`;
 }
 
-function clearChildTabBindings(childSessions) {
-  if (!childSessions || typeof childSessions !== "object") {
-    return childSessions;
+function getDashboardSessionStorageKey(sessionId) {
+  return `${DASHBOARD_SESSION_KEY_PREFIX}${sessionId}`;
+}
+
+function buildDashboardSessionPayload(session) {
+  const childSessionUrls = {};
+  for (const [provider, child] of Object.entries(session?.childSessions || {})) {
+    if (child?.recoverable && child?.url) {
+      childSessionUrls[provider] = child.url;
+    }
   }
 
-  const cleared = {};
-  for (const [provider, child] of Object.entries(childSessions)) {
-    cleared[provider] = {
-      ...(child || {}),
-      tabId: null
+  return {
+    sessionId: session?.sessionId || "",
+    panels: Array.isArray(session?.providers) ? session.providers.slice() : [],
+    childSessionUrls,
+    updatedAt: session?.lastActiveAt || session?.createdAt || new Date().toISOString()
+  };
+}
+
+async function persistDashboardSessionState(session) {
+  if (!session?.sessionId) {
+    return;
+  }
+  const key = getDashboardSessionStorageKey(session.sessionId);
+  await chrome.storage.local.set({
+    [key]: buildDashboardSessionPayload(session)
+  });
+}
+
+function sanitizeChildSessionRecord(provider, child) {
+  const existing = child || {};
+  const ignored =
+    typeof SESSION_BINDINGS.shouldIgnoreChildSessionUrl === "function" &&
+    SESSION_BINDINGS.shouldIgnoreChildSessionUrl(provider, existing.url);
+
+  if (ignored) {
+    return {
+      ...existing,
+      provider,
+      tabId: typeof existing.tabId === "number" ? existing.tabId : null,
+      url: "",
+      title: typeof existing.title === "string" && existing.title.length > 0 ? existing.title : provider,
+      lastActiveAt: existing.lastActiveAt || null,
+      recoverable: false
     };
   }
-  return cleared;
+
+  if (typeof SESSION_BINDINGS.normalizeChildSessionBinding === "function") {
+    const normalized = SESSION_BINDINGS.normalizeChildSessionBinding({
+      provider,
+      url: existing.url,
+      title: existing.title,
+      tabId: existing.tabId,
+      now: existing.lastActiveAt
+    });
+
+    return {
+      ...existing,
+      ...normalized,
+      provider,
+      lastActiveAt: existing.lastActiveAt || normalized.lastActiveAt || null
+    };
+  }
+
+  return {
+    ...existing,
+    provider
+  };
+}
+
+async function sanitizeSessionIfNeeded(session) {
+  if (!session?.sessionId || !session.childSessions || typeof session.childSessions !== "object") {
+    return session;
+  }
+
+  let changed = false;
+  const nextChildSessions = {};
+
+  for (const provider of session.providers || Object.keys(session.childSessions)) {
+    const currentChild = session.childSessions?.[provider];
+    const sanitizedChild = sanitizeChildSessionRecord(provider, currentChild);
+    nextChildSessions[provider] = sanitizedChild;
+
+    if (JSON.stringify(currentChild || {}) !== JSON.stringify(sanitizedChild || {})) {
+      changed = true;
+    }
+  }
+
+  if (!changed) {
+    return session;
+  }
+
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) => ({
+    ...record,
+    childSessions: nextChildSessions
+  }));
+  await persistDashboardSessionState(updated);
+  return updated;
 }
 
 async function handleSessionCreate(message) {
@@ -149,12 +183,19 @@ async function handleSessionCreate(message) {
   });
 
   await sessionRegistry.saveSession(session);
+  await persistDashboardSessionState(session);
 
-  const urls = providers
-    .map((provider) => PROVIDERS_BY_ID[provider]?.url)
-    .filter(Boolean);
+  const dashboardUrl = buildManagedDashboardUrl
+    ? buildManagedDashboardUrl({
+        baseUrl: chrome.runtime.getURL(START_PAGE),
+        sessionId
+      })
+    : chrome.runtime.getURL(START_PAGE);
   const focused = mode !== "background";
-  const windowResult = await sessionWindowManager.createManagedSessionWindow({ urls, focused });
+  const windowResult = await sessionWindowManager.createManagedSessionWindow({
+    urls: [dashboardUrl],
+    focused
+  });
   const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
 
   const updated = await sessionRegistry.updateSession(sessionId, (record) => ({
@@ -162,6 +203,7 @@ async function handleSessionCreate(message) {
     windowId,
     lastActiveAt: now
   }));
+  await persistDashboardSessionState(updated);
 
   return { session: updated, windowId };
 }
@@ -170,14 +212,20 @@ async function handleSessionList() {
   if (!sessionRegistry) {
     throw new Error("session-registry-unavailable");
   }
-  return sessionRegistry.listSessions();
+  const sessions = await sessionRegistry.listSessions();
+  const sanitized = [];
+  for (const session of sessions) {
+    sanitized.push(await sanitizeSessionIfNeeded(session));
+  }
+  return sanitized;
 }
 
 async function handleSessionGet(sessionId) {
   if (!sessionRegistry) {
     throw new Error("session-registry-unavailable");
   }
-  return sessionRegistry.getSession(sessionId);
+  const session = await sessionRegistry.getSession(sessionId);
+  return sanitizeSessionIfNeeded(session);
 }
 
 async function handleSessionRestore(sessionId) {
@@ -185,25 +233,33 @@ async function handleSessionRestore(sessionId) {
     throw new Error("session-modules-unavailable");
   }
 
-  const session = await sessionRegistry.getSession(sessionId);
+  let session = await sessionRegistry.getSession(sessionId);
   if (!session) {
     throw new Error("session-not-found");
   }
+  session = await sanitizeSessionIfNeeded(session);
 
   const restorePlan = normalizeRestorePlan ? normalizeRestorePlan(session) : null;
   const recoverableChildren = restorePlan ? restorePlan.restored : [];
-  if (!restorePlan || recoverableChildren.length === 0) {
-    return { session, windowId: null, restored: [] };
-  }
+  const childSessions = restorePlan ? restorePlan.clearedChildSessions : session.childSessions;
 
-  await sessionRegistry.updateSession(session.sessionId, (record) => ({
+  const cleared = await sessionRegistry.updateSession(session.sessionId, (record) => ({
     ...record,
-    childSessions: restorePlan.clearedChildSessions
+    childSessions
   }));
+  await persistDashboardSessionState(cleared);
 
-  const urls = restorePlan.urls;
+  const dashboardUrl = buildManagedDashboardUrl
+    ? buildManagedDashboardUrl({
+        baseUrl: chrome.runtime.getURL(START_PAGE),
+        sessionId: session.sessionId
+      })
+    : chrome.runtime.getURL(START_PAGE);
   const focused = session.mode !== "background";
-  const windowResult = await sessionWindowManager.createManagedSessionWindow({ urls, focused });
+  const windowResult = await sessionWindowManager.createManagedSessionWindow({
+    urls: [dashboardUrl],
+    focused
+  });
   const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
   const now = new Date().toISOString();
 
@@ -212,6 +268,7 @@ async function handleSessionRestore(sessionId) {
     windowId,
     lastActiveAt: now
   }));
+  await persistDashboardSessionState(updated);
 
   return { session: updated, windowId, restored: recoverableChildren };
 }
@@ -249,6 +306,12 @@ async function handleSessionSyncChild(message, sender) {
   }
 
   const now = typeof message?.lastActiveAt === "string" ? message.lastActiveAt : new Date().toISOString();
+  if (
+    typeof SESSION_BINDINGS.shouldIgnoreChildSessionUrl === "function" &&
+    SESSION_BINDINGS.shouldIgnoreChildSessionUrl(provider, message?.url)
+  ) {
+    return { ok: true, ignored: true, reason: "internal-provider-url" };
+  }
   const normalized = SESSION_BINDINGS.normalizeChildSessionBinding({
     provider,
     url: message?.url,
@@ -260,6 +323,7 @@ async function handleSessionSyncChild(message, sender) {
   const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
     SESSION_MODEL.updateChildSessionRecord(record, provider, normalized)
   );
+  await persistDashboardSessionState(updated);
 
   return { ok: true, sessionId: updated.sessionId, child: updated.childSessions?.[provider] };
 }

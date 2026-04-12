@@ -1,10 +1,20 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
+  buildManagedDashboardUrl,
   createWindowManager,
   normalizeWindowCreatePayload,
   normalizeRestorePlan
 } = require("../../session/window-manager.js");
+
+test("buildManagedDashboardUrl appends sessionId to dashboard url", () => {
+  const url = buildManagedDashboardUrl({
+    baseUrl: "chrome-extension://example/dashboard.html",
+    sessionId: "sess_123"
+  });
+
+  assert.equal(url, "chrome-extension://example/dashboard.html?sessionId=sess_123");
+});
 
 test("createManagedSessionWindow opens a non-focused window in background mode", async () => {
   const calls = [];

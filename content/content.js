@@ -450,8 +450,7 @@ function postSendResult(provider, success) {
 const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
 const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
 let childSessionSyncStarted = false;
-let lastSyncedUrl = "";
-let lastSyncedTitle = "";
+let lastSyncedFingerprint = "";
 
 function createDebouncedSync(fn, delay) {
   let timer = null;
@@ -470,10 +469,12 @@ function sendChildSessionSync(provider) {
   if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
   const url = window.location.href;
   const title = document.title || "";
-  if (url === lastSyncedUrl && title === lastSyncedTitle) return;
+  const fingerprint = `${provider}::${url}::${title}`;
+  const hasFingerprintChanged = fingerprint !== lastSyncedFingerprint;
 
-  lastSyncedUrl = url;
-  lastSyncedTitle = title;
+  if (hasFingerprintChanged) {
+    lastSyncedFingerprint = fingerprint;
+  }
 
   const payload = {
     type: "session:sync-child",

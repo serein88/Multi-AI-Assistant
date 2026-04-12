@@ -1,6 +1,10 @@
 const STATE_KEY = "multi-ai-dashboard";
 const MAX_PANELS = typeof DASHBOARD_MAX_PANELS === "number" ? DASHBOARD_MAX_PANELS : 6;
 const DASHBOARD_KEY = "multi-ai-dashboard-panels";
+const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
+const currentSessionId = new URLSearchParams(window.location.search).get("sessionId") || "";
+const dashboardStateKey = currentSessionId ? `${STATE_KEY}:${currentSessionId}` : STATE_KEY;
+const dashboardPanelsKey = currentSessionId ? `${DASHBOARD_SESSION_KEY_PREFIX}${currentSessionId}` : DASHBOARD_KEY;
 
 const I18N_DATA = {
   "zh-CN": {
@@ -75,6 +79,7 @@ let startedResponses = new Set();
 let failedResponses = new Set();
 let selectedTargets = [];
 let suppressPromptInput = false;
+let sessionChildUrls = {};
 
 const DEBUG = true; // Set to false in production
 
@@ -117,7 +122,7 @@ function toggleLanguage() {
 }
 
 function loadState() {
-  const stored = localStorage.getItem(STATE_KEY);
+  const stored = localStorage.getItem(dashboardStateKey);
 
   // Default sorted order is just the definition order
   sortedProviderIds = PROVIDERS.map(p => p.id);
@@ -151,7 +156,7 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STATE_KEY, JSON.stringify({
+  localStorage.setItem(dashboardStateKey, JSON.stringify({
     panels: activePanels,
     grid: customGrid,
     rowSizes,
@@ -162,10 +167,21 @@ function saveState() {
 
 async function loadPanelsFromStorage() {
   log("Loading panels from storage...");
-  const stored = await chrome.storage.local.get(DASHBOARD_KEY);
-  const panels = stored[DASHBOARD_KEY];
-  if (Array.isArray(panels) && panels.length > 0) {
-    activePanels = panels;
+  const stored = await chrome.storage.local.get(dashboardPanelsKey);
+  const value = stored[dashboardPanelsKey];
+
+  if (currentSessionId && value && typeof value === "object" && !Array.isArray(value)) {
+    if (Array.isArray(value.panels) && value.panels.length > 0) {
+      activePanels = value.panels;
+    }
+    if (value.childSessionUrls && typeof value.childSessionUrls === "object") {
+      sessionChildUrls = { ...value.childSessionUrls };
+    }
+    return;
+  }
+
+  if (Array.isArray(value) && value.length > 0) {
+    activePanels = value;
   }
 }
 
@@ -563,7 +579,7 @@ function renderPanels() {
       });
       panelBody.appendChild(blocked);
     } else {
-      iframe.src = provider.url;
+      iframe.src = sessionChildUrls[provider.id] || provider.url;
     }
 
     const header = node.querySelector(".panel-header");
