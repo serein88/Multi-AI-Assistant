@@ -1,5 +1,7 @@
 ﻿const DASHBOARD_MAX_PANELS = 6;
 
+const SESSION_PROVIDER_IDS = ["deepseek", "gemini", "grok"];
+
 const PROVIDERS = [
   { id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com/" },
   { id: "claude", label: "Claude", url: "https://claude.ai/" },
@@ -43,5 +45,16 @@ function findProviderByToken(token) {
   if (byId) return byId;
 
   return PROVIDERS.find((provider) => provider.label.toLowerCase() === lowered) || null;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    DASHBOARD_MAX_PANELS,
+    SESSION_PROVIDER_IDS,
+    PROVIDERS,
+    PROVIDER_BY_ID,
+    normalizeProviders,
+    findProviderByToken
+  };
 }
 
