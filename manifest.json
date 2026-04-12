@@ -4,6 +4,7 @@
   "version": "0.3.1",
   "description": "Open multiple AI chat sites and send the same prompt.",
   "action": {
+    "default_popup": "popup.html",
     "default_title": "Multi AI"
   },
   "background": {
