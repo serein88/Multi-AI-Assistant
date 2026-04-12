@@ -18,6 +18,35 @@
 
 ---
 
+## 2026-04-12（记录 27）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 新增 `SessionWindowManager`，支持按 `focused` 创建受管窗口。
+  - `background.js` 增加会话模块加载器与会话指令处理：`session:create` / `session:list` / `session:get` / `session:restore` / `session:sync-child`。
+  - 新建会话时先持久化会话壳，再创建窗口并回写 `windowId`。
+  - 恢复会话仅打开 `recoverable=true` 的子会话 URL。
+  - `chrome.action.onClicked` 改为 no-op 日志，避免继续强制打开 dashboard。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 1, fail 0`。
+- 风险/问题：
+  - 需在 Chrome 中手工冒烟验证 `session:create` 与 `session:restore` 的窗口打开行为。
+  - `session:sync-child` 当前仅记录日志，未写入会话账本（预留给 Task6）。
+- 下一步建议：
+  - 按计划执行 Task5 前的手工冒烟验证。
+  - 进入 Task5（popup 会话菜单）后再补全 UI 触发链路。
+
 ## 2026-04-12（记录 24）
 
 - 时间：2026-04-12

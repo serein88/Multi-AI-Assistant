@@ -13,6 +13,73 @@ function log(msg, ...args) {
   }
 }
 
+function loadSessionModules() {
+  if (typeof importScripts !== "function") {
+    return {};
+  }
+
+  const moduleCache = {};
+  const normalizeModulePath = (path) => {
+    if (path.startsWith("./")) {
+      return `session/${path.slice(2)}`;
+    }
+    if (path.startsWith("../")) {
+      return path.slice(3);
+    }
+    return path;
+  };
+
+  const loadModule = (path) => {
+    const normalized = normalizeModulePath(path);
+    if (moduleCache[normalized]) {
+      return moduleCache[normalized];
+    }
+
+    const previousModule = self.module;
+    const previousExports = self.exports;
+    const module = { exports: {} };
+    self.module = module;
+    self.exports = module.exports;
+
+    importScripts(normalized);
+
+    moduleCache[normalized] = module.exports;
+    self.module = previousModule;
+    self.exports = previousExports;
+    return moduleCache[normalized];
+  };
+
+  const requireShim = (path) => {
+    const normalized = normalizeModulePath(path);
+    if (normalized === "providers.js") {
+      return { SESSION_PROVIDER_IDS: globalThis.SESSION_PROVIDER_IDS };
+    }
+    return loadModule(normalized);
+  };
+
+  self.require = requireShim;
+
+  try {
+    return {
+      constants: loadModule("session/session-constants.js"),
+      model: loadModule("session/session-model.js"),
+      registry: loadModule("session/session-registry.js"),
+      bindings: loadModule("session/provider-session-bindings.js"),
+      windowManager: loadModule("session/window-manager.js")
+    };
+  } catch (error) {
+    console.error("[MultiAI Background] Failed to import session modules", error);
+    return {};
+  }
+}
+
+const SESSION_MODULES = loadSessionModules();
+const SESSION_CONSTANTS = SESSION_MODULES.constants || {};
+const SESSION_MODEL = SESSION_MODULES.model || {};
+const SESSION_REGISTRY = SESSION_MODULES.registry || {};
+const SESSION_BINDINGS = SESSION_MODULES.bindings || {};
+const SESSION_WINDOW_MANAGER = SESSION_MODULES.windowManager || {};
+
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
     ? PROVIDER_BY_ID
@@ -22,6 +89,116 @@ const PROVIDERS_BY_ID =
           return acc;
         }, {})
       : {});
+
+const sessionRegistry = SESSION_REGISTRY.createSessionRegistry
+  ? SESSION_REGISTRY.createSessionRegistry({ storage: chrome.storage.local })
+  : null;
+const sessionWindowManager = SESSION_WINDOW_MANAGER.createWindowManager
+  ? SESSION_WINDOW_MANAGER.createWindowManager({ chromeApi: chrome })
+  : null;
+
+function getSessionProviderIds() {
+  if (Array.isArray(SESSION_BINDINGS.SESSION_PROVIDER_IDS) && SESSION_BINDINGS.SESSION_PROVIDER_IDS.length > 0) {
+    return SESSION_BINDINGS.SESSION_PROVIDER_IDS.slice();
+  }
+  if (Array.isArray(globalThis.SESSION_PROVIDER_IDS) && globalThis.SESSION_PROVIDER_IDS.length > 0) {
+    return globalThis.SESSION_PROVIDER_IDS.slice();
+  }
+  return ["deepseek", "gemini", "grok"];
+}
+
+function generateSessionId(now) {
+  const dateToken = String(now).slice(0, 10).replace(/-/g, "");
+  const randomToken = Math.random().toString(36).slice(2, 8);
+  return `sess_${dateToken}_${randomToken}`;
+}
+
+async function handleSessionCreate(message) {
+  if (!sessionRegistry || !sessionWindowManager || !SESSION_MODEL.createSessionRecord) {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const providers = getSessionProviderIds();
+  const now = new Date().toISOString();
+  const sessionId = generateSessionId(now);
+  const mode = message?.mode === "background"
+    ? "background"
+    : (SESSION_CONSTANTS.SESSION_MODE_FOREGROUND || "foreground");
+
+  const session = SESSION_MODEL.createSessionRecord({
+    sessionId,
+    providers,
+    mode,
+    now
+  });
+
+  await sessionRegistry.saveSession(session);
+
+  const urls = providers
+    .map((provider) => PROVIDERS_BY_ID[provider]?.url)
+    .filter(Boolean);
+  const focused = mode !== "background";
+  const windowResult = await sessionWindowManager.createManagedSessionWindow({ urls, focused });
+  const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
+
+  const updated = await sessionRegistry.updateSession(sessionId, (record) => ({
+    ...record,
+    windowId,
+    lastActiveAt: now
+  }));
+
+  return { session: updated, windowId };
+}
+
+async function handleSessionList() {
+  if (!sessionRegistry) {
+    throw new Error("session-registry-unavailable");
+  }
+  return sessionRegistry.listSessions();
+}
+
+async function handleSessionGet(sessionId) {
+  if (!sessionRegistry) {
+    throw new Error("session-registry-unavailable");
+  }
+  return sessionRegistry.getSession(sessionId);
+}
+
+async function handleSessionRestore(sessionId) {
+  if (!sessionRegistry || !sessionWindowManager) {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const session = await sessionRegistry.getSession(sessionId);
+  if (!session) {
+    throw new Error("session-not-found");
+  }
+
+  const recoverableChildren = Object.values(session.childSessions || {})
+    .filter((child) => child && child.recoverable && child.url);
+  if (recoverableChildren.length === 0) {
+    return { session, windowId: null, restored: [] };
+  }
+
+  const urls = recoverableChildren.map((child) => child.url);
+  const focused = session.mode !== "background";
+  const windowResult = await sessionWindowManager.createManagedSessionWindow({ urls, focused });
+  const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
+  const now = new Date().toISOString();
+
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) => ({
+    ...record,
+    windowId,
+    lastActiveAt: now
+  }));
+
+  return { session: updated, windowId, restored: recoverableChildren };
+}
+
+async function handleSessionSyncChild(message) {
+  log("Received session:sync-child payload", message);
+  return { ok: true };
+}
 
 async function findOrCreateProviderTab(providerId) {
   const config = PROVIDERS_BY_ID[providerId];
@@ -355,7 +532,7 @@ async function openDashboard(panels) {
 }
 
 chrome.action.onClicked.addListener(() => {
-  openDashboard([]).catch(() => undefined);
+  log("Browser action clicked (popup flow handles UI).");
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -414,6 +591,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const prompt = typeof message.prompt === "string" ? message.prompt : "";
     executeTongyiMainWorldSend(sender, prompt)
       .then((result) => sendResponse(result))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "session:create") {
+    handleSessionCreate(message)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "session:list") {
+    handleSessionList()
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "session:get") {
+    const sessionId = message.sessionId;
+    handleSessionGet(sessionId)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "session:restore") {
+    const sessionId = message.sessionId;
+    handleSessionRestore(sessionId)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
+  if (message.type === "session:sync-child") {
+    handleSessionSyncChild(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
       .catch((error) => sendResponse({ ok: false, error: String(error) }));
     return true;
   }
