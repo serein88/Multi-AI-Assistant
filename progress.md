@@ -47,6 +47,30 @@
   - 按计划执行 Task5 前的手工冒烟验证。
   - 进入 Task5（popup 会话菜单）后再补全 UI 触发链路。
 
+## 2026-04-12（记录 28）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排（CR 修复）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `progress.md`
+- 操作摘要：
+  - `window-manager` 增加纯 helper `normalizeWindowCreatePayload` 并补齐单测覆盖 URL 透传与 focused 逻辑。
+  - `session:restore` 前清理子会话 `tabId`，避免旧窗口绑定残留。
+  - `chrome.action.onClicked` 恢复 dashboard fallback，避免当前阶段点击图标无响应。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 3, fail 0`。
+- 风险/问题：
+  - 仍需手工冒烟验证 `session:create`/`session:restore` 的实际窗口行为。
+- 下一步建议：
+  - 保持 Task5 入口改造前，继续保留 dashboard fallback。
+
 ## 2026-04-12（记录 24）
 
 - 时间：2026-04-12

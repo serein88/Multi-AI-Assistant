@@ -113,6 +113,21 @@ function generateSessionId(now) {
   return `sess_${dateToken}_${randomToken}`;
 }
 
+function clearChildTabBindings(childSessions) {
+  if (!childSessions || typeof childSessions !== "object") {
+    return childSessions;
+  }
+
+  const cleared = {};
+  for (const [provider, child] of Object.entries(childSessions)) {
+    cleared[provider] = {
+      ...(child || {}),
+      tabId: null
+    };
+  }
+  return cleared;
+}
+
 async function handleSessionCreate(message) {
   if (!sessionRegistry || !sessionWindowManager || !SESSION_MODEL.createSessionRecord) {
     throw new Error("session-modules-unavailable");
@@ -179,6 +194,11 @@ async function handleSessionRestore(sessionId) {
   if (recoverableChildren.length === 0) {
     return { session, windowId: null, restored: [] };
   }
+
+  await sessionRegistry.updateSession(session.sessionId, (record) => ({
+    ...record,
+    childSessions: clearChildTabBindings(record.childSessions)
+  }));
 
   const urls = recoverableChildren.map((child) => child.url);
   const focused = session.mode !== "background";
@@ -532,7 +552,7 @@ async function openDashboard(panels) {
 }
 
 chrome.action.onClicked.addListener(() => {
-  log("Browser action clicked (popup flow handles UI).");
+  openDashboard([]).catch(() => undefined);
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
