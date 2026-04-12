@@ -1,6 +1,9 @@
 ﻿const DASHBOARD_MAX_PANELS = 6;
 
 const SESSION_PROVIDER_IDS = ["deepseek", "gemini", "grok"];
+if (typeof globalThis !== "undefined") {
+  globalThis.SESSION_PROVIDER_IDS = SESSION_PROVIDER_IDS;
+}
 
 const PROVIDERS = [
   { id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com/" },

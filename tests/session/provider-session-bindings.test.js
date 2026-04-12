@@ -9,7 +9,8 @@ const {
 const SUPPORTED_SESSION_PROVIDERS = [
   { provider: "deepseek", url: "https://chat.deepseek.com/app?session=123" },
   { provider: "gemini", url: "https://gemini.google.com/chat/flow" },
-  { provider: "grok", url: "https://www.grok.com/ai" }
+  { provider: "grok", url: "https://www.grok.com/ai" },
+  { provider: "grok", url: "https://grok.com/ai" }
 ];
 
 test("normalizeChildSessionBinding marks each supported provider url as recoverable", () => {
@@ -68,6 +69,17 @@ test("normalizeChildSessionBinding normalizes fallback title and tabId", () => {
 
   assert.equal(binding.tabId, null);
   assert.equal(binding.title, "grok");
+});
+
+test("normalizeChildSessionBinding rejects mismatched provider and url domains", () => {
+  const binding = normalizeChildSessionBinding({
+    provider: "gemini",
+    url: "https://chat.deepseek.com/app?session=wrong",
+    title: "Wrong Domain",
+    tabId: 3
+  });
+
+  assert.equal(binding.recoverable, false);
 });
 
 test("isSessionProviderSupported rejects unsupported providers", () => {

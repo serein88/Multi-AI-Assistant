@@ -7,6 +7,14 @@ const SESSION_PROVIDER_URL_PREFIXES = {
 };
 
 function loadSessionProviderIds() {
+  if (
+    typeof globalThis !== "undefined" &&
+    Array.isArray(globalThis.SESSION_PROVIDER_IDS) &&
+    globalThis.SESSION_PROVIDER_IDS.length > 0
+  ) {
+    return globalThis.SESSION_PROVIDER_IDS.slice();
+  }
+
   try {
     const providerModule = require("../providers.js");
     if (
@@ -89,8 +97,10 @@ function normalizeChildSessionBinding({ provider, url, title, tabId, now }) {
   };
 }
 
-module.exports = {
-  SESSION_PROVIDER_IDS,
-  isSessionProviderSupported,
-  normalizeChildSessionBinding
-};
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    SESSION_PROVIDER_IDS,
+    isSessionProviderSupported,
+    normalizeChildSessionBinding
+  };
+}
