@@ -71,6 +71,30 @@
 - 下一步建议：
   - 保持 Task5 入口改造前，继续保留 dashboard fallback。
 
+## 2026-04-12（记录 29）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排（恢复逻辑可测性）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `progress.md`
+- 操作摘要：
+  - 抽出 `normalizeRestorePlan` 纯函数：筛选可恢复子会话、清理 `tabId` 绑定并输出 URL 列表。
+  - `session:restore` 使用 `normalizeRestorePlan`，确保返回的 `restored` 不含旧 `tabId`。
+  - 单测覆盖恢复筛选与 `tabId` 清理逻辑。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 5, fail 0`。
+- 风险/问题：
+  - 仍需手工冒烟验证真实窗口恢复是否符合预期。
+- 下一步建议：
+  - Task5 前保持 dashboard fallback 行为不变。
+
 ## 2026-04-12（记录 24）
 
 - 时间：2026-04-12

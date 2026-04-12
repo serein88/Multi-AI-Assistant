@@ -79,6 +79,7 @@ const SESSION_MODEL = SESSION_MODULES.model || {};
 const SESSION_REGISTRY = SESSION_MODULES.registry || {};
 const SESSION_BINDINGS = SESSION_MODULES.bindings || {};
 const SESSION_WINDOW_MANAGER = SESSION_MODULES.windowManager || {};
+const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -189,18 +190,18 @@ async function handleSessionRestore(sessionId) {
     throw new Error("session-not-found");
   }
 
-  const recoverableChildren = Object.values(session.childSessions || {})
-    .filter((child) => child && child.recoverable && child.url);
-  if (recoverableChildren.length === 0) {
+  const restorePlan = normalizeRestorePlan ? normalizeRestorePlan(session) : null;
+  const recoverableChildren = restorePlan ? restorePlan.restored : [];
+  if (!restorePlan || recoverableChildren.length === 0) {
     return { session, windowId: null, restored: [] };
   }
 
   await sessionRegistry.updateSession(session.sessionId, (record) => ({
     ...record,
-    childSessions: clearChildTabBindings(record.childSessions)
+    childSessions: restorePlan.clearedChildSessions
   }));
 
-  const urls = recoverableChildren.map((child) => child.url);
+  const urls = restorePlan.urls;
   const focused = session.mode !== "background";
   const windowResult = await sessionWindowManager.createManagedSessionWindow({ urls, focused });
   const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
