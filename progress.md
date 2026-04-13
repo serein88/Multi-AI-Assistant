@@ -1623,3 +1623,29 @@
   - 当前展开态集合为页面级内存状态，不区分不同 `sessionId`；若后续出现跨会话同时打开多个 dashboard 页，可能需要改为按 `sessionId` 分桶。
 - 下一步建议：
   - 你确认右侧原始记录展开不再闪回后，把 `T-20260413-011` 标记为 `完成`。
+
+## 2026-04-13（记录 45）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-012
+- 任务名：Transcript UI：Gemini 欢迎语展示策略
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 解决“Gemini 在用户发送前就出现 `需要我为你做些什么？`”的问题：在 dashboard 展示层默认隐藏 Gemini 的“首条 user 之前的 assistant turn”（欢迎语/预置提示），避免干扰时间线和原始记录阅读。
+  - 不改转录存储结构，仅影响 UI 渲染；一旦有 Gemini user turn，后续 assistant 回复正常展示。
+- 验证步骤：
+1. 执行 `node --check dashboard.js`。
+2. 连接本机 Chrome `127.0.0.1:9222`，热重载扩展 `hcflhfnjaaihifgfnmobkdlcklifeflg`。
+3. 新建会话打开 dashboard，在未发送前检查时间线与 Gemini 原始记录不出现欢迎语。
+4. 在 dashboard 统一发送 `验收GeminiWelcome：请只回复“收到”。`，确认时间线与 Gemini 原始记录仅展示 user/assistant 轮次，不包含欢迎语。
+- 验证证据：
+  - `node --check dashboard.js` 通过，无语法错误。
+  - 真机验证（Playwright+CDP）：未发送前 `TIMELINE=[]` 且 `GEMINI_PROVIDER=[]`；统一发送后 `HAS_WELCOME=false`，Gemini 原始记录顶部为 `收到。 / 验收GeminiWelcome...`，未再出现 `需要我为你做些什么？`。
+- 风险/问题：
+  - 当前策略基于“Gemini 首条 user 之前的 assistant turn 一律视为欢迎语并隐藏”。如果后续 Gemini 站点在首条 user 前插入有价值的 system 消息，需要再决定是否通过开关展示。
+- 下一步建议：
+  - 你确认 UI 符合预期后，把 `T-20260413-012` 标记为 `完成`。

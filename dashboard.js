@@ -335,6 +335,43 @@ function getProviderTurnCount(providerState) {
   return Array.isArray(providerState?.turns) ? providerState.turns.length : 0;
 }
 
+function getProviderFirstUserTimestampMs(providerState) {
+  const turns = Array.isArray(providerState?.turns) ? providerState.turns : [];
+  const firstUser = turns.find((turn) => turn && turn.role === "user" && typeof turn.createdAt === "string");
+  const timestamp = firstUser?.createdAt ? Date.parse(firstUser.createdAt) : NaN;
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function shouldHideGeminiAssistantWelcome(session, entry) {
+  if (!session?.transcript?.providers?.gemini || !entry) {
+    return false;
+  }
+
+  const providers = Array.isArray(entry.providers) ? entry.providers : [];
+  const isGeminiOnly = providers.length === 1 && providers[0] === "gemini";
+  const providerId = typeof entry.provider === "string" ? entry.provider : "";
+  const isGemini = isGeminiOnly || providerId === "gemini";
+  if (!isGemini) {
+    return false;
+  }
+
+  if (entry.role !== "assistant") {
+    return false;
+  }
+
+  const firstUserMs = getProviderFirstUserTimestampMs(session.transcript.providers.gemini);
+  if (firstUserMs === null) {
+    return true;
+  }
+
+  const entryMs = typeof entry.createdAt === "string" ? Date.parse(entry.createdAt) : NaN;
+  if (!Number.isFinite(entryMs)) {
+    return false;
+  }
+
+  return entryMs < firstUserMs;
+}
+
 function setPanelLiveStatus(providerId, providerState) {
   const index = activePanels.indexOf(providerId);
   if (index < 0) {
@@ -513,7 +550,8 @@ function renderTranscriptTimeline(session) {
   }
 
   transcriptTimeline.innerHTML = "";
-  const mergedTimeline = buildMergedTimelineEntries(session?.transcript?.timeline);
+  const mergedTimeline = buildMergedTimelineEntries(session?.transcript?.timeline)
+    .filter((entry) => !shouldHideGeminiAssistantWelcome(session, entry));
   transcriptTimelineCount.textContent = currentLang === "zh-CN"
     ? `${mergedTimeline.length} 条`
     : `${mergedTimeline.length} items`;
@@ -579,6 +617,14 @@ function renderTranscriptProviderList(session) {
 
   providerOrder.forEach((providerId, index) => {
     const providerState = providers[providerId] || { turns: [], status: "idle" };
+    const rawTurns = Array.isArray(providerState.turns) ? providerState.turns : [];
+    let visibleTurns = rawTurns;
+    if (providerId === "gemini") {
+      const firstUserIndex = rawTurns.findIndex((turn) => turn && turn.role === "user");
+      visibleTurns = firstUserIndex === -1
+        ? []
+        : rawTurns.filter((turn, idx) => !(idx < firstUserIndex && turn?.role === "assistant"));
+    }
     const details = document.createElement("details");
     details.className = "transcript-provider-card";
     const shouldDefaultOpen = transcriptProviderExpanded.size === 0 && index === 0;
@@ -605,9 +651,10 @@ function renderTranscriptProviderList(session) {
 
     const count = document.createElement("span");
     count.className = "transcript-provider-count";
+    const visibleTurnCount = visibleTurns.length;
     count.textContent = currentLang === "zh-CN"
-      ? `${getProviderTurnCount(providerState)} 条`
-      : `${getProviderTurnCount(providerState)} turns`;
+      ? `${visibleTurnCount} 条`
+      : `${visibleTurnCount} turns`;
 
     summaryTitle.appendChild(name);
     summaryTitle.appendChild(count);
@@ -623,7 +670,7 @@ function renderTranscriptProviderList(session) {
 
     const body = document.createElement("div");
     body.className = "transcript-provider-body";
-    const turns = Array.isArray(providerState.turns) ? providerState.turns.slice().reverse() : [];
+    const turns = visibleTurns.length > 0 ? visibleTurns.slice().reverse() : [];
     if (turns.length === 0) {
       body.appendChild(createTranscriptEmptyState(
         currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
