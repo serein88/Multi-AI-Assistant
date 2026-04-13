@@ -161,6 +161,7 @@ let currentSessionRecord = null;
 let transcriptRefreshTimeoutId = null;
 let transcriptPollIntervalId = null;
 let transcriptRequestSeq = 0;
+let transcriptProviderExpanded = new Set();
 
 const DEBUG = true; // Set to false in production
 
@@ -580,7 +581,18 @@ function renderTranscriptProviderList(session) {
     const providerState = providers[providerId] || { turns: [], status: "idle" };
     const details = document.createElement("details");
     details.className = "transcript-provider-card";
-    details.open = index === 0;
+    const shouldDefaultOpen = transcriptProviderExpanded.size === 0 && index === 0;
+    details.open = transcriptProviderExpanded.has(providerId) || shouldDefaultOpen;
+    if (details.open) {
+      transcriptProviderExpanded.add(providerId);
+    }
+    details.addEventListener("toggle", () => {
+      if (details.open) {
+        transcriptProviderExpanded.add(providerId);
+      } else {
+        transcriptProviderExpanded.delete(providerId);
+      }
+    });
 
     const summary = document.createElement("summary");
     summary.className = "transcript-provider-summary";

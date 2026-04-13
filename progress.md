@@ -1592,3 +1592,34 @@
   - Grok 的 OneTrust cookie banner 可能影响自动化回归脚本的点击，但不影响真实用户操作后的转录逻辑。
 - 下一步建议：
   - 你确认手动续聊三站点都符合预期后，把 `T-20260413-010` 标记为 `完成`。
+
+## 2026-04-13（记录 44）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-011
+- 任务名：Transcript UI 修复：Provider 原始记录展开态不闪回
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `docs/superpowers/plans/2026-04-13-transcript-post-regression-plan.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 修复 `Provider 原始记录` 展开后被轮询刷新折叠的问题：在 dashboard 侧维护一个 `providerId -> expanded` 的内存集合，并在每次重渲染时恢复 `details.open` 状态。
+  - 用户展开/折叠时通过 `toggle` 事件同步更新集合，避免刷新闪回。
+- 验证步骤：
+1. 执行 `node --check dashboard.js`。
+2. 连接本机 Chrome `127.0.0.1:9222`，热重载扩展 `hcflhfnjaaihifgfnmobkdlcklifeflg`。
+3. 新建会话打开 dashboard，手动展开第二个 provider 的原始记录卡片（例如 Gemini）。
+4. 等待 2 次以上轮询刷新（> 6 秒），确认卡片仍保持展开。
+- 验证证据：
+  - `node --check dashboard.js` 通过，无语法错误。
+  - 真机验证（Playwright+CDP）等待 7 秒后读取 `details.open` 状态为：
+    - `DeepSeek: open=true`
+    - `Gemini: open=true`
+    - `Grok: open=false`
+  - 说明：展开状态跨轮询刷新保持不变，不再自动折叠。
+- 风险/问题：
+  - 当前展开态集合为页面级内存状态，不区分不同 `sessionId`；若后续出现跨会话同时打开多个 dashboard 页，可能需要改为按 `sessionId` 分桶。
+- 下一步建议：
+  - 你确认右侧原始记录展开不再闪回后，把 `T-20260413-011` 标记为 `完成`。
