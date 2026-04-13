@@ -367,6 +367,40 @@
 - 下一步建议：
   - 下一轮进入 transcript Task5：维护总时间线，把各 provider 原始记录同步聚合成会话级 timeline。
 
+## 2026-04-13（记录 40）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-005
+- 任务名：扩展会话转录层 Task5：维护总时间线
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/transcript-store.js`
+  - `tests/session/transcript-store.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `session/transcript-store.js` 中补会话级 `timeline` 维护逻辑，使统一发送 user turn 与 provider 手动新增 turn 在写入原始记录时同步进入时间线。
+  - 对 assistant 增量合并场景，时间线不再保留旧的部分回答，而是与 provider 原始记录一起更新为最新合并内容。
+  - 保持范围收紧：本轮只做 background/store 侧 timeline 聚合，不涉及 dashboard 展示、筛选或搜索。
+  - 子代理未按时回报，但代码已提交到当前分支，本轮由主控完成验证与流程收口。
+- 验证步骤：
+1. 执行 `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node --check session/transcript-store.js`。
+- 验证证据：
+  - `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js` 通过：`pass 10, fail 0`。
+  - `node --test tests/session/*.test.js` 通过：`pass 42, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check session/transcript-store.js` 通过（无语法错误）。
+  - 新增测试 `provider raw turns and session timeline are updated together for unified-send and manual turns` 已覆盖：provider 原始记录与会话时间线同步增长，assistant 合并后时间线内容也同步更新。
+- 风险/问题：
+  - 当前 timeline 记录结构仍是最小版，尚未引入稳定事件 ID；后续若 dashboard 需要高频增量渲染，可能要补更明确的 entry 标识。
+  - 时间线目前按写入顺序维护，满足当前 MVP；若未来引入跨 provider 更复杂的异步回补，需要决定是否做显式排序策略。
+  - 本轮未做真实浏览器手工验证，timeline 的可视化正确性需放到 Task6/Task7 与 dashboard 展示一并确认。
+- 下一步建议：
+  - 下一轮进入 transcript Task6：在 dashboard 中显示 transcript 记录，包括总时间线、provider 原始记录和 live status。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12
