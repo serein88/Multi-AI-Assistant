@@ -12,10 +12,10 @@ const RESPONSE_SELECTORS = {
     "main [class*='bot-message']"
   ],
   gemini: [
-    "[data-md]",
-    "[class*='markdown']",
-    "[class*='response']",
-    "rich-text"
+    "div.markdown.markdown-main-panel",
+    ".markdown.markdown-main-panel",
+    "structured-content-container.model-response-text",
+    ".model-response-text"
   ],
   copilot: [
     "cib-chat-turn.cib-bot-turn",
@@ -83,11 +83,9 @@ const MANUAL_USER_SELECTORS = {
     "[data-message-author-role='user']"
   ],
   gemini: [
-    "[data-role='user']",
-    "[data-message-author-role='user']",
-    "[class*='query-text']",
-    "[class*='user-query']",
-    "[class*='user-message']"
+    "div.query-text.gds-body-l",
+    "div.query-text",
+    "p.query-text-line"
   ],
   grok: [
     "[data-role='user']",
@@ -114,12 +112,9 @@ const MANUAL_ASSISTANT_SELECTORS = {
     "[class*='assistant-message']"
   ],
   gemini: [
-    "[data-role='assistant']",
-    "[data-message-author-role='assistant']",
-    "[class*='model-response']",
-    "[class*='assistant-message']",
-    "[class*='response']",
-    "[data-md]"
+    "div.markdown.markdown-main-panel",
+    "structured-content-container.model-response-text",
+    ".model-response-text"
   ],
   grok: [
     "[data-role='assistant']",
@@ -559,6 +554,56 @@ function normalizeTurnText(raw) {
   return raw.replace(/\s+/g, " ").trim();
 }
 
+function normalizeProviderTurnText(provider, role, raw) {
+  let text = normalizeTurnText(raw);
+  if (!text) {
+    return "";
+  }
+
+  if (provider === "gemini") {
+    if (role === "user") {
+      text = text.replace(/^(你说|You said)\s*/i, "");
+    } else if (role === "assistant") {
+      text = text.replace(/^(Gemini 说|Gemini said)\s*/i, "");
+    }
+  }
+
+  return normalizeTurnText(text);
+}
+
+function shouldIgnoreManualTurnNode(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return true;
+  }
+
+  if (node.getAttribute("aria-hidden") === "true" || node.closest("[aria-hidden='true']")) {
+    return true;
+  }
+
+  const className = typeof node.className === "string" ? node.className : "";
+  if (
+    /\b(?:cdk-visually-hidden|visually-hidden|screen-reader-[^\s]+)\b/.test(className) ||
+    /\bscreen-reader\b/.test(className)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function pruneManualTurnNodes(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return [];
+  }
+
+  const unique = Array.from(new Set(nodes)).filter((node) => !shouldIgnoreManualTurnNode(node));
+  return unique.filter((node) => !unique.some((other) => (
+    other !== node &&
+    other.nodeType === Node.ELEMENT_NODE &&
+    node.contains(other)
+  )));
+}
+
 function findRoleFromAttributes(node) {
   if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
   const roleHint = `${node.getAttribute("data-role") || ""} ${node.getAttribute("data-message-author-role") || ""}`.toLowerCase();
@@ -647,7 +692,7 @@ function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
     return;
   }
 
-  const normalized = normalizeTurnText(content);
+  const normalized = normalizeProviderTurnText(provider, role, content);
   if (!normalized) {
     return;
   }
@@ -684,12 +729,14 @@ function scanManualTurnRoots(provider, roots, options = {}) {
     });
   });
 
-  candidates.forEach((fallbackRole, node) => {
+  const orderedNodes = pruneManualTurnNodes(Array.from(candidates.keys()));
+  orderedNodes.forEach((node) => {
+    const fallbackRole = candidates.get(node);
     const role = detectManualTurnRole(provider, node, userSelectors, assistantSelectors) || fallbackRole;
     if (role !== "user" && role !== "assistant") {
       return;
     }
-    const text = normalizeTurnText(node.innerText || node.textContent || "");
+    const text = normalizeProviderTurnText(provider, role, node.innerText || node.textContent || "");
     if (!text) {
       return;
     }

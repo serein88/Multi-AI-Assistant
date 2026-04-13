@@ -72,6 +72,49 @@
     - `T-20260413-009`：DeepSeek / Grok assistant turn 与完成态落库
     - `T-20260413-010`：手动继续聊 turn 捕获
 
+## 2026-04-13（记录 40）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-008
+- 任务名：回归修复：统一发送 transcript 去重与 Gemini 误抓取
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据上一轮实机回归证据，先把问题边界收紧到 Gemini 重复 turn，不混入 `DeepSeek/Grok assistant turn` 和“手动继续聊”两条后续任务。
+  - 根因排查分两步：
+    - 本地代码审查确认 `appendProviderTurn()` 的去重只看“最后一条同角色 turn”，对 Gemini 这种同一轮里被 content 侧连续上报不同 DOM 文本的页面，本身不是第一根因。
+    - 对真实 Gemini iframe 做选择器取样，确认现有 `MANUAL_USER_SELECTORS.gemini / MANUAL_ASSISTANT_SELECTORS.gemini / RESPONSE_SELECTORS.gemini` 过宽，命中了 `你说` 回显、`Gemini 说` label、screen-reader 节点、整块 response 容器和 markdown 子节点，导致同一轮消息被拆成多条 turn。
+  - 修复策略只落在 `content/content.js`：
+    - 收窄 Gemini 的 user/assistant/response 选择器到实际消息内容节点；
+    - 增加手动 turn 捕获的节点裁剪，过滤 `screen-reader / visually-hidden / aria-hidden` 噪声节点；
+    - 增加 Gemini turn 文本归一化，去掉 `你说` 与 `Gemini 说` 前缀，让统一发送写入的 user turn 和后续 DOM 捕获能命中同一文本去重。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 在 `chrome://extensions` 重载当前 worktree 扩展。
+4. 通过扩展运行时创建新会话 `sess_20260413_a86gd3`，锁定真实受管 dashboard target。
+5. 在该受管 dashboard 中执行统一发送：`回归测试二：请只回复“收到”。`
+6. 连续 8 次轮询 `session:get`，确认 Gemini transcript 是否仍出现重复 turn。
+- 验证证据：
+  - 证据 A：`node --check content/content.js` 通过。
+  - 证据 B：`node --test tests/session/*.test.js` 通过：`pass 42, fail 0`。
+  - 证据 C：真实 Gemini DOM 取样显示旧选择器确实误抓取：
+    - user 命中 `query-text gds-body-l`、`query-text-line`、`user-query-container`、`screen-reader-user-query-label`
+    - assistant 命中 `model-response-text`、`response-container*`、`screen-reader-model-response-label`
+    - 直接对应上一轮出现的 `你说 ...`、`Gemini 说`、重复 response turn
+  - 证据 D：修复后对新会话 `sess_20260413_a86gd3` 做实机统一发送，连续 8 次轮询结果稳定为：
+    - `geminiTurns = [assistant(\"需要我为你做些什么？\"), user(\"回归测试二：请只回复“收到”。\"), assistant(\"收到。\")]`
+    - 不再出现 `你说 ...`、`Gemini 说`、response container 碎片或重复 assistant turn
+    - `geminiStatus` 从 `responding` 正常收敛到 `completed`
+- 风险/问题：
+  - 本轮只修掉 Gemini 重复 turn；`DeepSeek/Grok` assistant turn 缺失仍存在，`deepseekStatus` 在同轮实机验证里仍停在 `responding`，需由 `T-20260413-009` 继续处理。
+  - 当前 Gemini transcript 里仍保留初始欢迎语 `需要我为你做些什么？`，这是扩展接管后的页面首个 assistant turn，不属于本轮重复问题。
+- 下一步建议：
+  - 下一轮领取 `T-20260413-009`，专门修 `DeepSeek / Grok assistant turn` 与完成态落库。
+
 ## 2026-04-12（记录 30）
 
 - 时间：2026-04-12
