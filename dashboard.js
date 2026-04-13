@@ -866,6 +866,35 @@ function sendPromptToProvider(providerId, prompt) {
   });
 }
 
+async function recordSessionUserTurn(prompt, targetList) {
+  if (!currentSessionId || !prompt || !Array.isArray(targetList) || targetList.length === 0) {
+    return;
+  }
+
+  const providers = Array.from(new Set(
+    targetList.filter((providerId) => typeof providerId === "string" && providerId.length > 0)
+  ));
+  if (providers.length === 0) {
+    return;
+  }
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "session:transcript-user-turn",
+      sessionId: currentSessionId,
+      prompt,
+      providers,
+      occurredAt: new Date().toISOString()
+    });
+
+    if (!response || !response.ok || !response.result || response.result.ok !== true) {
+      log("Failed to persist transcript user turn", response);
+    }
+  } catch (error) {
+    log("Failed to persist transcript user turn", error);
+  }
+}
+
 async function sendPrompt() {
   const text = promptEl.value.trim();
   if (!text) {
@@ -899,6 +928,8 @@ async function sendPrompt() {
   sendAllBtn.textContent = "Sending...";
 
   try {
+    await recordSessionUserTurn(prompt, targetList);
+
     const promises = targetList.map((providerId) =>
       sendPromptToProvider(providerId, prompt)
     );

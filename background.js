@@ -32,6 +32,7 @@ const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
 const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
 const ensureSessionTranscript = SESSION_TRANSCRIPT_STORE.ensureSessionTranscript;
 const applyProviderLiveStatus = SESSION_TRANSCRIPT_STORE.applyProviderLiveStatus;
+const appendUserTurn = SESSION_TRANSCRIPT_STORE.appendUserTurn;
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -398,6 +399,80 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
     provider,
     status: providerState?.status || "idle",
     providerState
+  };
+}
+
+async function handleSessionTranscriptUserTurn(message, sender) {
+  log("Received session:transcript-user-turn payload", message);
+
+  if (!sessionRegistry || typeof appendUserTurn !== "function") {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const sessionId = typeof message?.sessionId === "string" ? message.sessionId.trim() : "";
+  if (!sessionId) {
+    return { ok: false, reason: "missing-session-id" };
+  }
+
+  const prompt =
+    typeof message?.prompt === "string"
+      ? message.prompt
+      : (typeof message?.content === "string" ? message.content : "");
+  if (!prompt || prompt.trim().length === 0) {
+    return { ok: false, reason: "missing-prompt" };
+  }
+
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (typeof tabId !== "number" || typeof windowId !== "number") {
+    return { ok: false, reason: "missing-tab-context" };
+  }
+
+  const session = await sessionRegistry.getSession(sessionId);
+  if (!session) {
+    return { ok: false, reason: "session-not-found" };
+  }
+  if (session.windowId !== windowId) {
+    return { ok: false, reason: "session-window-mismatch" };
+  }
+
+  const requestedProviders = Array.isArray(message?.providers) ? message.providers : [];
+  const providers = Array.from(new Set(
+    requestedProviders.filter((provider) => typeof provider === "string" && provider.length > 0)
+  )).filter((provider) => {
+    const supported =
+      typeof SESSION_BINDINGS.isSessionProviderSupported === "function"
+        ? SESSION_BINDINGS.isSessionProviderSupported(provider)
+        : getSessionProviderIds().includes(provider);
+    const inSession =
+      session.childSessions &&
+      Object.prototype.hasOwnProperty.call(session.childSessions, provider);
+    return supported && inSession;
+  });
+  if (providers.length === 0) {
+    return { ok: false, reason: "no-target-providers" };
+  }
+
+  const occurredAt =
+    typeof message?.occurredAt === "string" && message.occurredAt
+      ? message.occurredAt
+      : (typeof message?.timestamp === "string" && message.timestamp
+        ? message.timestamp
+        : new Date().toISOString());
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+    appendUserTurn(record, {
+      providers,
+      prompt,
+      occurredAt
+    })
+  );
+  await persistDashboardSessionState(updated);
+
+  return {
+    ok: true,
+    sessionId: updated.sessionId,
+    providers,
+    occurredAt
   };
 }
 
@@ -844,6 +919,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "session:transcript-user-turn") {
+    handleSessionTranscriptUserTurn(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   if (message.type === "transcript:status") {
     handleTranscriptStatus(message, sender)
       .then((result) => sendResponse({ ok: true, result }))
@@ -859,6 +941,7 @@ if (typeof module !== "undefined" && module.exports) {
     handleSessionCreate,
     sanitizeSessionIfNeeded,
     handleSessionTranscriptLiveStatus,
+    handleSessionTranscriptUserTurn,
     handleTranscriptStatus,
     ensureSessionTranscript,
     createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,

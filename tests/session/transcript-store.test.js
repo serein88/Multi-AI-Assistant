@@ -245,3 +245,57 @@ test("sanitizeSessionIfNeeded backfills transcript shell for legacy sessions", a
   assert.ok(storedSessions[0].transcript.providers.deepseek);
   assert.ok(storedSessions[0].transcript.providers.gemini);
 });
+
+test("handleSessionTranscriptUserTurn records one unified-send user turn per target provider", async () => {
+  const { createSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const now = "2026-04-13T11:00:00.000Z";
+  const sessionId = "sess_transcript_unified_send";
+  const managedSession = ensureSessionTranscript(createSessionRecord({
+    sessionId,
+    providers: ["deepseek", "gemini", "grok"],
+    now
+  }), now);
+  managedSession.windowId = 88;
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [managedSession]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+
+  const occurredAt = "2026-04-13T11:02:00.000Z";
+  const prompt = "Explain zero-shot learning in one paragraph.";
+  const result = await background.handleSessionTranscriptUserTurn({
+    type: "session:transcript-user-turn",
+    sessionId,
+    prompt,
+    providers: ["deepseek", "grok"],
+    occurredAt
+  }, {
+    tab: {
+      id: 18,
+      windowId: 88
+    }
+  });
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.providers, ["deepseek", "grok"]);
+
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const storedSession = storedSessions[0];
+  const deepseekTurns = storedSession.transcript.providers.deepseek.turns;
+  const geminiTurns = storedSession.transcript.providers.gemini.turns;
+  const grokTurns = storedSession.transcript.providers.grok.turns;
+
+  assert.equal(deepseekTurns.length, 1);
+  assert.equal(grokTurns.length, 1);
+  assert.equal(geminiTurns.length, 0);
+
+  assert.equal(deepseekTurns[0].role, "user");
+  assert.equal(deepseekTurns[0].content, prompt);
+  assert.equal(deepseekTurns[0].createdAt, occurredAt);
+
+  assert.equal(grokTurns[0].role, "user");
+  assert.equal(grokTurns[0].content, prompt);
+  assert.equal(grokTurns[0].createdAt, occurredAt);
+});

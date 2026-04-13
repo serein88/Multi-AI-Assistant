@@ -1,6 +1,8 @@
 (() => {
   const TRANSCRIPT_VERSION = 1;
   const TRANSCRIPT_STATUS_IDLE = "idle";
+  const TRANSCRIPT_TURN_ROLE_USER = "user";
+  const TRANSCRIPT_TURN_STATUS_COMPLETED = "completed";
   const LIVE_STATUS_SET = new Set([
     "idle",
     "responding",
@@ -235,6 +237,75 @@
     };
   }
 
+  function appendUserTurn(session, { providers, prompt, occurredAt } = {}) {
+    if (!session || !Array.isArray(providers) || providers.length === 0) {
+      return session;
+    }
+
+    const content = typeof prompt === "string" ? prompt.trim() : "";
+    if (!content) {
+      return session;
+    }
+
+    const providerIds = Array.from(new Set(
+      providers.filter((provider) => typeof provider === "string" && provider.length > 0)
+    ));
+    if (providerIds.length === 0) {
+      return session;
+    }
+
+    const timestamp =
+      typeof occurredAt === "string" && occurredAt
+        ? occurredAt
+        : new Date().toISOString();
+    const ensured = ensureSessionTranscript(session, timestamp);
+    const currentTranscript = ensured?.transcript;
+    if (!currentTranscript || typeof currentTranscript !== "object") {
+      return ensured;
+    }
+
+    const currentProviders =
+      currentTranscript.providers && typeof currentTranscript.providers === "object"
+        ? currentTranscript.providers
+        : {};
+    const nextProviders = {
+      ...currentProviders
+    };
+    let changed = false;
+
+    for (const provider of providerIds) {
+      const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
+      nextProviders[provider] = {
+        ...currentProvider,
+        turns: [
+          ...currentProvider.turns,
+          {
+            role: TRANSCRIPT_TURN_ROLE_USER,
+            content,
+            createdAt: timestamp,
+            status: TRANSCRIPT_TURN_STATUS_COMPLETED
+          }
+        ],
+        lastActiveAt: timestamp
+      };
+      changed = true;
+    }
+
+    if (!changed) {
+      return ensured;
+    }
+
+    return {
+      ...ensured,
+      lastActiveAt: timestamp,
+      transcript: {
+        ...currentTranscript,
+        updatedAt: timestamp,
+        providers: nextProviders
+      }
+    };
+  }
+
   function applyTranscriptStatus(session, { provider, status, timestamp } = {}) {
     return applyProviderLiveStatus(session, {
       provider,
@@ -252,7 +323,8 @@
     ensureSessionTranscript,
     createTranscriptStore,
     applyProviderLiveStatus,
-    applyTranscriptStatus
+    applyTranscriptStatus,
+    appendUserTurn
   };
 
   if (typeof globalThis !== "undefined") {
