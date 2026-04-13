@@ -57,6 +57,9 @@ function createChromeStub() {
 if (typeof global.chrome === "undefined") {
   global.chrome = createChromeStub();
 }
+if (typeof global.importScripts === "undefined") {
+  global.importScripts = () => undefined;
+}
 
 const { createSessionRecord } = require("../../session/session-model.js");
 const { ensureSessionTranscript } = require("../../background.js");
