@@ -480,7 +480,11 @@ async function handleSessionTranscriptUserTurn(message, sender) {
 async function handleSessionTranscriptProviderTurn(message, sender) {
   log("Received session:transcript-provider-turn payload", message);
 
-  if (!sessionRegistry || typeof appendProviderTurn !== "function") {
+  if (
+    !sessionRegistry ||
+    typeof appendProviderTurn !== "function" ||
+    typeof applyProviderLiveStatus !== "function"
+  ) {
     throw new Error("session-modules-unavailable");
   }
 
@@ -528,13 +532,28 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
       : (typeof message?.timestamp === "string" && message.timestamp
         ? message.timestamp
         : new Date().toISOString());
+  const terminalStatus =
+    role === "assistant" &&
+    (message?.status === "completed" || message?.status === "failed" || message?.status === "interrupted")
+      ? message.status
+      : "";
   const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
-    appendProviderTurn(record, {
-      provider,
-      role,
-      content,
-      occurredAt
-    })
+    {
+      let nextRecord = appendProviderTurn(record, {
+        provider,
+        role,
+        content,
+        occurredAt
+      });
+      if (terminalStatus) {
+        nextRecord = applyProviderLiveStatus(nextRecord, {
+          provider,
+          status: terminalStatus,
+          occurredAt
+        });
+      }
+      return nextRecord;
+    }
   );
   await persistDashboardSessionState(updated);
 
