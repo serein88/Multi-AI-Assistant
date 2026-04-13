@@ -45,7 +45,43 @@
           </footer>
         </div>
       </section>
-<main class="grid" id="panelGrid"></main>
+      <section class="workspace" id="workspaceLayout">
+        <main class="grid" id="panelGrid"></main>
+        <aside class="transcript-panel" id="transcriptPanel" hidden>
+          <header class="transcript-panel-header">
+            <div class="transcript-panel-heading">
+              <h2 data-i18n="transcriptTitle"></h2>
+              <p class="transcript-panel-meta" id="transcriptSessionMeta"></p>
+            </div>
+            <button id="transcriptRefresh" class="transcript-refresh-btn" type="button" data-i18n="transcriptRefresh"></button>
+          </header>
+
+          <div class="transcript-panel-body">
+            <section class="transcript-section">
+              <div class="transcript-section-header">
+                <h3 data-i18n="transcriptStatusTitle"></h3>
+                <span class="transcript-section-meta" id="transcriptUpdatedAt"></span>
+              </div>
+              <div class="transcript-status-list" id="transcriptStatusList"></div>
+            </section>
+
+            <section class="transcript-section">
+              <div class="transcript-section-header">
+                <h3 data-i18n="transcriptTimelineTitle"></h3>
+                <span class="transcript-section-meta" id="transcriptTimelineCount"></span>
+              </div>
+              <div class="transcript-feed" id="transcriptTimeline"></div>
+            </section>
+
+            <section class="transcript-section">
+              <div class="transcript-section-header">
+                <h3 data-i18n="transcriptRawTitle"></h3>
+              </div>
+              <div class="transcript-provider-list" id="transcriptProviderList"></div>
+            </section>
+          </div>
+        </aside>
+      </section>
 
       <footer class="composer">
         <div class="composer-targets" id="targetChips"></div>

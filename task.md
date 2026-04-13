@@ -31,6 +31,7 @@
 | T-20260413-003 | 扩展会话转录层 Task3：记录统一发送产生的 user turn | P0 | 待确认 | dashboard 统一发送后可把 user turn 写入受管会话 transcript；相关 transcript 测试通过 | 本轮只记录统一发送 user turn，不记录 assistant 正文和手动继续聊 |
 | T-20260413-004 | 扩展会话转录层 Task4：记录手动继续对话产生的轮次 | P0 | 待确认 | provider 页面手动继续聊产生的 `user / assistant turn` 能写入 transcript；具备最小去重与 turn 归并；相关 transcript 测试通过 | 本轮只做扩展接管后的新增轮次，不回填旧历史 |
 | T-20260413-005 | 扩展会话转录层 Task5：维护总时间线 | P0 | 待确认 | 各 provider 原始记录写入时会同步聚合到会话级 `timeline`；相关 transcript 测试通过 | 本轮只做 background 侧 timeline 维护，不做 dashboard 展示 |
+| T-20260413-006 | 扩展会话转录层 Task6：在 Dashboard 中显示记录 | P0 | 待确认 | dashboard 可查看会话总时间线、provider 原始记录和 live status；UI 可读；相关检查通过 | 本轮只做 dashboard 展示，不做额外搜索/筛选能力 |
 
 ## 待进行（技术债 Backlog，按优先级）
 

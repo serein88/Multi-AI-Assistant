@@ -401,6 +401,45 @@
 - 下一步建议：
   - 下一轮进入 transcript Task6：在 dashboard 中显示 transcript 记录，包括总时间线、provider 原始记录和 live status。
 
+## 2026-04-13（记录 41）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-006
+- 任务名：扩展会话转录层 Task6：在 Dashboard 中显示记录
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.html`
+  - `dashboard.js`
+  - `dashboard.css`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `dashboard.html` 中加入 transcript 面板容器，并将主工作区组织为 `workspace` 布局，为分屏区和记录区并排展示留出结构。
+  - 在 `dashboard.js` 中补会话记录展示逻辑：从 `session:get` 读取当前受管会话，渲染会话级总时间线、各 provider 原始记录、provider live status，并把 live status 同步回分屏头部的轻量状态胶囊。
+  - 增加 transcript 自动刷新与轮询机制：页面载入、统一发送状态变化、iframe 回传响应事件和页面重新可见时都会触发刷新；受管会话会定时轮询更新。
+  - 在 `dashboard.css` 中为 transcript 侧栏、状态卡片、时间线条目、provider 原始记录与移动端堆叠布局补样式，保持现有 dashboard 视觉语言，不重做整站风格。
+  - 保持范围收紧：本轮只做 dashboard 展示，不扩展搜索、筛选或额外日志能力。
+- 验证步骤：
+1. 执行 `node --check dashboard.js`。
+2. 执行 `node --check background.js`。
+3. 执行 `node --check content/content.js`。
+4. 用浏览器工具打开 `chrome-extension://hcflhfnjaaihifgfnmobkdlcklifeflg/dashboard.html?sessionId=sess_20260412_is2mqf`，检查 transcript 面板是否渲染。
+- 验证证据：
+  - `node --check dashboard.js` 通过（无语法错误）。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check content/content.js` 通过（无语法错误）。
+  - MCP 快照显示受管会话页右侧已渲染 transcript 栏，包含：
+    - 标题 `会话记录`
+    - `实时状态 / 合并时间线 / Provider 原始记录`
+    - 刷新按钮与会话元信息
+  - MCP 在该页面执行 `chrome.runtime.sendMessage({ type: 'session:get', sessionId: 'sess_20260412_is2mqf' })` 成功返回 `ok: true`，说明 dashboard 已打通到后台读取接口。
+- 风险/问题：
+  - 本次浏览器验证使用的是历史会话 `sess_20260412_is2mqf`，其返回 transcript 仍为空壳，说明需要在扩展重载后结合新会话数据再做一次手工联调，才能完整验证记录内容展示。
+  - 当前 transcript 面板默认在受管会话页常显；如果后续用户觉得占宽，需要再决定是否收敛为可折叠抽屉，但这不影响当前 MVP。
+  - Task6 尚未结合 Task7 做完整发送/手动继续聊后的可视化回归，这一步留到整体收口阶段。
+- 下一步建议：
+  - 下一轮进入 Task7：整体回归与收口，在 Chrome 中用新建会话实际走一遍发送、手动继续聊、恢复后查看记录。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

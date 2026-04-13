@@ -23,7 +23,12 @@ const I18N_DATA = {
     switch: "切换 AI",
     add: "添加 AI",
     shortcutPrefix: "快捷键",
-    langBtn: "En"
+    langBtn: "En",
+    transcriptTitle: "会话记录",
+    transcriptRefresh: "刷新",
+    transcriptStatusTitle: "实时状态",
+    transcriptTimelineTitle: "合并时间线",
+    transcriptRawTitle: "Provider 原始记录"
   },
   "en-US": {
     topbarSubtitle: "",
@@ -41,12 +46,76 @@ const I18N_DATA = {
     switch: "Switch AI",
     add: "Add AI",
     shortcutPrefix: "Shortcut",
-    langBtn: "中"
+    langBtn: "中",
+    transcriptTitle: "Session Records",
+    transcriptRefresh: "Refresh",
+    transcriptStatusTitle: "Live Status",
+    transcriptTimelineTitle: "Merged Timeline",
+    transcriptRawTitle: "Provider Raw Records"
   }
 };
 
 let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
 let I18N = I18N_DATA[currentLang];
+
+function ensureTranscriptScaffold() {
+  const panelGrid = document.getElementById("panelGrid");
+  if (!panelGrid) {
+    return;
+  }
+
+  let workspace = document.getElementById("workspaceLayout");
+  if (!workspace) {
+    workspace = document.createElement("section");
+    workspace.className = "workspace";
+    workspace.id = "workspaceLayout";
+    panelGrid.replaceWith(workspace);
+    workspace.appendChild(panelGrid);
+  }
+
+  if (document.getElementById("transcriptPanel")) {
+    return;
+  }
+
+  const transcriptPanel = document.createElement("aside");
+  transcriptPanel.className = "transcript-panel";
+  transcriptPanel.id = "transcriptPanel";
+  transcriptPanel.hidden = true;
+  transcriptPanel.innerHTML = `
+    <header class="transcript-panel-header">
+      <div class="transcript-panel-heading">
+        <h2 data-i18n="transcriptTitle"></h2>
+        <p class="transcript-panel-meta" id="transcriptSessionMeta"></p>
+      </div>
+      <button id="transcriptRefresh" class="transcript-refresh-btn" type="button" data-i18n="transcriptRefresh"></button>
+    </header>
+    <div class="transcript-panel-body">
+      <section class="transcript-section">
+        <div class="transcript-section-header">
+          <h3 data-i18n="transcriptStatusTitle"></h3>
+          <span class="transcript-section-meta" id="transcriptUpdatedAt"></span>
+        </div>
+        <div class="transcript-status-list" id="transcriptStatusList"></div>
+      </section>
+      <section class="transcript-section">
+        <div class="transcript-section-header">
+          <h3 data-i18n="transcriptTimelineTitle"></h3>
+          <span class="transcript-section-meta" id="transcriptTimelineCount"></span>
+        </div>
+        <div class="transcript-feed" id="transcriptTimeline"></div>
+      </section>
+      <section class="transcript-section">
+        <div class="transcript-section-header">
+          <h3 data-i18n="transcriptRawTitle"></h3>
+        </div>
+        <div class="transcript-provider-list" id="transcriptProviderList"></div>
+      </section>
+    </div>
+  `;
+  workspace.appendChild(transcriptPanel);
+}
+
+ensureTranscriptScaffold();
 
 const grid = document.getElementById("panelGrid");
 const promptEl = document.getElementById("prompt");
@@ -66,6 +135,14 @@ const shortcutHint = document.getElementById("shortcutHint");
 // const clearGroupChatBtn = document.getElementById("clearGroupChat"); // Removed
 const targetChips = document.getElementById("targetChips");
 const langToggleBtn = document.getElementById("langToggle"); // New
+const transcriptPanel = document.getElementById("transcriptPanel");
+const transcriptRefreshBtn = document.getElementById("transcriptRefresh");
+const transcriptSessionMeta = document.getElementById("transcriptSessionMeta");
+const transcriptUpdatedAt = document.getElementById("transcriptUpdatedAt");
+const transcriptStatusList = document.getElementById("transcriptStatusList");
+const transcriptTimeline = document.getElementById("transcriptTimeline");
+const transcriptTimelineCount = document.getElementById("transcriptTimelineCount");
+const transcriptProviderList = document.getElementById("transcriptProviderList");
 
 let activePanels = [];
 let pendingPickTarget = null;
@@ -80,6 +157,10 @@ let failedResponses = new Set();
 let selectedTargets = [];
 let suppressPromptInput = false;
 let sessionChildUrls = {};
+let currentSessionRecord = null;
+let transcriptRefreshTimeoutId = null;
+let transcriptPollIntervalId = null;
+let transcriptRequestSeq = 0;
 
 const DEBUG = true; // Set to false in production
 
@@ -93,10 +174,33 @@ log("Dashboard script loaded");
 
 const IFRAME_BLOCKED_PROVIDERS = new Set([]);
 const SEND_TIMEOUT_MS = 15000;
+const TRANSCRIPT_POLL_INTERVAL_MS = 3000;
 const HORIZONTAL_SPLITTER_HEIGHT = 4;
 const sendStatusTimers = new Map();
 const pendingSends = new Map();
 const BADGE_STATUS_CLASSES = ["status-sending", "status-success", "status-error"];
+const LIVE_STATUS_META = {
+  idle: {
+    short: { "zh-CN": "空闲", "en-US": "Idle" },
+    long: { "zh-CN": "空闲", "en-US": "Idle" }
+  },
+  responding: {
+    short: { "zh-CN": "响应中", "en-US": "Live" },
+    long: { "zh-CN": "响应中", "en-US": "Responding" }
+  },
+  completed: {
+    short: { "zh-CN": "完成", "en-US": "Done" },
+    long: { "zh-CN": "已完成", "en-US": "Completed" }
+  },
+  failed: {
+    short: { "zh-CN": "失败", "en-US": "Failed" },
+    long: { "zh-CN": "失败", "en-US": "Failed" }
+  },
+  interrupted: {
+    short: { "zh-CN": "中断", "en-US": "Stopped" },
+    long: { "zh-CN": "已中断", "en-US": "Interrupted" }
+  }
+};
 
 function applyI18n(root) {
   const scope = root || document;
@@ -113,12 +217,158 @@ function applyI18n(root) {
   });
 }
 
+function getLocalizedStatusText(status, variant = "long") {
+  const normalized = LIVE_STATUS_META[status] ? status : "idle";
+  const labels = LIVE_STATUS_META[normalized]?.[variant] || LIVE_STATUS_META.idle[variant];
+  return labels[currentLang] || labels["en-US"] || normalized;
+}
+
+function getRoleLabel(role) {
+  if (role === "assistant") {
+    return currentLang === "zh-CN" ? "AI" : "Assistant";
+  }
+  return currentLang === "zh-CN" ? "用户" : "User";
+}
+
+function toProviderLabel(providerId) {
+  return PROVIDER_BY_ID[providerId]?.label || providerId || "Unknown";
+}
+
+function getSessionProviderOrder(session) {
+  const transcriptProviders = session?.transcript?.providers && typeof session.transcript.providers === "object"
+    ? Object.keys(session.transcript.providers)
+    : [];
+  const providers = Array.isArray(session?.providers) ? session.providers : [];
+  return Array.from(new Set([...providers, ...transcriptProviders]));
+}
+
+function formatTimestamp(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return currentLang === "zh-CN" ? "暂无时间" : "No timestamp";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat(currentLang, {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(date);
+}
+
+function formatRelativeTimestamp(value) {
+  if (typeof value !== "string" || value.length === 0) {
+    return currentLang === "zh-CN" ? "等待更新" : "Waiting";
+  }
+
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    return value;
+  }
+
+  const deltaMs = Date.now() - timestamp;
+  const deltaMinutes = Math.floor(deltaMs / 60000);
+  if (deltaMinutes < 1) {
+    return currentLang === "zh-CN" ? "刚刚" : "Just now";
+  }
+  if (deltaMinutes < 60) {
+    return currentLang === "zh-CN" ? `${deltaMinutes} 分钟前` : `${deltaMinutes}m ago`;
+  }
+  const deltaHours = Math.floor(deltaMinutes / 60);
+  if (deltaHours < 24) {
+    return currentLang === "zh-CN" ? `${deltaHours} 小时前` : `${deltaHours}h ago`;
+  }
+  const deltaDays = Math.floor(deltaHours / 24);
+  if (deltaDays < 7) {
+    return currentLang === "zh-CN" ? `${deltaDays} 天前` : `${deltaDays}d ago`;
+  }
+  return formatTimestamp(value);
+}
+
+function createTranscriptEmptyState(message) {
+  const node = document.createElement("div");
+  node.className = "transcript-empty";
+  node.textContent = message;
+  return node;
+}
+
+function buildMergedTimelineEntries(timeline) {
+  const ordered = Array.isArray(timeline)
+    ? timeline
+      .filter((entry) => entry && typeof entry === "object")
+      .slice()
+      .sort((left, right) => Date.parse(left.createdAt || 0) - Date.parse(right.createdAt || 0))
+    : [];
+
+  const merged = [];
+  ordered.forEach((entry) => {
+    const providerId = typeof entry.provider === "string" ? entry.provider : "";
+    const lastEntry = merged.length > 0 ? merged[merged.length - 1] : null;
+    if (
+      lastEntry &&
+      lastEntry.role === entry.role &&
+      lastEntry.content === entry.content &&
+      lastEntry.createdAt === entry.createdAt &&
+      lastEntry.status === entry.status
+    ) {
+      if (providerId && !lastEntry.providers.includes(providerId)) {
+        lastEntry.providers.push(providerId);
+      }
+      return;
+    }
+
+    merged.push({
+      ...entry,
+      providers: providerId ? [providerId] : []
+    });
+  });
+
+  return merged.reverse();
+}
+
+function getProviderTurnCount(providerState) {
+  return Array.isArray(providerState?.turns) ? providerState.turns.length : 0;
+}
+
+function setPanelLiveStatus(providerId, providerState) {
+  const index = activePanels.indexOf(providerId);
+  if (index < 0) {
+    return;
+  }
+
+  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  const statusEl = panel?.querySelector(".panel-live-status");
+  if (!statusEl) {
+    return;
+  }
+
+  const status = providerState?.status || "idle";
+  statusEl.dataset.status = status;
+  statusEl.textContent = getLocalizedStatusText(status, "short");
+  const timeLabel = providerState?.lastStatusAt ? formatTimestamp(providerState.lastStatusAt) : "";
+  statusEl.title = timeLabel
+    ? `${getLocalizedStatusText(status, "long")} · ${timeLabel}`
+    : getLocalizedStatusText(status, "long");
+}
+
+function syncPanelLiveStatuses() {
+  const providers = currentSessionRecord?.transcript?.providers || {};
+  activePanels.forEach((providerId) => {
+    setPanelLiveStatus(providerId, providers[providerId]);
+  });
+}
+
 function toggleLanguage() {
   currentLang = currentLang === "zh-CN" ? "en-US" : "zh-CN";
   localStorage.setItem("multi-ai-lang", currentLang);
   I18N = I18N_DATA[currentLang];
   applyI18n();
   renderPanels(); // Re-render panels to translate dynamic content
+  renderTranscriptPanel();
 }
 
 function loadState() {
@@ -183,6 +433,348 @@ async function loadPanelsFromStorage() {
   if (Array.isArray(value) && value.length > 0) {
     activePanels = value;
   }
+}
+
+function renderTranscriptStatusList(session) {
+  if (!transcriptStatusList) {
+    return;
+  }
+
+  transcriptStatusList.innerHTML = "";
+  const providers = session?.transcript?.providers || {};
+  const providerOrder = getSessionProviderOrder(session);
+  if (providerOrder.length === 0) {
+    transcriptStatusList.appendChild(createTranscriptEmptyState(
+      currentLang === "zh-CN" ? "当前会话还没有 provider 状态。" : "No provider status yet."
+    ));
+    return;
+  }
+
+  providerOrder.forEach((providerId) => {
+    const providerState = providers[providerId] || { status: "idle", turns: [] };
+    const row = document.createElement("article");
+    row.className = "transcript-status-card";
+
+    const top = document.createElement("div");
+    top.className = "transcript-status-top";
+
+    const name = document.createElement("strong");
+    name.textContent = toProviderLabel(providerId);
+
+    const pill = document.createElement("span");
+    pill.className = "transcript-status-pill";
+    pill.dataset.status = providerState.status || "idle";
+    pill.textContent = getLocalizedStatusText(providerState.status || "idle", "long");
+
+    top.appendChild(name);
+    top.appendChild(pill);
+
+    const meta = document.createElement("div");
+    meta.className = "transcript-status-meta";
+    const detailParts = [];
+    if (providerState.answerStartedAt) {
+      detailParts.push(
+        currentLang === "zh-CN"
+          ? `开始 ${formatTimestamp(providerState.answerStartedAt)}`
+          : `Started ${formatTimestamp(providerState.answerStartedAt)}`
+      );
+    }
+    if (providerState.answerCompletedAt) {
+      detailParts.push(
+        currentLang === "zh-CN"
+          ? `结束 ${formatTimestamp(providerState.answerCompletedAt)}`
+          : `Ended ${formatTimestamp(providerState.answerCompletedAt)}`
+      );
+    }
+    if (providerState.lastStatusAt) {
+      detailParts.push(
+        currentLang === "zh-CN"
+          ? `更新于 ${formatRelativeTimestamp(providerState.lastStatusAt)}`
+          : `Updated ${formatRelativeTimestamp(providerState.lastStatusAt)}`
+      );
+    }
+    detailParts.push(
+      currentLang === "zh-CN"
+        ? `${getProviderTurnCount(providerState)} 条记录`
+        : `${getProviderTurnCount(providerState)} turns`
+    );
+    meta.textContent = detailParts.join(" · ");
+
+    row.appendChild(top);
+    row.appendChild(meta);
+    transcriptStatusList.appendChild(row);
+  });
+}
+
+function renderTranscriptTimeline(session) {
+  if (!transcriptTimeline || !transcriptTimelineCount) {
+    return;
+  }
+
+  transcriptTimeline.innerHTML = "";
+  const mergedTimeline = buildMergedTimelineEntries(session?.transcript?.timeline);
+  transcriptTimelineCount.textContent = currentLang === "zh-CN"
+    ? `${mergedTimeline.length} 条`
+    : `${mergedTimeline.length} items`;
+
+  if (mergedTimeline.length === 0) {
+    transcriptTimeline.appendChild(createTranscriptEmptyState(
+      currentLang === "zh-CN" ? "当前会话还没有转录内容。" : "No transcript recorded yet."
+    ));
+    return;
+  }
+
+  mergedTimeline.forEach((entry) => {
+    const item = document.createElement("article");
+    item.className = "transcript-entry";
+
+    const meta = document.createElement("div");
+    meta.className = "transcript-entry-meta";
+
+    const providers = document.createElement("span");
+    providers.className = "transcript-provider-chip";
+    providers.textContent = entry.providers.length > 1
+      ? entry.providers.map(toProviderLabel).join(", ")
+      : toProviderLabel(entry.providers[0] || entry.provider);
+
+    const role = document.createElement("span");
+    role.className = "transcript-role-pill";
+    role.dataset.role = entry.role || "user";
+    role.textContent = getRoleLabel(entry.role);
+
+    const time = document.createElement("time");
+    time.className = "transcript-entry-time";
+    time.dateTime = entry.createdAt || "";
+    time.textContent = formatTimestamp(entry.createdAt);
+
+    meta.appendChild(providers);
+    meta.appendChild(role);
+    meta.appendChild(time);
+
+    const content = document.createElement("div");
+    content.className = "transcript-entry-content";
+    content.textContent = entry.content || "";
+
+    item.appendChild(meta);
+    item.appendChild(content);
+    transcriptTimeline.appendChild(item);
+  });
+}
+
+function renderTranscriptProviderList(session) {
+  if (!transcriptProviderList) {
+    return;
+  }
+
+  transcriptProviderList.innerHTML = "";
+  const providers = session?.transcript?.providers || {};
+  const providerOrder = getSessionProviderOrder(session);
+  if (providerOrder.length === 0) {
+    transcriptProviderList.appendChild(createTranscriptEmptyState(
+      currentLang === "zh-CN" ? "当前会话还没有 provider 记录。" : "No provider transcripts yet."
+    ));
+    return;
+  }
+
+  providerOrder.forEach((providerId, index) => {
+    const providerState = providers[providerId] || { turns: [], status: "idle" };
+    const details = document.createElement("details");
+    details.className = "transcript-provider-card";
+    details.open = index === 0;
+
+    const summary = document.createElement("summary");
+    summary.className = "transcript-provider-summary";
+
+    const summaryTitle = document.createElement("div");
+    summaryTitle.className = "transcript-provider-summary-title";
+
+    const name = document.createElement("strong");
+    name.textContent = toProviderLabel(providerId);
+
+    const count = document.createElement("span");
+    count.className = "transcript-provider-count";
+    count.textContent = currentLang === "zh-CN"
+      ? `${getProviderTurnCount(providerState)} 条`
+      : `${getProviderTurnCount(providerState)} turns`;
+
+    summaryTitle.appendChild(name);
+    summaryTitle.appendChild(count);
+
+    const summaryStatus = document.createElement("span");
+    summaryStatus.className = "transcript-status-pill";
+    summaryStatus.dataset.status = providerState.status || "idle";
+    summaryStatus.textContent = getLocalizedStatusText(providerState.status || "idle", "long");
+
+    summary.appendChild(summaryTitle);
+    summary.appendChild(summaryStatus);
+    details.appendChild(summary);
+
+    const body = document.createElement("div");
+    body.className = "transcript-provider-body";
+    const turns = Array.isArray(providerState.turns) ? providerState.turns.slice().reverse() : [];
+    if (turns.length === 0) {
+      body.appendChild(createTranscriptEmptyState(
+        currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
+      ));
+    } else {
+      turns.forEach((turn) => {
+        const item = document.createElement("article");
+        item.className = "transcript-turn";
+
+        const meta = document.createElement("div");
+        meta.className = "transcript-entry-meta";
+
+        const role = document.createElement("span");
+        role.className = "transcript-role-pill";
+        role.dataset.role = turn.role || "user";
+        role.textContent = getRoleLabel(turn.role);
+
+        const time = document.createElement("time");
+        time.className = "transcript-entry-time";
+        time.dateTime = turn.createdAt || "";
+        time.textContent = formatTimestamp(turn.createdAt);
+
+        meta.appendChild(role);
+        meta.appendChild(time);
+
+        const content = document.createElement("div");
+        content.className = "transcript-entry-content";
+        content.textContent = turn.content || "";
+
+        item.appendChild(meta);
+        item.appendChild(content);
+        body.appendChild(item);
+      });
+    }
+
+    details.appendChild(body);
+    transcriptProviderList.appendChild(details);
+  });
+}
+
+function renderTranscriptPanel() {
+  if (!transcriptPanel) {
+    return;
+  }
+
+  if (!currentSessionId) {
+    transcriptPanel.hidden = true;
+    return;
+  }
+
+  transcriptPanel.hidden = false;
+  if (transcriptSessionMeta) {
+    transcriptSessionMeta.textContent = currentLang === "zh-CN"
+      ? `会话 ${currentSessionId}`
+      : `Session ${currentSessionId}`;
+  }
+
+  if (!currentSessionRecord?.transcript) {
+    if (transcriptUpdatedAt) {
+      transcriptUpdatedAt.textContent = currentLang === "zh-CN" ? "等待会话数据" : "Waiting for session data";
+    }
+    if (transcriptTimelineCount) {
+      transcriptTimelineCount.textContent = "";
+    }
+    if (transcriptStatusList) {
+      transcriptStatusList.innerHTML = "";
+      transcriptStatusList.appendChild(createTranscriptEmptyState(
+        currentLang === "zh-CN" ? "当前会话记录尚未加载。" : "Session transcript has not loaded yet."
+      ));
+    }
+    if (transcriptTimeline) {
+      transcriptTimeline.innerHTML = "";
+      transcriptTimeline.appendChild(createTranscriptEmptyState(
+        currentLang === "zh-CN" ? "加载后会在这里显示合并时间线。" : "Merged timeline will appear here once loaded."
+      ));
+    }
+    if (transcriptProviderList) {
+      transcriptProviderList.innerHTML = "";
+      transcriptProviderList.appendChild(createTranscriptEmptyState(
+        currentLang === "zh-CN" ? "加载后会在这里显示 provider 原始记录。" : "Provider raw records will appear here once loaded."
+      ));
+    }
+    return;
+  }
+
+  if (transcriptUpdatedAt) {
+    transcriptUpdatedAt.textContent = currentLang === "zh-CN"
+      ? `更新于 ${formatRelativeTimestamp(currentSessionRecord.transcript.updatedAt)}`
+      : `Updated ${formatRelativeTimestamp(currentSessionRecord.transcript.updatedAt)}`;
+  }
+
+  renderTranscriptStatusList(currentSessionRecord);
+  renderTranscriptTimeline(currentSessionRecord);
+  renderTranscriptProviderList(currentSessionRecord);
+  syncPanelLiveStatuses();
+}
+
+function scheduleTranscriptRefresh(delay = 0) {
+  if (!currentSessionId) {
+    return;
+  }
+
+  if (transcriptRefreshTimeoutId) {
+    clearTimeout(transcriptRefreshTimeoutId);
+  }
+  transcriptRefreshTimeoutId = window.setTimeout(() => {
+    transcriptRefreshTimeoutId = null;
+    refreshSessionTranscript({ silent: true }).catch(() => undefined);
+  }, delay);
+}
+
+async function refreshSessionTranscript({ silent = false } = {}) {
+  if (!currentSessionId) {
+    renderTranscriptPanel();
+    return null;
+  }
+
+  const requestId = ++transcriptRequestSeq;
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "session:get",
+      sessionId: currentSessionId
+    });
+
+    if (requestId !== transcriptRequestSeq) {
+      return null;
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(response?.error || "session-get-failed");
+    }
+
+    currentSessionRecord = response.result || null;
+    renderTranscriptPanel();
+    return currentSessionRecord;
+  } catch (error) {
+    log("Failed to refresh session transcript", error);
+    if (!silent) {
+      showMessage(
+        currentLang === "zh-CN" ? "读取会话记录失败" : "Failed to load session transcript",
+        "warning"
+      );
+    }
+    return null;
+  }
+}
+
+function startTranscriptPolling() {
+  if (!currentSessionId) {
+    renderTranscriptPanel();
+    return;
+  }
+
+  if (transcriptPollIntervalId) {
+    clearInterval(transcriptPollIntervalId);
+  }
+
+  scheduleTranscriptRefresh(0);
+  transcriptPollIntervalId = window.setInterval(() => {
+    if (!document.hidden) {
+      scheduleTranscriptRefresh(0);
+    }
+  }, TRANSCRIPT_POLL_INTERVAL_MS);
 }
 
 function buildPicker(selected) {
@@ -546,9 +1138,14 @@ function renderPanels() {
     const node = panelTemplate.content.cloneNode(true);
     const panelEl = node.querySelector(".panel");
     panelEl.dataset.index = String(index);
+    panelEl.dataset.providerId = provider.id;
 
     const title = node.querySelector(".panel-title");
     title.innerHTML = ""; // Clear existing
+    const legacyBadge = node.querySelector(".panel-header > .panel-badge");
+    if (legacyBadge) {
+      legacyBadge.remove();
+    }
     
     // Icon
     const icon = document.createElement("img");
@@ -583,7 +1180,19 @@ function renderPanels() {
     }
 
     const header = node.querySelector(".panel-header");
-    const actions = node.querySelector(".panel-header-actions");
+    let actions = node.querySelector(".panel-header-actions");
+    if (!actions && header) {
+      actions = document.createElement("div");
+      actions.className = "panel-header-actions";
+      header.appendChild(actions);
+    }
+
+    const liveStatus = document.createElement("span");
+    liveStatus.className = "panel-live-status";
+    liveStatus.dataset.providerId = provider.id;
+    liveStatus.dataset.status = "idle";
+    liveStatus.textContent = getLocalizedStatusText("idle", "short");
+    actions.appendChild(liveStatus);
     
     // Helper to create action button
     const createActionBtn = (title, svgPath, actionName) => {
@@ -625,6 +1234,7 @@ function renderPanels() {
 
   applyGridLayout();
   updateShortcutHint();
+  syncPanelLiveStatuses();
 }
 
 // Global click listener for Settings Modal
@@ -702,24 +1312,8 @@ function handlePanelAction(panelEl, provider, action) {
       sendStatusTimers.delete(provider.id);
     }
     activePanels.splice(index, 1);
-    panelEl.remove();
-    const panels = Array.from(grid.querySelectorAll(".panel"));
-    panels.forEach((panel, idx) => {
-      panel.dataset.index = String(idx);
-      const badge = panel.querySelector(".panel-badge");
-      if (badge) {
-        badge.textContent = `@${idx + 1}`;
-      }
-      const title = panel.querySelector(".panel-title");
-      const providerId = activePanels[idx];
-      const targetProvider = PROVIDER_BY_ID[providerId];
-      if (title && targetProvider) {
-        title.textContent = targetProvider.label;
-      }
-    });
     saveState();
-    applyGridLayout();
-    updateShortcutHint();
+    renderPanels();
     return;
   }
 
@@ -889,7 +1483,9 @@ async function recordSessionUserTurn(prompt, targetList) {
 
     if (!response || !response.ok || !response.result || response.result.ok !== true) {
       log("Failed to persist transcript user turn", response);
+      return;
     }
+    scheduleTranscriptRefresh(150);
   } catch (error) {
     log("Failed to persist transcript user turn", error);
   }
@@ -1211,6 +1807,7 @@ window.addEventListener("message", (event) => {
       console.log(`[MultiAI Dashboard] Send result for ${data.provider}: ${data.success ? "SUCCESS" : "FAILED"}`);
     }
     resolvePendingSend(data.provider, data.success);
+    scheduleTranscriptRefresh(250);
     if (data.success === false) {
       failedResponses.add(data.provider);
       setPanelBadgeStatus(data.provider, "error");
@@ -1227,6 +1824,7 @@ window.addEventListener("message", (event) => {
     if (DEBUG) {
       console.log(`[MultiAI Dashboard] Response started for ${data.provider}`);
     }
+    scheduleTranscriptRefresh(250);
     startedResponses.add(data.provider);
     setPanelBadgeStatus(data.provider, "success");
     updateSendingState();
@@ -1234,6 +1832,7 @@ window.addEventListener("message", (event) => {
   }
 
   if (data.type === "responseComplete") {
+    scheduleTranscriptRefresh(250);
     completedResponses.add(data.provider);
     startedResponses.add(data.provider);
     setPanelBadgeStatus(data.provider, "success");
@@ -1303,43 +1902,8 @@ pickerConfirm.addEventListener("click", () => {
   if (pendingPickTarget !== null && pendingPickTarget >= 0) {
     const replacement = selection[0] || activePanels[pendingPickTarget];
     activePanels[pendingPickTarget] = replacement;
-    const panel = grid.querySelector(`.panel[data-index='${pendingPickTarget}']`);
-    if (panel) {
-      const provider = PROVIDER_BY_ID[replacement];
-      const title = panel.querySelector(".panel-title");
-      const iframe = panel.querySelector("iframe");
-      const panelBody = panel.querySelector(".panel-body");
-      const existingBlocked = panel.querySelector(".panel-blocked");
-      if (provider) {
-        if (title) {
-          title.textContent = provider.label;
-        }
-        if (iframe) {
-          if (IFRAME_BLOCKED_PROVIDERS.has(provider.id)) {
-            iframe.src = "about:blank";
-            if (existingBlocked) {
-              existingBlocked.remove();
-            }
-            if (panelBody) {
-              const blocked = document.createElement("div");
-              blocked.className = "panel-blocked";
-              blocked.textContent = "该站点不支持在分屏中打开，点击在新标签中查看";
-              blocked.addEventListener("click", () => {
-                chrome.runtime.sendMessage({ type: "openProviderTab", provider: provider.id });
-              });
-              panelBody.appendChild(blocked);
-            }
-          } else {
-            if (existingBlocked) {
-              existingBlocked.remove();
-            }
-            iframe.src = provider.url;
-          }
-        }
-      }
-    }
     saveState();
-    updateShortcutHint();
+    renderPanels();
   } else {
     activePanels = selection;
     saveState();
@@ -1349,7 +1913,25 @@ pickerConfirm.addEventListener("click", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  if (transcriptPollIntervalId) {
+    clearInterval(transcriptPollIntervalId);
+  }
+  if (transcriptRefreshTimeoutId) {
+    clearTimeout(transcriptRefreshTimeoutId);
+  }
   saveState();
+});
+
+if (transcriptRefreshBtn) {
+  transcriptRefreshBtn.addEventListener("click", () => {
+    refreshSessionTranscript().catch(() => undefined);
+  });
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    scheduleTranscriptRefresh(0);
+  }
 });
 
 loadState();
@@ -1359,6 +1941,7 @@ loadPanelsFromStorage()
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);
     renderPanels();
+    startTranscriptPolling();
   });
 
 
