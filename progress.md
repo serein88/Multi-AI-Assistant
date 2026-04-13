@@ -250,6 +250,45 @@
 - 下一步建议：
   - 下一轮领取 transcript Task2：打通 `content/content.js -> background.js` 的实时状态消息链路，并补 `transcript-normalization` 测试。
 
+## 2026-04-13（记录 37）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-002
+- 任务名：扩展会话转录层 Task2：打通实时状态消息
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `background.js`
+  - `session/transcript-store.js`
+  - `tests/session/transcript-normalization.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `content/content.js` 增加 `session:transcript-live-status` 运行时消息发送，接入现有发送链路的 `responding / completed / failed / interrupted` 状态点。
+  - 在 `background.js` 增加实时状态处理入口，按 `windowId + provider` 命中扩展受管会话并把状态写回 transcript。
+  - 在 `session/transcript-store.js` 补实时状态归一化与更新时间逻辑，保留 `lastStatusAt` 兼容字段，并提供更直观的 `applyTranscriptStatus` 测试别名。
+  - 新增 `tests/session/transcript-normalization.test.js`，覆盖开始回答、完成回答、失败终止，以及后台命中受管会话后的状态写回。
+  - 由于子代理在复核阶段遇到 `429` 限流，本轮 spec/quality 复核改为本地人工代码审查完成。
+- 验证步骤：
+1. 执行 `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node --check content/content.js`。
+5. 执行 `node --check session/transcript-store.js`。
+- 验证证据：
+  - `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js` 通过：`pass 7, fail 0`。
+  - `node --test tests/session/*.test.js` 通过：`pass 39, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check content/content.js` 通过（无语法错误）。
+  - `node --check session/transcript-store.js` 通过（无语法错误）。
+  - 本地代码审查结论：Task2 仍停留在“实时状态消息 + provider 级状态字段”范围内，未提前进入 turn 正文记录、timeline 维护或 dashboard 展示。
+- 风险/问题：
+  - 当前 `failed / interrupted` 主要来自现有发送链路降级分支，尚未覆盖所有 provider 的复杂中断场景。
+  - `lastStatusAt` 与 `statusUpdatedAt` 当前并存，后续若确定只保留一个字段，需要在转录层后续任务中统一命名并做一次数据迁移决策。
+  - 本轮没有做真实浏览器手工冒烟，Chrome 侧联调仍建议放到 Task7 总体回归统一完成。
+- 下一步建议：
+  - 下一轮进入 transcript Task3：把“统一发送产生的 user turn”写入账本，为后面的完整多轮记录铺路。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

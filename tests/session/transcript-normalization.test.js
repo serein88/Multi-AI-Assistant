@@ -28,7 +28,6 @@ function resetSessionGlobals() {
 
 function createChromeStub(initialStore = {}) {
   const store = { ...initialStore };
-
   return {
     __store: store,
     storage: {
@@ -36,12 +35,6 @@ function createChromeStub(initialStore = {}) {
         async get(key) {
           if (typeof key === "string") {
             return { [key]: store[key] };
-          }
-          if (Array.isArray(key)) {
-            return key.reduce((acc, item) => {
-              acc[item] = store[item];
-              return acc;
-            }, {});
           }
           return { ...store };
         },
@@ -86,7 +79,7 @@ function createChromeStub(initialStore = {}) {
     },
     windows: {
       async create() {
-        return { id: 1, focused: true, tabs: [] };
+        return { id: 1 };
       }
     }
   };
@@ -102,13 +95,14 @@ function loadBackgroundWithStubs(chromeStub) {
   require("../../session/session-model.js");
   require("../../session/session-registry.js");
   require("../../session/provider-session-bindings.js");
-  require("../../session/transcript-store.js");
+  const transcriptStore = require("../../session/transcript-store.js");
   require("../../session/window-manager.js");
   const background = require("../../background.js");
 
   return {
     background,
-    constants
+    constants,
+    transcriptStore
   };
 }
 
@@ -119,95 +113,107 @@ test.afterEach(() => {
   delete global.importScripts;
 });
 
-test("applyProviderLiveStatus normalizes provider live status fields", () => {
+test("applyTranscriptStatus keeps responding and completed timestamps in provider transcript state", () => {
   const { createSessionRecord } = require("../../session/session-model.js");
-  const {
-    ensureSessionTranscript,
-    applyProviderLiveStatus
-  } = require("../../session/transcript-store.js");
+  const { ensureSessionTranscript, applyTranscriptStatus } = require("../../session/transcript-store.js");
 
-  const baseSession = ensureSessionTranscript(createSessionRecord({
-    sessionId: "sess_live_state",
+  const session = ensureSessionTranscript(createSessionRecord({
+    sessionId: "sess_status",
     providers: ["deepseek"],
-    now: "2026-04-13T08:00:00.000Z"
-  }), "2026-04-13T08:00:00.000Z");
+    now: "2026-04-13T10:00:00.000Z"
+  }));
 
-  const responding = applyProviderLiveStatus(baseSession, {
+  const started = applyTranscriptStatus(session, {
     provider: "deepseek",
     status: "responding",
-    occurredAt: "2026-04-13T08:01:00.000Z"
+    timestamp: "2026-04-13T10:01:00.000Z"
   });
-  assert.equal(responding.transcript.providers.deepseek.status, "responding");
-  assert.equal(responding.transcript.providers.deepseek.answerStartedAt, "2026-04-13T08:01:00.000Z");
-  assert.equal(responding.transcript.providers.deepseek.answerCompletedAt, null);
-  assert.equal(responding.transcript.providers.deepseek.lastActiveAt, "2026-04-13T08:01:00.000Z");
-  assert.equal(responding.transcript.providers.deepseek.statusUpdatedAt, "2026-04-13T08:01:00.000Z");
 
-  const completed = applyProviderLiveStatus(responding, {
+  assert.equal(started.transcript.providers.deepseek.status, "responding");
+  assert.equal(started.transcript.providers.deepseek.answerStartedAt, "2026-04-13T10:01:00.000Z");
+  assert.equal(started.transcript.providers.deepseek.answerCompletedAt, null);
+  assert.equal(started.transcript.providers.deepseek.lastStatusAt, "2026-04-13T10:01:00.000Z");
+
+  const completed = applyTranscriptStatus(started, {
     provider: "deepseek",
     status: "completed",
-    occurredAt: "2026-04-13T08:01:30.000Z"
+    timestamp: "2026-04-13T10:01:08.000Z"
   });
+
   assert.equal(completed.transcript.providers.deepseek.status, "completed");
-  assert.equal(completed.transcript.providers.deepseek.answerStartedAt, "2026-04-13T08:01:00.000Z");
-  assert.equal(completed.transcript.providers.deepseek.answerCompletedAt, "2026-04-13T08:01:30.000Z");
-  assert.equal(completed.transcript.providers.deepseek.statusUpdatedAt, "2026-04-13T08:01:30.000Z");
-
-  const failed = applyProviderLiveStatus(completed, {
-    provider: "deepseek",
-    status: "failed",
-    occurredAt: "2026-04-13T08:02:00.000Z"
-  });
-  assert.equal(failed.transcript.providers.deepseek.status, "failed");
-  assert.equal(failed.transcript.providers.deepseek.answerCompletedAt, "2026-04-13T08:02:00.000Z");
-  assert.equal(failed.transcript.providers.deepseek.statusUpdatedAt, "2026-04-13T08:02:00.000Z");
-
-  const interrupted = applyProviderLiveStatus(failed, {
-    provider: "deepseek",
-    status: "interrupted",
-    occurredAt: "2026-04-13T08:02:15.000Z"
-  });
-  assert.equal(interrupted.transcript.providers.deepseek.status, "interrupted");
-  assert.equal(interrupted.transcript.providers.deepseek.answerCompletedAt, "2026-04-13T08:02:15.000Z");
-  assert.equal(interrupted.transcript.providers.deepseek.statusUpdatedAt, "2026-04-13T08:02:15.000Z");
+  assert.equal(completed.transcript.providers.deepseek.answerStartedAt, "2026-04-13T10:01:00.000Z");
+  assert.equal(completed.transcript.providers.deepseek.answerCompletedAt, "2026-04-13T10:01:08.000Z");
+  assert.equal(completed.transcript.providers.deepseek.lastStatusAt, "2026-04-13T10:01:08.000Z");
 });
 
-test("handleSessionTranscriptLiveStatus updates managed session transcript provider state", async () => {
+test("applyTranscriptStatus records terminal failure states without losing existing start time", () => {
   const { createSessionRecord } = require("../../session/session-model.js");
-  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const { ensureSessionTranscript, applyTranscriptStatus } = require("../../session/transcript-store.js");
 
-  const seeded = ensureSessionTranscript(createSessionRecord({
-    sessionId: "sess_live_message",
+  const session = ensureSessionTranscript(createSessionRecord({
+    sessionId: "sess_status_fail",
+    providers: ["grok"],
+    now: "2026-04-13T10:00:00.000Z"
+  }));
+
+  const started = applyTranscriptStatus(session, {
+    provider: "grok",
+    status: "responding",
+    timestamp: "2026-04-13T10:02:00.000Z"
+  });
+  const failed = applyTranscriptStatus(started, {
+    provider: "grok",
+    status: "failed",
+    timestamp: "2026-04-13T10:02:12.000Z"
+  });
+
+  assert.equal(failed.transcript.providers.grok.status, "failed");
+  assert.equal(failed.transcript.providers.grok.answerStartedAt, "2026-04-13T10:02:00.000Z");
+  assert.equal(failed.transcript.providers.grok.answerCompletedAt, "2026-04-13T10:02:12.000Z");
+  assert.equal(failed.transcript.providers.grok.lastStatusAt, "2026-04-13T10:02:12.000Z");
+});
+
+test("handleSessionTranscriptLiveStatus updates the matching managed session by window and provider", async () => {
+  const { createSessionRecord, updateChildSessionRecord } = require("../../session/session-model.js");
+  const baseSession = createSessionRecord({
+    sessionId: "sess_runtime_status",
     providers: ["deepseek", "gemini"],
-    now: "2026-04-13T09:00:00.000Z"
-  }), "2026-04-13T09:00:00.000Z");
-  seeded.windowId = 2468;
+    now: "2026-04-13T10:00:00.000Z"
+  });
+  const withWindow = {
+    ...baseSession,
+    windowId: 44,
+    childSessions: {
+      ...baseSession.childSessions,
+      deepseek: updateChildSessionRecord(baseSession, "deepseek", {
+        tabId: 8,
+        url: "https://chat.deepseek.com/",
+        title: "DeepSeek",
+        lastActiveAt: "2026-04-13T10:00:00.000Z",
+        recoverable: true
+      }).childSessions.deepseek
+    }
+  };
 
   const chromeStub = createChromeStub({
-    "multi-ai-sessions": [seeded]
+    "multi-ai-sessions": [withWindow]
   });
   const { background, constants } = loadBackgroundWithStubs(chromeStub);
 
-  const response = await background.handleSessionTranscriptLiveStatus({
+  const result = await background.handleSessionTranscriptLiveStatus({
+    type: "session:transcript-live-status",
     provider: "deepseek",
     status: "responding",
-    occurredAt: "2026-04-13T09:00:10.000Z"
+    occurredAt: "2026-04-13T10:03:00.000Z"
   }, {
     tab: {
-      id: 9527,
-      windowId: 2468
+      id: 8,
+      windowId: 44
     }
   });
 
-  assert.equal(response.ok, true);
-  assert.equal(response.sessionId, "sess_live_message");
-  assert.equal(response.provider, "deepseek");
-  assert.equal(response.status, "responding");
-
+  assert.equal(result.ok, true);
   const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
-  const providerState = storedSessions[0].transcript.providers.deepseek;
-  assert.equal(providerState.status, "responding");
-  assert.equal(providerState.answerStartedAt, "2026-04-13T09:00:10.000Z");
-  assert.equal(providerState.answerCompletedAt, null);
-  assert.equal(providerState.statusUpdatedAt, "2026-04-13T09:00:10.000Z");
+  assert.equal(storedSessions[0].transcript.providers.deepseek.status, "responding");
+  assert.equal(storedSessions[0].transcript.providers.deepseek.answerStartedAt, "2026-04-13T10:03:00.000Z");
 });
