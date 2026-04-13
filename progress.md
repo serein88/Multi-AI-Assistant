@@ -1187,3 +1187,27 @@
 - 下一步建议：
   - 你先在扩展主界面里重新打开 Grok 面板，重点看原来的 `Something went wrong` 是否已经消失。
   - 如果还有异常，我下一轮会继续沿“Grok 前端嵌入态异常”这条线追，优先检查是否需要在 `document_start` 更早阶段做 Grok 专项兼容。
+
+## 2026-04-13（记录 23）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-001
+- 任务名：扩展会话转录层 Task1：定义转录数据结构
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `background.js`
+  - `tests/session/transcript-store.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `background.js` 新增 transcript 初始化与补全逻辑，确保每个会话拥有统一的转录结构壳。
+  - 在会话创建与读取时注入 transcript 结构，同时不改变现有会话生命周期流程。
+  - 新增 `transcript-store` 单测，覆盖初始结构与缺失 provider 自动补齐。
+- 验证步骤：
+1. 运行 `node --test tests/session/transcript-store.test.js`。
+- 验证证据：
+  - 测试结果：`tests 2 / pass 2 / fail 0`。
+- 风险/问题：
+  - Node 测试加载 `background.js` 时仍会输出 `importScripts is not defined` 的日志，但不影响测试通过。
+- 下一步建议：
+  - 进入 Task 2 时如需干净测试输出，可在测试侧补充 `importScripts` stub。
