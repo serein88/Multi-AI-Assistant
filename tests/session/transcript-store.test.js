@@ -391,3 +391,58 @@ test("provider raw turns and session timeline are updated together for unified-s
     status: "completed"
   });
 });
+
+test("handleSessionTranscriptProviderTurn ignores consecutive duplicates even when timestamps differ", async () => {
+  const { createSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const now = "2026-04-13T13:10:00.000Z";
+  const managedSession = ensureSessionTranscript(createSessionRecord({
+    sessionId: "sess_transcript_consecutive_dupe",
+    providers: ["deepseek", "gemini"],
+    now
+  }), now);
+  managedSession.windowId = 109;
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [managedSession]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+
+  const sender = {
+    tab: {
+      id: 33,
+      windowId: 109
+    }
+  };
+
+  const firstAt = "2026-04-13T13:11:00.000Z";
+  const secondAt = "2026-04-13T13:13:10.000Z";
+
+  const first = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "OK",
+    occurredAt: firstAt
+  }, sender);
+  assert.equal(first.ok, true);
+
+  const dup = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "OK",
+    occurredAt: secondAt
+  }, sender);
+  assert.equal(dup.ok, true);
+
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const storedSession = storedSessions[0];
+  const deepseekTurns = storedSession.transcript.providers.deepseek.turns;
+  const timeline = storedSession.transcript.timeline;
+
+  assert.equal(deepseekTurns.length, 1);
+  assert.equal(deepseekTurns[0].createdAt, firstAt);
+  assert.equal(timeline.length, 1);
+  assert.equal(timeline[0].createdAt, firstAt);
+});

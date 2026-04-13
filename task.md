@@ -38,8 +38,8 @@
 | T-20260413-010 | 回归修复：手动继续聊 turn 捕获 | P0 | 待确认 | 在 provider 页面手动继续聊后，新增 `user / assistant turn` 会进入 transcript 与 timeline；不依赖统一发送入口 | 2026-04-13 实机复测通过：DeepSeek/Gemini/Grok 在 iframe 内手动发送后均新增 user/assistant turn，liveStatus 可回到 `completed` |
 | T-20260413-011 | Transcript UI 修复：Provider 原始记录展开态不闪回 | P0 | 待确认 | 在 Dashboard 右侧 `Provider 原始记录` 展开任意 provider 后，经历轮询刷新仍保持展开；用户点击展开/折叠不闪回 | 2026-04-13 实机验证通过：展开后跨轮询刷新保持展开，不再闪回折叠 |
 | T-20260413-012 | Transcript UI：Gemini 欢迎语展示策略 | P1 | 完成 | Gemini 初始欢迎语不干扰主时间线；默认隐藏/折叠或标注 system；需要时可查看 | 2026-04-13 用户验收通过：Gemini 首条 user 之前的 assistant 欢迎语默认不展示（时间线/原始记录均隐藏） |
-| T-20260413-013 | Transcript UI：对话式（一问一答）展示（可选） | P2 | 待确认 | 时间线可切换为对话式视图，把同 provider 的 user/assistant 尽量配对展示；不影响现有消息流视图 | 2026-04-13 实机验证通过：可在消息/对话视图切换，时间线与 provider 原始记录均按问答分组展示 |
-| T-20260413-014 | 回归：Task7 二次收口 | P0 | 待进行 | 新建会话 -> 统一发送 -> 手动续聊 -> 恢复会话 -> 核对 transcript/timeline 四链路跑通并留证据 | 收口后推进主分支集成 |
+| T-20260413-013 | Transcript UI：对话式（一问一答）展示（可选） | P2 | 完成 | 时间线可切换为对话式视图，把同 provider 的 user/assistant 尽量配对展示；不影响现有消息流视图 | 2026-04-13 用户验收通过：可在消息/对话视图切换，时间线与 provider 原始记录均按问答分组展示 |
+| T-20260413-014 | 回归：Task7 二次收口 | P0 | 待确认 | 新建会话 -> 统一发送 -> 手动续聊 -> 恢复会话 -> 核对 transcript/timeline 四链路跑通并留证据 | 收口后推进主分支集成 |
 
 ## 待进行（技术债 Backlog，按优先级）
 

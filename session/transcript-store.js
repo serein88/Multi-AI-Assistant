@@ -358,6 +358,15 @@
     return lastTurn.createdAt === nextCreatedAt;
   }
 
+  function isConsecutiveDuplicateTurn(lastTurn, nextRole, nextContent) {
+    if (!lastTurn || lastTurn.role !== nextRole) {
+      return false;
+    }
+
+    const lastContent = typeof lastTurn.content === "string" ? lastTurn.content : "";
+    return isSameTurnContent(lastContent, nextContent);
+  }
+
   function shouldIgnoreEchoedAssistantTurn(provider, lastTurn, nextRole, nextContent, nextCreatedAt) {
     if (
       provider !== "grok" ||
@@ -492,6 +501,10 @@
     const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
     const currentTurns = Array.isArray(currentProvider.turns) ? currentProvider.turns : [];
     const lastTurn = currentTurns.length > 0 ? currentTurns[currentTurns.length - 1] : null;
+
+    if (isConsecutiveDuplicateTurn(lastTurn, normalizedRole, normalizedContent)) {
+      return ensured;
+    }
 
     if (
       shouldIgnoreEchoedAssistantTurn(provider, lastTurn, normalizedRole, normalizedContent, timestamp) ||

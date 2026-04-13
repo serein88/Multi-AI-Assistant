@@ -530,6 +530,7 @@ let manualTurnCaptureStarted = false;
 let manualTurnNodeSnapshot = new WeakMap();
 const pendingManualTurnRoots = new Set();
 let manualTurnFlushTimer = null;
+let manualTurnWarmupUntil = 0;
 
 let manualSendCaptureStarted = false;
 let lastManualSendProvider = "";
@@ -760,7 +761,8 @@ function enqueueManualTurnRoot(provider, root) {
     manualTurnFlushTimer = null;
     const roots = Array.from(pendingManualTurnRoots);
     pendingManualTurnRoots.clear();
-    scanManualTurnRoots(provider, roots);
+    const captureOnly = Date.now() < manualTurnWarmupUntil;
+    scanManualTurnRoots(provider, roots, captureOnly ? { captureOnly: true } : undefined);
   }, 120);
 }
 
@@ -770,6 +772,7 @@ function startManualTurnCapture(provider) {
   if (!document.body) return;
   manualTurnCaptureStarted = true;
   manualTurnNodeSnapshot = new WeakMap();
+  manualTurnWarmupUntil = Date.now() + 2500;
 
   scanManualTurnRoots(provider, [document.body], { captureOnly: true });
 
@@ -849,6 +852,15 @@ function extractPromptFromEditable(el) {
   return getEditableText(el) || el.innerText || el.textContent || "";
 }
 
+function isEditableCleared(el) {
+  try {
+    const text = normalizeTurnText(extractPromptFromEditable(el));
+    return text.length === 0;
+  } catch {
+    return false;
+  }
+}
+
 function getManualSendButtonSelectors(provider) {
   const selectors = Array.isArray(PROVIDER_CONFIGS?.[provider]?.sendButtonSelectors)
     ? PROVIDER_CONFIGS[provider].sendButtonSelectors
@@ -881,28 +893,55 @@ function recordManualSend(provider, prompt) {
   }
   rememberManualSend(provider, normalized);
 
-  const occurredAt = new Date().toISOString();
-  sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
+  // Only start DOM-based turn capture when a *real user action* happens.
+  // This avoids restore/load re-ingestion while still making manual-chat capture robust.
+  startManualTurnCapture(provider);
 
-  // Best-effort: detect answering state and capture the final assistant text for manual sends too.
-  waitForResponseStart(provider).then((started) => {
-    if (!started) {
-      sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
+  const inputEl = arguments.length >= 3 ? arguments[2] : null;
+  const occurredAt = new Date().toISOString();
+
+  const startResponseFlow = (assumeStarted = false) => {
+    sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
+
+    const startedPromise = assumeStarted ? Promise.resolve(true) : waitForResponseStart(provider);
+
+    // Best-effort: detect answering state and capture the final assistant text for manual sends too.
+    startedPromise.then((started) => {
+      if (!started) {
+        sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
+        return;
+      }
+
+      sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
+
+      waitForResponseComplete(provider).then(() => {
+        const latest = extractLatestResponse(provider);
+        if (latest) {
+          sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
+            status: "completed"
+          });
+        }
+        sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
+      });
+    });
+  };
+
+  // Delay until after the UI has applied the send. This prevents false positives when the user
+  // presses Enter but the message is not actually sent (e.g. blocked by overlays).
+  setTimeout(() => {
+    if (inputEl && !isEditableCleared(inputEl)) {
+      // Fallback: input did not clear, so confirm by observing response start.
+      waitForResponseStart(provider).then((started) => {
+        if (!started) {
+          return;
+        }
+        startResponseFlow(true);
+      });
       return;
     }
 
-    sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
-
-    waitForResponseComplete(provider).then(() => {
-      const latest = extractLatestResponse(provider);
-      if (latest) {
-        sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
-          status: "completed"
-        });
-      }
-      sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
-    });
-  });
+    startResponseFlow(false);
+  }, 900);
 }
 
 function startManualSendCapture(provider) {
@@ -924,7 +963,7 @@ function startManualSendCapture(provider) {
     const prompt = extractPromptFromEditable(target);
     if (!prompt || !String(prompt).trim()) return;
 
-    recordManualSend(provider, prompt);
+    recordManualSend(provider, prompt, target);
   }, true);
 
   document.addEventListener("click", (event) => {
@@ -944,7 +983,7 @@ function startManualSendCapture(provider) {
     const prompt = extractPromptFromEditable(active);
     if (!prompt || !String(prompt).trim()) return;
 
-    recordManualSend(provider, prompt);
+    recordManualSend(provider, prompt, active);
   }, true);
 }
 
@@ -2323,7 +2362,7 @@ async function waitForResponseComplete(provider) {
         return;
       }
 
-      if (provider === "deepseek") {
+      if (provider === "deepseek" || provider === "gemini" || provider === "grok") {
         const latest = extractLatestResponse(provider);
         const normalized = typeof latest === "string" ? latest.trim() : "";
         if (!normalized) {
@@ -2593,7 +2632,6 @@ function initializeCustomFixes() {
   const provider = getProviderFromHost();
 
   startChildSessionSync(provider);
-  startManualTurnCapture(provider);
   startManualSendCapture(provider);
 
   if (provider === "gemini") {

@@ -1684,3 +1684,37 @@
   - 当前问答配对为“同 provider 的顺序配对”：遇到 assistant-only 或多 assistant 的边界情况会按顺序归并，不尝试做跨 provider 聚合配对。
 - 下一步建议：
   - 你确认该视图切换符合预期后，把 `T-20260413-013` 标记为 `完成`；再进入 `T-20260413-014` 做 Task7 二次回归收口。
+
+---
+
+## 2026-04-13（记录 47）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-014
+- 任务名：回归：Task7 二次收口（恢复不重复入库）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `session/transcript-store.js`
+  - `tests/session/transcript-store.test.js`
+  - `tests/e2e/t-20260413-014-cdp-regress.mjs`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 修复“恢复会话后重复写入旧 DOM turn”的根因：不再在页面加载时启动手动 turn DOM 监听，而是仅在用户真实手动发送（trusted keydown/click）时才启动，并带 warmup snapshot 防回填。
+  - 增强 transcript 层兜底去重：忽略“相邻重复的同角色同内容 turn”（即使时间戳不同），降低 restore/重渲染导致的重复入库风险。
+  - 加入 CDP 端到端回归脚本：新建会话 -> 等待页面 settle -> 关闭 -> 恢复 -> 再次 settle，断言 provider turns 不增长且不会自动入库欢迎语/旧消息。
+- 验证步骤：
+1. 确保本机 Chrome 开启调试端口 `--remote-debugging-port=9222`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node tests/e2e/t-20260413-014-cdp-regress.mjs`。
+- 验证证据：
+  - `node --test tests/session/*.test.js`：`pass 48, fail 0`。
+  - CDP 回归脚本输出（示例 session：`sess_20260413_fr7bmw`）显示：
+    - `beforeClose.deepseek.turnsCount = 0`，`beforeClose.gemini.turnsCount = 0`
+    - `afterRestore.deepseek.turnsCount = 0`，`afterRestore.gemini.turnsCount = 0`
+    - `diffs.*.delta = 0`（恢复后不新增 turn）
+- 风险/问题：
+  - 自动化脚本不覆盖“真实用户在 iframe 内手动发送”的链路：该链路依赖 `event.isTrusted`，Playwright 无法模拟；需你实机再验一次手动续聊是否仍可入库。
+- 下一步建议：
+  - 你实机验收：统一发送 1 轮 + 在 DeepSeek/Gemini iframe 内各手动继续聊 1 轮，确认 transcript 每轮只新增 `user+assistant` 且恢复后不重复；通过后把 `T-20260413-014` 标记为 `完成`。
