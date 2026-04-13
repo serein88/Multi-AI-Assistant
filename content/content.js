@@ -65,6 +65,70 @@ const RESPONSE_SELECTORS = {
   ]
 };
 
+const MANUAL_TURN_CAPTURE_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
+const MANUAL_USER_SELECTORS = {
+  default: [
+    "[data-role='user']",
+    "[data-message-author-role='user']",
+    "[data-testid='user-message']",
+    "[data-testid*='user-message']",
+    "[class*='message-user']",
+    "[class*='user-message']",
+    "[class*='human-message']",
+    "[class*='from-user']"
+  ],
+  deepseek: [
+    "[class*='message-user']",
+    "[data-role='user']",
+    "[data-message-author-role='user']"
+  ],
+  gemini: [
+    "[data-role='user']",
+    "[data-message-author-role='user']",
+    "[class*='query-text']",
+    "[class*='user-query']",
+    "[class*='user-message']"
+  ],
+  grok: [
+    "[data-role='user']",
+    "[data-message-author-role='user']",
+    "[class*='message-user']",
+    "[class*='user-message']"
+  ]
+};
+const MANUAL_ASSISTANT_SELECTORS = {
+  default: [
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[data-testid='bot-message']",
+    "[data-testid*='assistant-message']",
+    "[class*='message-assistant']",
+    "[class*='assistant-message']",
+    "[class*='bot-message']",
+    "[class*='ai-message']"
+  ],
+  deepseek: [
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[class*='message-assistant']",
+    "[class*='assistant-message']"
+  ],
+  gemini: [
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[class*='model-response']",
+    "[class*='assistant-message']",
+    "[class*='response']",
+    "[data-md]"
+  ],
+  grok: [
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[class*='message-assistant']",
+    "[class*='assistant-message']"
+  ]
+};
+
 function extractLatestResponse(provider) {
   const selectors = RESPONSE_SELECTORS[provider] || RESPONSE_SELECTORS.chatgpt || [];
   const root = document.body || document;
@@ -466,6 +530,227 @@ function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
   } catch {
     // ignore transcript live-status errors
   }
+}
+
+let manualTurnCaptureStarted = false;
+let manualTurnNodeSnapshot = new WeakMap();
+const pendingManualTurnRoots = new Set();
+let manualTurnFlushTimer = null;
+
+function getManualSelectors(map, provider, fallback = []) {
+  const scoped = Array.isArray(map?.[provider]) ? map[provider] : [];
+  const defaults = Array.isArray(map?.default) ? map.default : fallback;
+  return Array.from(new Set([...scoped, ...defaults]));
+}
+
+function getManualUserSelectors(provider) {
+  return getManualSelectors(MANUAL_USER_SELECTORS, provider);
+}
+
+function getManualAssistantSelectors(provider) {
+  return Array.from(new Set([
+    ...getManualSelectors(MANUAL_ASSISTANT_SELECTORS, provider),
+    ...(Array.isArray(RESPONSE_SELECTORS[provider]) ? RESPONSE_SELECTORS[provider] : [])
+  ]));
+}
+
+function normalizeTurnText(raw) {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+function findRoleFromAttributes(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
+  const roleHint = `${node.getAttribute("data-role") || ""} ${node.getAttribute("data-message-author-role") || ""}`.toLowerCase();
+  if (roleHint.includes("user") || roleHint.includes("human")) return "user";
+  if (roleHint.includes("assistant") || roleHint.includes("bot") || roleHint.includes("model")) return "assistant";
+  return "";
+}
+
+function elementMatchesAnySelector(node, selectors) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors)) return false;
+  for (const selector of selectors) {
+    try {
+      if (node.matches(selector)) {
+        return true;
+      }
+    } catch {
+      // ignore selector mismatch
+    }
+  }
+  return false;
+}
+
+function collectMatchingElements(root, selectors) {
+  if (!root || root.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors) || selectors.length === 0) {
+    return [];
+  }
+
+  const nodes = [];
+  if (elementMatchesAnySelector(root, selectors)) {
+    nodes.push(root);
+  }
+
+  for (const selector of selectors) {
+    try {
+      const matches = root.querySelectorAll(selector);
+      if (matches && matches.length > 0) {
+        nodes.push(...matches);
+      }
+    } catch {
+      // ignore selector mismatch
+    }
+  }
+
+  return Array.from(new Set(nodes));
+}
+
+function detectManualTurnRole(provider, node, userSelectors, assistantSelectors) {
+  const fromAttr = findRoleFromAttributes(node);
+  if (fromAttr) {
+    return fromAttr;
+  }
+  if (elementMatchesAnySelector(node, userSelectors)) {
+    return "user";
+  }
+  if (elementMatchesAnySelector(node, assistantSelectors)) {
+    return "assistant";
+  }
+  return "";
+}
+
+function sendTranscriptProviderTurn(provider, role, content, occurredAt = null) {
+  if (!provider || !role || !content) return;
+
+  const payload = {
+    type: "session:transcript-provider-turn",
+    provider,
+    role,
+    content,
+    occurredAt: occurredAt || new Date().toISOString()
+  };
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch {
+    // ignore transcript turn errors
+  }
+}
+
+function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return;
+  }
+
+  const normalized = normalizeTurnText(content);
+  if (!normalized) {
+    return;
+  }
+
+  const previous = manualTurnNodeSnapshot.get(node);
+  if (previous && previous.role === role && previous.content === normalized) {
+    return;
+  }
+
+  manualTurnNodeSnapshot.set(node, { role, content: normalized });
+  if (options.captureOnly) {
+    return;
+  }
+
+  sendTranscriptProviderTurn(provider, role, normalized, new Date().toISOString());
+}
+
+function scanManualTurnRoots(provider, roots, options = {}) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider) || !document.body) {
+    return;
+  }
+
+  const userSelectors = getManualUserSelectors(provider);
+  const assistantSelectors = getManualAssistantSelectors(provider);
+  const candidates = new Map();
+
+  roots.forEach((root) => {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+    collectMatchingElements(root, userSelectors).forEach((node) => candidates.set(node, "user"));
+    collectMatchingElements(root, assistantSelectors).forEach((node) => {
+      if (!candidates.has(node)) {
+        candidates.set(node, "assistant");
+      }
+    });
+  });
+
+  candidates.forEach((fallbackRole, node) => {
+    const role = detectManualTurnRole(provider, node, userSelectors, assistantSelectors) || fallbackRole;
+    if (role !== "user" && role !== "assistant") {
+      return;
+    }
+    const text = normalizeTurnText(node.innerText || node.textContent || "");
+    if (!text) {
+      return;
+    }
+    rememberTurnNodeSnapshot(provider, node, role, text, options);
+  });
+}
+
+function enqueueManualTurnRoot(provider, root) {
+  if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+  pendingManualTurnRoots.add(root);
+  if (manualTurnFlushTimer) return;
+
+  manualTurnFlushTimer = setTimeout(() => {
+    manualTurnFlushTimer = null;
+    const roots = Array.from(pendingManualTurnRoots);
+    pendingManualTurnRoots.clear();
+    scanManualTurnRoots(provider, roots);
+  }, 120);
+}
+
+function startManualTurnCapture(provider) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
+  if (manualTurnCaptureStarted) return;
+  if (!document.body) return;
+  manualTurnCaptureStarted = true;
+  manualTurnNodeSnapshot = new WeakMap();
+
+  scanManualTurnRoots(provider, [document.body], { captureOnly: true });
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === "characterData") {
+        if (mutation.target?.parentElement) {
+          enqueueManualTurnRoot(provider, mutation.target.parentElement);
+        }
+        continue;
+      }
+
+      if (mutation.target && mutation.target.nodeType === Node.ELEMENT_NODE) {
+        enqueueManualTurnRoot(provider, mutation.target);
+      }
+
+      if (!mutation.addedNodes || mutation.addedNodes.length === 0) {
+        continue;
+      }
+
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          enqueueManualTurnRoot(provider, node);
+        } else if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
+          enqueueManualTurnRoot(provider, node.parentElement);
+        }
+      });
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
 }
 
 const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
@@ -2081,6 +2366,7 @@ function initializeCustomFixes() {
   const provider = getProviderFromHost();
 
   startChildSessionSync(provider);
+  startManualTurnCapture(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");

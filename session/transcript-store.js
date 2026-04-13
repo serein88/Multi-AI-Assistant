@@ -2,7 +2,10 @@
   const TRANSCRIPT_VERSION = 1;
   const TRANSCRIPT_STATUS_IDLE = "idle";
   const TRANSCRIPT_TURN_ROLE_USER = "user";
+  const TRANSCRIPT_TURN_ROLE_ASSISTANT = "assistant";
   const TRANSCRIPT_TURN_STATUS_COMPLETED = "completed";
+  const TURN_DEDUPE_WINDOW_MS = 15000;
+  const TURN_MERGE_WINDOW_MS = 120000;
   const LIVE_STATUS_SET = new Set([
     "idle",
     "responding",
@@ -306,6 +309,146 @@
     };
   }
 
+  function normalizeTurnRole(role) {
+    if (role === TRANSCRIPT_TURN_ROLE_USER || role === TRANSCRIPT_TURN_ROLE_ASSISTANT) {
+      return role;
+    }
+    return "";
+  }
+
+  function toTimestampMs(value) {
+    if (typeof value !== "string" || value.length === 0) {
+      return null;
+    }
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function isSameTurnContent(left, right) {
+    return left.trim() === right.trim();
+  }
+
+  function isLikelyDuplicateTurn(lastTurn, nextRole, nextContent, nextCreatedAt) {
+    if (!lastTurn || lastTurn.role !== nextRole) {
+      return false;
+    }
+
+    const lastContent = typeof lastTurn.content === "string" ? lastTurn.content : "";
+    if (!isSameTurnContent(lastContent, nextContent)) {
+      return false;
+    }
+
+    const lastMs = toTimestampMs(lastTurn.createdAt);
+    const nextMs = toTimestampMs(nextCreatedAt);
+    if (lastMs !== null && nextMs !== null) {
+      return Math.abs(nextMs - lastMs) <= TURN_DEDUPE_WINDOW_MS;
+    }
+    return lastTurn.createdAt === nextCreatedAt;
+  }
+
+  function shouldMergeTurnContent(lastTurn, nextRole, nextContent, nextCreatedAt) {
+    if (!lastTurn || nextRole !== TRANSCRIPT_TURN_ROLE_ASSISTANT || lastTurn.role !== nextRole) {
+      return false;
+    }
+
+    const lastContent = typeof lastTurn.content === "string" ? lastTurn.content.trim() : "";
+    if (!lastContent || isSameTurnContent(lastContent, nextContent)) {
+      return false;
+    }
+
+    const lastMs = toTimestampMs(lastTurn.createdAt);
+    const nextMs = toTimestampMs(nextCreatedAt);
+    if (lastMs !== null && nextMs !== null && Math.abs(nextMs - lastMs) > TURN_MERGE_WINDOW_MS) {
+      return false;
+    }
+
+    const normalizedNext = nextContent.trim();
+    return normalizedNext.startsWith(lastContent) || lastContent.startsWith(normalizedNext);
+  }
+
+  function appendProviderTurn(session, { provider, role, content, occurredAt } = {}) {
+    if (!session || typeof provider !== "string" || provider.length === 0) {
+      return session;
+    }
+
+    const normalizedRole = normalizeTurnRole(role);
+    if (!normalizedRole) {
+      return session;
+    }
+
+    const normalizedContent = typeof content === "string" ? content.trim() : "";
+    if (!normalizedContent) {
+      return session;
+    }
+
+    const timestamp =
+      typeof occurredAt === "string" && occurredAt
+        ? occurredAt
+        : new Date().toISOString();
+    const ensured = ensureSessionTranscript(session, timestamp);
+    const currentTranscript = ensured?.transcript;
+    if (!currentTranscript || typeof currentTranscript !== "object") {
+      return ensured;
+    }
+
+    const currentProviders =
+      currentTranscript.providers && typeof currentTranscript.providers === "object"
+        ? currentTranscript.providers
+        : {};
+    const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
+    const currentTurns = Array.isArray(currentProvider.turns) ? currentProvider.turns : [];
+    const lastTurn = currentTurns.length > 0 ? currentTurns[currentTurns.length - 1] : null;
+
+    if (isLikelyDuplicateTurn(lastTurn, normalizedRole, normalizedContent, timestamp)) {
+      return ensured;
+    }
+
+    let nextTurns;
+    if (shouldMergeTurnContent(lastTurn, normalizedRole, normalizedContent, timestamp)) {
+      const lastContent = typeof lastTurn.content === "string" ? lastTurn.content.trim() : "";
+      const mergedContent = normalizedContent.length >= lastContent.length
+        ? normalizedContent
+        : lastContent;
+      if (mergedContent === lastContent) {
+        return ensured;
+      }
+      nextTurns = [
+        ...currentTurns.slice(0, -1),
+        {
+          ...lastTurn,
+          content: mergedContent
+        }
+      ];
+    } else {
+      nextTurns = [
+        ...currentTurns,
+        {
+          role: normalizedRole,
+          content: normalizedContent,
+          createdAt: timestamp,
+          status: TRANSCRIPT_TURN_STATUS_COMPLETED
+        }
+      ];
+    }
+
+    return {
+      ...ensured,
+      lastActiveAt: timestamp,
+      transcript: {
+        ...currentTranscript,
+        updatedAt: timestamp,
+        providers: {
+          ...currentProviders,
+          [provider]: {
+            ...currentProvider,
+            turns: nextTurns,
+            lastActiveAt: timestamp
+          }
+        }
+      }
+    };
+  }
+
   function applyTranscriptStatus(session, { provider, status, timestamp } = {}) {
     return applyProviderLiveStatus(session, {
       provider,
@@ -324,7 +467,8 @@
     createTranscriptStore,
     applyProviderLiveStatus,
     applyTranscriptStatus,
-    appendUserTurn
+    appendUserTurn,
+    appendProviderTurn
   };
 
   if (typeof globalThis !== "undefined") {

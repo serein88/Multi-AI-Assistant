@@ -33,6 +33,7 @@ const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
 const ensureSessionTranscript = SESSION_TRANSCRIPT_STORE.ensureSessionTranscript;
 const applyProviderLiveStatus = SESSION_TRANSCRIPT_STORE.applyProviderLiveStatus;
 const appendUserTurn = SESSION_TRANSCRIPT_STORE.appendUserTurn;
+const appendProviderTurn = SESSION_TRANSCRIPT_STORE.appendProviderTurn;
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -472,6 +473,76 @@ async function handleSessionTranscriptUserTurn(message, sender) {
     ok: true,
     sessionId: updated.sessionId,
     providers,
+    occurredAt
+  };
+}
+
+async function handleSessionTranscriptProviderTurn(message, sender) {
+  log("Received session:transcript-provider-turn payload", message);
+
+  if (!sessionRegistry || typeof appendProviderTurn !== "function") {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const provider = message?.provider;
+  const isSupported =
+    typeof SESSION_BINDINGS.isSessionProviderSupported === "function"
+      ? SESSION_BINDINGS.isSessionProviderSupported(provider)
+      : getSessionProviderIds().includes(provider);
+  if (!isSupported) {
+    return { ok: false, reason: "unsupported-provider" };
+  }
+
+  const role = typeof message?.role === "string" ? message.role : "";
+  if (role !== "user" && role !== "assistant") {
+    return { ok: false, reason: "invalid-role" };
+  }
+
+  const content =
+    typeof message?.content === "string"
+      ? message.content.trim()
+      : (typeof message?.text === "string" ? message.text.trim() : "");
+  if (!content) {
+    return { ok: false, reason: "missing-content" };
+  }
+
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (typeof tabId !== "number" || typeof windowId !== "number") {
+    return { ok: false, reason: "missing-tab-context" };
+  }
+
+  const sessions = await sessionRegistry.listSessions();
+  const session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    return { ok: false, reason: "session-not-found" };
+  }
+
+  if (!session.childSessions || !Object.prototype.hasOwnProperty.call(session.childSessions, provider)) {
+    return { ok: false, reason: "provider-not-in-session" };
+  }
+
+  const occurredAt =
+    typeof message?.occurredAt === "string" && message.occurredAt
+      ? message.occurredAt
+      : (typeof message?.timestamp === "string" && message.timestamp
+        ? message.timestamp
+        : new Date().toISOString());
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+    appendProviderTurn(record, {
+      provider,
+      role,
+      content,
+      occurredAt
+    })
+  );
+  await persistDashboardSessionState(updated);
+
+  return {
+    ok: true,
+    sessionId: updated.sessionId,
+    provider,
+    role,
     occurredAt
   };
 }
@@ -926,6 +997,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "session:transcript-provider-turn") {
+    handleSessionTranscriptProviderTurn(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   if (message.type === "transcript:status") {
     handleTranscriptStatus(message, sender)
       .then((result) => sendResponse({ ok: true, result }))
@@ -942,6 +1020,7 @@ if (typeof module !== "undefined" && module.exports) {
     sanitizeSessionIfNeeded,
     handleSessionTranscriptLiveStatus,
     handleSessionTranscriptUserTurn,
+    handleSessionTranscriptProviderTurn,
     handleTranscriptStatus,
     ensureSessionTranscript,
     createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,

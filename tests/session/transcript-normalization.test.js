@@ -217,3 +217,83 @@ test("handleSessionTranscriptLiveStatus updates the matching managed session by 
   assert.equal(storedSessions[0].transcript.providers.deepseek.status, "responding");
   assert.equal(storedSessions[0].transcript.providers.deepseek.answerStartedAt, "2026-04-13T10:03:00.000Z");
 });
+
+test("handleSessionTranscriptProviderTurn records manual user and assistant turns with minimal dedupe and merge", async () => {
+  const { createSessionRecord, updateChildSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const baseSession = ensureSessionTranscript(createSessionRecord({
+    sessionId: "sess_manual_turn_capture",
+    providers: ["deepseek", "gemini"],
+    now: "2026-04-13T12:00:00.000Z"
+  }));
+  const withWindow = {
+    ...baseSession,
+    windowId: 52,
+    childSessions: {
+      ...baseSession.childSessions,
+      deepseek: updateChildSessionRecord(baseSession, "deepseek", {
+        tabId: 21,
+        url: "https://chat.deepseek.com/",
+        title: "DeepSeek",
+        lastActiveAt: "2026-04-13T12:00:00.000Z",
+        recoverable: true
+      }).childSessions.deepseek
+    }
+  };
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [withWindow]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const sender = {
+    tab: {
+      id: 21,
+      windowId: 52
+    }
+  };
+
+  const manualUser = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "user",
+    content: "Manual follow-up question",
+    occurredAt: "2026-04-13T12:01:00.000Z"
+  }, sender);
+  assert.equal(manualUser.ok, true);
+
+  const duplicateUser = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "user",
+    content: "Manual follow-up question",
+    occurredAt: "2026-04-13T12:01:05.000Z"
+  }, sender);
+  assert.equal(duplicateUser.ok, true);
+
+  const assistantPartial = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "First sentence.",
+    occurredAt: "2026-04-13T12:01:20.000Z"
+  }, sender);
+  assert.equal(assistantPartial.ok, true);
+
+  const assistantExpanded = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "First sentence. Second sentence.",
+    occurredAt: "2026-04-13T12:01:24.000Z"
+  }, sender);
+  assert.equal(assistantExpanded.ok, true);
+
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const turns = storedSessions[0].transcript.providers.deepseek.turns;
+
+  assert.equal(turns.length, 2);
+  assert.equal(turns[0].role, "user");
+  assert.equal(turns[0].content, "Manual follow-up question");
+  assert.equal(turns[1].role, "assistant");
+  assert.equal(turns[1].content, "First sentence. Second sentence.");
+});
