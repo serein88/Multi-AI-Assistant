@@ -18,6 +18,60 @@
 
 ---
 
+## 2026-04-13（记录 39）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-007
+- 任务名：扩展会话转录层 Task7：整体回归与收口
+- 状态流转：进行中 -> 失败
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 使用真实浏览器会话做最终回归，不再停留在 Node 测试和语法检查。
+  - 在 `chrome://extensions` 重载当前 worktree 扩展后，通过真实 `popup.html` 创建新会话，拿到新 session：`sess_20260413_m58cio`。
+  - 通过 CDP / Playwright 确认真正的受管 dashboard 位于 `windowId=314584960`、`tabId=314584961`，避免把手动打开的非受管 dashboard 误当成回归对象。
+  - 在真实受管 dashboard 中执行统一发送，随后轮询 `session:get` 读取 transcript 落库结果。
+  - 在 DeepSeek iframe 内执行一次“手动继续聊”动作，再次读取 transcript，确认手动继续链路是否入账。
+  - 最后通过 `popup.html` 执行“恢复会话”，确认 transcript 是否在恢复后仍可读取。
+- 验证步骤：
+1. 在 `chrome://extensions` 中重载 ID 为 `hcflhfnjaaihifgfnmobkdlcklifeflg` 的当前扩展。
+2. 打开 `chrome-extension://hcflhfnjaaihifgfnmobkdlcklifeflg/popup.html`，点击 `新建会话`，确认生成新 session `sess_20260413_m58cio`。
+3. 使用 Playwright `connectOverCDP('http://127.0.0.1:9222')` 锁定真实受管 dashboard（`windowId=314584960`），在该页用统一发送输入 `回归测试一：请只回复“收到”。`。
+4. 每 3 秒轮询一次 `chrome.runtime.sendMessage({ type: 'session:get', sessionId })`，连续观察 10 次 transcript/timeline/provider status。
+5. 在同一真实 dashboard 的 DeepSeek iframe 内手动输入 `手动继续测试：只回复“手动收到”。` 并发送，再读取 transcript。
+6. 回到 `popup.html` 点击 `刷新列表 -> 该 session -> 恢复会话`，再读取 `session:get` 验证 transcript 是否保留。
+- 验证证据：
+  - 证据 A：真实入口创建成功，popup 提示 `会话已创建：Session 2026-04-13T06:41:51.542Z`，并在 `session:list` 中出现 `sess_20260413_m58cio`。
+  - 证据 B：真实受管 dashboard 已锁定为：
+    - `windowId=314584960`
+    - `tabId=314584961`
+  - 证据 C：统一发送后 transcript 确实发生写入，但结果不符合验收：
+    - `timeline = 33`
+    - `deepseek.status = responding`，仅有 2 条 `user` turn，无 assistant turn
+    - `gemini.status = responding`，累计 29 条 turn，出现大量 `你说 ...` / `Gemini 说` / `收到。` 重复记录
+    - `grok.status = completed`，仅有 2 条 `user` turn，无 assistant turn
+  - 证据 D：手动继续聊未通过验收。DeepSeek iframe 中手动发送 `手动继续测试：只回复“手动收到”。` 后，`deepseek.status` 变为 `completed`，但 `deepseek.turns` 仍只有先前 2 条 `user` turn，没有新增 user/assistant turn。
+  - 证据 E：恢复链路本身可用。通过 popup 执行 `恢复会话` 后，`session:get` 返回：
+    - `windowId = 314584965`
+    - `timeline = 33`
+    - `deepseekTurns = 2`
+    - `geminiTurns = 29`
+    - `grokTurns = 2`
+    说明会话恢复与 transcript 持久化正常，但 transcript 内容质量未达标。
+- 风险/问题：
+  - 统一发送链路仍存在 provider 级转录缺陷，当前不能把 transcript 视为可信历史：
+    - Gemini DOM 误抓取和去重失败
+    - DeepSeek assistant turn/完成态落库异常
+    - Grok assistant turn 未落库
+  - 手动继续聊链路未达标，说明“只管扩展接管后的会话”这条主目标目前还没有闭环。
+  - 当前真正可靠的是“会话创建/恢复”和“transcript 能持久化并随会话恢复”，不是“turn 级记录质量”。
+- 下一步建议：
+  - 下一轮不要再做收口，直接进入回归修复任务：
+    - `T-20260413-008`：统一发送 transcript 去重与 Gemini 误抓取
+    - `T-20260413-009`：DeepSeek / Grok assistant turn 与完成态落库
+    - `T-20260413-010`：手动继续聊 turn 捕获
+
 ## 2026-04-12（记录 30）
 
 - 时间：2026-04-12
