@@ -1649,3 +1649,38 @@
   - 当前策略基于“Gemini 首条 user 之前的 assistant turn 一律视为欢迎语并隐藏”。如果后续 Gemini 站点在首条 user 前插入有价值的 system 消息，需要再决定是否通过开关展示。
 - 下一步建议：
   - 你确认 UI 符合预期后，把 `T-20260413-012` 标记为 `完成`。
+
+## 2026-04-13（记录 46）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-013
+- 任务名：Transcript UI：对话式（一问一答）展示（可选）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.html`
+  - `dashboard.js`
+  - `dashboard.css`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 transcript 面板为“合并时间线”新增视图切换按钮：`消息` / `对话`。
+  - `对话` 视图按 provider 将 `user -> assistant` 尽量配对分组展示，同时应用到：
+    - 合并时间线（每个 provider 一组问答卡片）
+    - Provider 原始记录（每个 provider 内按问答分组）
+  - 视图模式持久化到 `localStorage[multi-ai-transcript-view]`，刷新不丢。
+  - 保持范围：纯展示层优化，不改转录存储结构与写入逻辑。
+- 验证步骤：
+1. 执行 `node --check dashboard.js`。
+2. 连接本机 Chrome `127.0.0.1:9222`，热重载扩展 `hcflhfnjaaihifgfnmobkdlcklifeflg`。
+3. 新建会话打开 dashboard，统一发送 `验收对话视图：请只回复“收到”。`。
+4. 点击时间线右上角 `消息/对话` 按钮切换视图，观察时间线与 provider 原始记录是否按问答分组。
+- 验证证据：
+  - `node --check dashboard.js` 通过，无语法错误。
+  - 真机验证（Playwright+CDP）切换为 `对话` 视图后：
+    - `#transcriptTimeline .transcript-dialogue-entry` 数量为 3（DeepSeek/Gemini/Grok 各一组）
+    - 每组包含两条 line：`user=验收对话视图...` + `assistant=收到/收到。`
+    - Provider 原始记录同样显示问答分组 line（不再是孤立消息）。
+- 风险/问题：
+  - 当前问答配对为“同 provider 的顺序配对”：遇到 assistant-only 或多 assistant 的边界情况会按顺序归并，不尝试做跨 provider 聚合配对。
+- 下一步建议：
+  - 你确认该视图切换符合预期后，把 `T-20260413-013` 标记为 `完成`；再进入 `T-20260413-014` 做 Task7 二次回归收口。

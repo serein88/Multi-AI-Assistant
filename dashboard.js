@@ -100,7 +100,10 @@ function ensureTranscriptScaffold() {
       <section class="transcript-section">
         <div class="transcript-section-header">
           <h3 data-i18n="transcriptTimelineTitle"></h3>
-          <span class="transcript-section-meta" id="transcriptTimelineCount"></span>
+          <div class="transcript-section-actions">
+            <button id="transcriptViewMode" class="transcript-view-btn" type="button"></button>
+            <span class="transcript-section-meta" id="transcriptTimelineCount"></span>
+          </div>
         </div>
         <div class="transcript-feed" id="transcriptTimeline"></div>
       </section>
@@ -143,6 +146,7 @@ const transcriptStatusList = document.getElementById("transcriptStatusList");
 const transcriptTimeline = document.getElementById("transcriptTimeline");
 const transcriptTimelineCount = document.getElementById("transcriptTimelineCount");
 const transcriptProviderList = document.getElementById("transcriptProviderList");
+const transcriptViewModeBtn = document.getElementById("transcriptViewMode");
 
 let activePanels = [];
 let pendingPickTarget = null;
@@ -162,6 +166,7 @@ let transcriptRefreshTimeoutId = null;
 let transcriptPollIntervalId = null;
 let transcriptRequestSeq = 0;
 let transcriptProviderExpanded = new Set();
+let transcriptViewMode = localStorage.getItem("multi-ai-transcript-view") || "messages";
 
 const DEBUG = true; // Set to false in production
 
@@ -222,6 +227,38 @@ function getLocalizedStatusText(status, variant = "long") {
   const normalized = LIVE_STATUS_META[status] ? status : "idle";
   const labels = LIVE_STATUS_META[normalized]?.[variant] || LIVE_STATUS_META.idle[variant];
   return labels[currentLang] || labels["en-US"] || normalized;
+}
+
+function normalizeTranscriptViewMode(mode) {
+  return mode === "dialogue" ? "dialogue" : "messages";
+}
+
+function getTranscriptViewModeLabel(mode) {
+  const normalized = normalizeTranscriptViewMode(mode);
+  if (currentLang === "zh-CN") {
+    return normalized === "dialogue" ? "对话" : "消息";
+  }
+  return normalized === "dialogue" ? "Dialogue" : "Messages";
+}
+
+function getTranscriptViewModeTitle(mode) {
+  const normalized = normalizeTranscriptViewMode(mode);
+  const next = normalized === "dialogue" ? "messages" : "dialogue";
+  if (currentLang === "zh-CN") {
+    return next === "dialogue" ? "切换为对话视图" : "切换为消息视图";
+  }
+  return next === "dialogue" ? "Switch to dialogue view" : "Switch to messages view";
+}
+
+function updateTranscriptViewModeButton() {
+  if (!transcriptViewModeBtn) {
+    return;
+  }
+
+  const normalized = normalizeTranscriptViewMode(transcriptViewMode);
+  transcriptViewModeBtn.dataset.mode = normalized;
+  transcriptViewModeBtn.textContent = getTranscriptViewModeLabel(normalized);
+  transcriptViewModeBtn.title = getTranscriptViewModeTitle(normalized);
 }
 
 function getRoleLabel(role) {
@@ -297,6 +334,29 @@ function createTranscriptEmptyState(message) {
   return node;
 }
 
+function createTranscriptDialogueLine(roleValue, textValue) {
+  const line = document.createElement("div");
+  line.className = "transcript-dialogue-line";
+  line.dataset.role = roleValue;
+
+  const lineMeta = document.createElement("div");
+  lineMeta.className = "transcript-entry-meta";
+
+  const role = document.createElement("span");
+  role.className = "transcript-role-pill";
+  role.dataset.role = roleValue;
+  role.textContent = getRoleLabel(roleValue);
+  lineMeta.appendChild(role);
+
+  const text = document.createElement("div");
+  text.className = "transcript-dialogue-text";
+  text.textContent = textValue || "";
+
+  line.appendChild(lineMeta);
+  line.appendChild(text);
+  return line;
+}
+
 function buildMergedTimelineEntries(timeline) {
   const ordered = Array.isArray(timeline)
     ? timeline
@@ -329,6 +389,81 @@ function buildMergedTimelineEntries(timeline) {
   });
 
   return merged.reverse();
+}
+
+function buildDialogueGroupsFromTurns(turns, providerId) {
+  if (!Array.isArray(turns) || turns.length === 0) {
+    return [];
+  }
+
+  const groups = [];
+  let current = null;
+
+  turns.forEach((turn) => {
+    if (!turn || (turn.role !== "user" && turn.role !== "assistant")) {
+      return;
+    }
+
+    const createdAt = typeof turn.createdAt === "string" ? turn.createdAt : "";
+    if (turn.role === "user") {
+      if (current) {
+        groups.push(current);
+      }
+      current = {
+        providerId,
+        user: turn,
+        assistants: [],
+        sortAt: createdAt
+      };
+      return;
+    }
+
+    if (!current) {
+      current = {
+        providerId,
+        user: null,
+        assistants: [],
+        sortAt: createdAt
+      };
+    }
+    current.assistants.push(turn);
+    if (createdAt) {
+      current.sortAt = createdAt;
+    }
+  });
+
+  if (current) {
+    groups.push(current);
+  }
+
+  return groups;
+}
+
+function buildTranscriptDialogueGroups(session) {
+  const providers = session?.transcript?.providers || {};
+  const providerOrder = getSessionProviderOrder(session);
+  const groups = [];
+
+  providerOrder.forEach((providerId) => {
+    const providerState = providers[providerId];
+    if (!providerState) return;
+
+    const rawTurns = Array.isArray(providerState.turns) ? providerState.turns : [];
+    let visibleTurns = rawTurns;
+    if (providerId === "gemini") {
+      const firstUserIndex = rawTurns.findIndex((turn) => turn && turn.role === "user");
+      visibleTurns = firstUserIndex === -1
+        ? []
+        : rawTurns.filter((turn, idx) => !(idx < firstUserIndex && turn?.role === "assistant"));
+    }
+
+    groups.push(...buildDialogueGroupsFromTurns(visibleTurns, providerId));
+  });
+
+  return groups
+    .slice()
+    .sort((left, right) => Date.parse(left.sortAt || 0) - Date.parse(right.sortAt || 0))
+    .reverse();
 }
 
 function getProviderTurnCount(providerState) {
@@ -550,6 +685,59 @@ function renderTranscriptTimeline(session) {
   }
 
   transcriptTimeline.innerHTML = "";
+  if (normalizeTranscriptViewMode(transcriptViewMode) === "dialogue") {
+    const groups = buildTranscriptDialogueGroups(session);
+    transcriptTimelineCount.textContent = currentLang === "zh-CN"
+      ? `${groups.length} 轮`
+      : `${groups.length} turns`;
+
+    if (groups.length === 0) {
+      transcriptTimeline.appendChild(createTranscriptEmptyState(
+        currentLang === "zh-CN" ? "当前会话还没有转录内容。" : "No transcript recorded yet."
+      ));
+      return;
+    }
+
+    groups.forEach((group) => {
+      const item = document.createElement("article");
+      item.className = "transcript-entry transcript-dialogue-entry";
+
+      const meta = document.createElement("div");
+      meta.className = "transcript-entry-meta";
+
+      const providerChip = document.createElement("span");
+      providerChip.className = "transcript-provider-chip";
+      providerChip.textContent = toProviderLabel(group.providerId);
+
+      const time = document.createElement("time");
+      time.className = "transcript-entry-time";
+      time.dateTime = group.sortAt || "";
+      time.textContent = formatTimestamp(group.sortAt);
+
+      meta.appendChild(providerChip);
+      meta.appendChild(time);
+
+      const body = document.createElement("div");
+      body.className = "transcript-dialogue-body";
+
+      if (group.user?.content) {
+        body.appendChild(createTranscriptDialogueLine("user", group.user.content));
+      }
+      if (Array.isArray(group.assistants) && group.assistants.length > 0) {
+        group.assistants.forEach((turn) => {
+          if (turn?.content) {
+            body.appendChild(createTranscriptDialogueLine("assistant", turn.content));
+          }
+        });
+      }
+
+      item.appendChild(meta);
+      item.appendChild(body);
+      transcriptTimeline.appendChild(item);
+    });
+    return;
+  }
+
   const mergedTimeline = buildMergedTimelineEntries(session?.transcript?.timeline)
     .filter((entry) => !shouldHideGeminiAssistantWelcome(session, entry));
   transcriptTimelineCount.textContent = currentLang === "zh-CN"
@@ -625,6 +813,10 @@ function renderTranscriptProviderList(session) {
         ? []
         : rawTurns.filter((turn, idx) => !(idx < firstUserIndex && turn?.role === "assistant"));
     }
+    const isDialogueView = normalizeTranscriptViewMode(transcriptViewMode) === "dialogue";
+    const dialogueGroups = isDialogueView
+      ? buildDialogueGroupsFromTurns(visibleTurns, providerId)
+      : [];
     const details = document.createElement("details");
     details.className = "transcript-provider-card";
     const shouldDefaultOpen = transcriptProviderExpanded.size === 0 && index === 0;
@@ -651,7 +843,7 @@ function renderTranscriptProviderList(session) {
 
     const count = document.createElement("span");
     count.className = "transcript-provider-count";
-    const visibleTurnCount = visibleTurns.length;
+    const visibleTurnCount = isDialogueView ? dialogueGroups.length : visibleTurns.length;
     count.textContent = currentLang === "zh-CN"
       ? `${visibleTurnCount} 条`
       : `${visibleTurnCount} turns`;
@@ -670,40 +862,81 @@ function renderTranscriptProviderList(session) {
 
     const body = document.createElement("div");
     body.className = "transcript-provider-body";
-    const turns = visibleTurns.length > 0 ? visibleTurns.slice().reverse() : [];
-    if (turns.length === 0) {
-      body.appendChild(createTranscriptEmptyState(
-        currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
-      ));
+    if (isDialogueView) {
+      const groups = dialogueGroups.length > 0 ? dialogueGroups.slice().reverse() : [];
+      if (groups.length === 0) {
+        body.appendChild(createTranscriptEmptyState(
+          currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
+        ));
+      } else {
+        groups.forEach((group) => {
+          const item = document.createElement("article");
+          item.className = "transcript-turn transcript-dialogue-entry";
+
+          const meta = document.createElement("div");
+          meta.className = "transcript-entry-meta";
+
+          const time = document.createElement("time");
+          time.className = "transcript-entry-time";
+          time.dateTime = group.sortAt || "";
+          time.textContent = formatTimestamp(group.sortAt);
+          meta.appendChild(time);
+
+          const content = document.createElement("div");
+          content.className = "transcript-dialogue-body";
+
+          if (group.user?.content) {
+            content.appendChild(createTranscriptDialogueLine("user", group.user.content));
+          }
+          if (Array.isArray(group.assistants) && group.assistants.length > 0) {
+            group.assistants.forEach((turn) => {
+              if (turn?.content) {
+                content.appendChild(createTranscriptDialogueLine("assistant", turn.content));
+              }
+            });
+          }
+
+          item.appendChild(meta);
+          item.appendChild(content);
+          body.appendChild(item);
+        });
+      }
     } else {
-      turns.forEach((turn) => {
-        const item = document.createElement("article");
-        item.className = "transcript-turn";
+      const turns = visibleTurns.length > 0 ? visibleTurns.slice().reverse() : [];
+      if (turns.length === 0) {
+        body.appendChild(createTranscriptEmptyState(
+          currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
+        ));
+      } else {
+        turns.forEach((turn) => {
+          const item = document.createElement("article");
+          item.className = "transcript-turn";
 
-        const meta = document.createElement("div");
-        meta.className = "transcript-entry-meta";
+          const meta = document.createElement("div");
+          meta.className = "transcript-entry-meta";
 
-        const role = document.createElement("span");
-        role.className = "transcript-role-pill";
-        role.dataset.role = turn.role || "user";
-        role.textContent = getRoleLabel(turn.role);
+          const role = document.createElement("span");
+          role.className = "transcript-role-pill";
+          role.dataset.role = turn.role || "user";
+          role.textContent = getRoleLabel(turn.role);
 
-        const time = document.createElement("time");
-        time.className = "transcript-entry-time";
-        time.dateTime = turn.createdAt || "";
-        time.textContent = formatTimestamp(turn.createdAt);
+          const time = document.createElement("time");
+          time.className = "transcript-entry-time";
+          time.dateTime = turn.createdAt || "";
+          time.textContent = formatTimestamp(turn.createdAt);
 
-        meta.appendChild(role);
-        meta.appendChild(time);
+          meta.appendChild(role);
+          meta.appendChild(time);
 
-        const content = document.createElement("div");
-        content.className = "transcript-entry-content";
-        content.textContent = turn.content || "";
+          const content = document.createElement("div");
+          content.className = "transcript-entry-content";
+          content.textContent = turn.content || "";
 
-        item.appendChild(meta);
-        item.appendChild(content);
-        body.appendChild(item);
-      });
+          item.appendChild(meta);
+          item.appendChild(content);
+          body.appendChild(item);
+        });
+      }
     }
 
     details.appendChild(body);
@@ -722,6 +955,7 @@ function renderTranscriptPanel() {
   }
 
   transcriptPanel.hidden = false;
+  updateTranscriptViewModeButton();
   if (transcriptSessionMeta) {
     transcriptSessionMeta.textContent = currentLang === "zh-CN"
       ? `会话 ${currentSessionId}`
@@ -1984,6 +2218,17 @@ window.addEventListener("beforeunload", () => {
 if (transcriptRefreshBtn) {
   transcriptRefreshBtn.addEventListener("click", () => {
     refreshSessionTranscript().catch(() => undefined);
+  });
+}
+
+transcriptViewMode = normalizeTranscriptViewMode(transcriptViewMode);
+updateTranscriptViewModeButton();
+if (transcriptViewModeBtn) {
+  transcriptViewModeBtn.addEventListener("click", () => {
+    transcriptViewMode = transcriptViewMode === "dialogue" ? "messages" : "dialogue";
+    localStorage.setItem("multi-ai-transcript-view", transcriptViewMode);
+    updateTranscriptViewModeButton();
+    renderTranscriptPanel();
   });
 }
 
