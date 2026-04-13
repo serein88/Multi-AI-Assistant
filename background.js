@@ -379,7 +379,9 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
   const occurredAt =
     typeof message?.occurredAt === "string" && message.occurredAt
       ? message.occurredAt
-      : new Date().toISOString();
+      : (typeof message?.timestamp === "string" && message.timestamp
+        ? message.timestamp
+        : new Date().toISOString());
   const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
     applyProviderLiveStatus(record, {
       provider,
@@ -397,6 +399,10 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
     status: providerState?.status || "idle",
     providerState
   };
+}
+
+async function handleTranscriptStatus(message, sender) {
+  return handleSessionTranscriptLiveStatus(message, sender);
 }
 
 async function findOrCreateProviderTab(providerId) {
@@ -838,6 +844,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "transcript:status") {
+    handleTranscriptStatus(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   return undefined;
 });
 
@@ -846,6 +859,7 @@ if (typeof module !== "undefined" && module.exports) {
     handleSessionCreate,
     sanitizeSessionIfNeeded,
     handleSessionTranscriptLiveStatus,
+    handleTranscriptStatus,
     ensureSessionTranscript,
     createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,
     createEmptyTranscriptProvider: SESSION_TRANSCRIPT_STORE.createEmptyTranscriptProvider,

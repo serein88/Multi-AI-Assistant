@@ -14,6 +14,7 @@
       provider,
       turns: [],
       status: TRANSCRIPT_STATUS_IDLE,
+      lastStatusAt: null,
       statusUpdatedAt: null,
       answerStartedAt: null,
       answerCompletedAt: null,
@@ -35,6 +36,7 @@
       provider,
       turns: Array.isArray(current.turns) ? current.turns : [],
       status: normalizeLiveStatus(current.status),
+      lastStatusAt: current.lastStatusAt ?? current.statusUpdatedAt ?? null,
       statusUpdatedAt: current.statusUpdatedAt ?? null,
       answerStartedAt: current.answerStartedAt ?? null,
       answerCompletedAt: current.answerCompletedAt ?? null,
@@ -54,6 +56,9 @@
       return false;
     }
     if (typeof existing.status !== "string" || existing.status.length === 0) {
+      return false;
+    }
+    if (!Object.prototype.hasOwnProperty.call(existing, "lastStatusAt")) {
       return false;
     }
     if (!Object.prototype.hasOwnProperty.call(existing, "statusUpdatedAt")) {
@@ -189,6 +194,7 @@
     const nextProvider = {
       ...currentProvider,
       status: nextStatus,
+      lastStatusAt: timestamp,
       statusUpdatedAt: timestamp,
       lastActiveAt: timestamp
     };
@@ -229,6 +235,14 @@
     };
   }
 
+  function applyTranscriptStatus(session, { provider, status, timestamp } = {}) {
+    return applyProviderLiveStatus(session, {
+      provider,
+      status,
+      occurredAt: timestamp
+    });
+  }
+
   const api = {
     TRANSCRIPT_VERSION,
     TRANSCRIPT_STATUS_IDLE,
@@ -237,7 +251,8 @@
     normalizeTranscriptProvider,
     ensureSessionTranscript,
     createTranscriptStore,
-    applyProviderLiveStatus
+    applyProviderLiveStatus,
+    applyTranscriptStatus
   };
 
   if (typeof globalThis !== "undefined") {
