@@ -31,6 +31,7 @@ const buildManagedDashboardUrl = SESSION_WINDOW_MANAGER.buildManagedDashboardUrl
 const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
 const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
 const ensureSessionTranscript = SESSION_TRANSCRIPT_STORE.ensureSessionTranscript;
+const applyProviderLiveStatus = SESSION_TRANSCRIPT_STORE.applyProviderLiveStatus;
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -341,6 +342,61 @@ async function handleSessionSyncChild(message, sender) {
   await persistDashboardSessionState(updated);
 
   return { ok: true, sessionId: updated.sessionId, child: updated.childSessions?.[provider] };
+}
+
+async function handleSessionTranscriptLiveStatus(message, sender) {
+  log("Received session:transcript-live-status payload", message);
+
+  if (!sessionRegistry || typeof applyProviderLiveStatus !== "function") {
+    throw new Error("session-modules-unavailable");
+  }
+
+  const provider = message?.provider;
+  const isSupported =
+    typeof SESSION_BINDINGS.isSessionProviderSupported === "function"
+      ? SESSION_BINDINGS.isSessionProviderSupported(provider)
+      : getSessionProviderIds().includes(provider);
+  if (!isSupported) {
+    return { ok: false, reason: "unsupported-provider" };
+  }
+
+  const tabId = sender?.tab?.id;
+  const windowId = sender?.tab?.windowId;
+  if (typeof tabId !== "number" || typeof windowId !== "number") {
+    return { ok: false, reason: "missing-tab-context" };
+  }
+
+  const sessions = await sessionRegistry.listSessions();
+  const session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    return { ok: false, reason: "session-not-found" };
+  }
+
+  if (!session.childSessions || !Object.prototype.hasOwnProperty.call(session.childSessions, provider)) {
+    return { ok: false, reason: "provider-not-in-session" };
+  }
+
+  const occurredAt =
+    typeof message?.occurredAt === "string" && message.occurredAt
+      ? message.occurredAt
+      : new Date().toISOString();
+  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+    applyProviderLiveStatus(record, {
+      provider,
+      status: message?.status,
+      occurredAt
+    })
+  );
+  await persistDashboardSessionState(updated);
+
+  const providerState = updated?.transcript?.providers?.[provider] || null;
+  return {
+    ok: true,
+    sessionId: updated.sessionId,
+    provider,
+    status: providerState?.status || "idle",
+    providerState
+  };
 }
 
 async function findOrCreateProviderTab(providerId) {
@@ -775,6 +831,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "session:transcript-live-status") {
+    handleSessionTranscriptLiveStatus(message, sender)
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: String(error) }));
+    return true;
+  }
+
   return undefined;
 });
 
@@ -782,9 +845,11 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     handleSessionCreate,
     sanitizeSessionIfNeeded,
+    handleSessionTranscriptLiveStatus,
     ensureSessionTranscript,
     createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,
     createEmptyTranscriptProvider: SESSION_TRANSCRIPT_STORE.createEmptyTranscriptProvider,
-    normalizeTranscriptProvider: SESSION_TRANSCRIPT_STORE.normalizeTranscriptProvider
+    normalizeTranscriptProvider: SESSION_TRANSCRIPT_STORE.normalizeTranscriptProvider,
+    applyProviderLiveStatus
   };
 }

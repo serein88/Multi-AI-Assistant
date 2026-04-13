@@ -447,6 +447,27 @@ function postSendResult(provider, success) {
   });
 }
 
+function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
+  if (!provider || !status) return;
+  const payload = {
+    type: "session:transcript-live-status",
+    provider,
+    status,
+    occurredAt: occurredAt || new Date().toISOString()
+  };
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch {
+    // ignore transcript live-status errors
+  }
+}
+
 const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
 const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
 let childSessionSyncStarted = false;
@@ -1891,6 +1912,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   if (!config) {
     console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
+    sendTranscriptLiveStatus(provider, "failed");
     return false;
   }
 
@@ -1912,6 +1934,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       return trySendPrompt(provider, prompt, retryCount + 1);
     }
     postSendResult(provider, false);
+    sendTranscriptLiveStatus(provider, "failed");
     return false;
   }
 
@@ -1942,6 +1965,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         return trySendPrompt(provider, prompt, retryCount + 1);
       }
       postSendResult(provider, false);
+      sendTranscriptLiveStatus(provider, "failed");
       return false;
     }
 
@@ -1988,18 +2012,23 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     if (!posted) {
       console.error(`[Content] Failed to postMessage: sendResult`);
     }
+    if (!sendOk) {
+      sendTranscriptLiveStatus(provider, "failed");
+    }
 
     const responseStarted = sendOk ? await waitForResponseStart(provider) : false;
     log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
     if (provider === "grok" && sendOk && !responseStarted) {
       log("[Content] Grok response start not detected, downgrade sendResult to failed");
+      sendTranscriptLiveStatus(provider, "interrupted");
       sendOk = false;
       postSendResult(provider, false);
       return sendOk;
     }
 
     if (responseStarted) {
+      sendTranscriptLiveStatus(provider, "responding");
       postToDashboard({
         source: "multi-ai-content",
         type: "responseStarted",
@@ -2014,7 +2043,10 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
           provider: provider,
           text: latest
         });
+        sendTranscriptLiveStatus(provider, "completed");
       });
+    } else if (sendOk) {
+      sendTranscriptLiveStatus(provider, "interrupted");
     }
   }
 

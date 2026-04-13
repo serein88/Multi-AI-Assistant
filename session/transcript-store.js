@@ -1,16 +1,31 @@
 (() => {
   const TRANSCRIPT_VERSION = 1;
   const TRANSCRIPT_STATUS_IDLE = "idle";
+  const LIVE_STATUS_SET = new Set([
+    "idle",
+    "responding",
+    "completed",
+    "failed",
+    "interrupted"
+  ]);
 
   function createEmptyTranscriptProvider(provider) {
     return {
       provider,
       turns: [],
       status: TRANSCRIPT_STATUS_IDLE,
+      statusUpdatedAt: null,
       answerStartedAt: null,
       answerCompletedAt: null,
       lastActiveAt: null
     };
+  }
+
+  function normalizeLiveStatus(status) {
+    if (typeof status !== "string" || status.length === 0) {
+      return TRANSCRIPT_STATUS_IDLE;
+    }
+    return LIVE_STATUS_SET.has(status) ? status : TRANSCRIPT_STATUS_IDLE;
   }
 
   function normalizeTranscriptProvider(provider, existing) {
@@ -19,7 +34,8 @@
       ...current,
       provider,
       turns: Array.isArray(current.turns) ? current.turns : [],
-      status: typeof current.status === "string" && current.status ? current.status : TRANSCRIPT_STATUS_IDLE,
+      status: normalizeLiveStatus(current.status),
+      statusUpdatedAt: current.statusUpdatedAt ?? null,
       answerStartedAt: current.answerStartedAt ?? null,
       answerCompletedAt: current.answerCompletedAt ?? null,
       lastActiveAt: current.lastActiveAt ?? null
@@ -38,6 +54,9 @@
       return false;
     }
     if (typeof existing.status !== "string" || existing.status.length === 0) {
+      return false;
+    }
+    if (!Object.prototype.hasOwnProperty.call(existing, "statusUpdatedAt")) {
       return false;
     }
     if (!Object.prototype.hasOwnProperty.call(existing, "answerStartedAt")) {
@@ -146,13 +165,79 @@
     };
   }
 
+  function applyProviderLiveStatus(session, { provider, status, occurredAt } = {}) {
+    if (!session || typeof provider !== "string" || provider.length === 0) {
+      return session;
+    }
+
+    const timestamp =
+      typeof occurredAt === "string" && occurredAt
+        ? occurredAt
+        : new Date().toISOString();
+    const nextStatus = normalizeLiveStatus(status);
+    const ensured = ensureSessionTranscript(session, timestamp);
+    const currentTranscript = ensured?.transcript;
+    if (!currentTranscript || typeof currentTranscript !== "object") {
+      return ensured;
+    }
+
+    const currentProviders =
+      currentTranscript.providers && typeof currentTranscript.providers === "object"
+        ? currentTranscript.providers
+        : {};
+    const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
+    const nextProvider = {
+      ...currentProvider,
+      status: nextStatus,
+      statusUpdatedAt: timestamp,
+      lastActiveAt: timestamp
+    };
+
+    if (nextStatus === "responding") {
+      nextProvider.answerStartedAt = timestamp;
+      nextProvider.answerCompletedAt = null;
+    } else if (
+      nextStatus === "completed" ||
+      nextStatus === "failed" ||
+      nextStatus === "interrupted"
+    ) {
+      nextProvider.answerCompletedAt = timestamp;
+    }
+
+    const unchanged =
+      currentProvider.status === nextProvider.status &&
+      currentProvider.statusUpdatedAt === nextProvider.statusUpdatedAt &&
+      currentProvider.answerStartedAt === nextProvider.answerStartedAt &&
+      currentProvider.answerCompletedAt === nextProvider.answerCompletedAt &&
+      currentProvider.lastActiveAt === nextProvider.lastActiveAt;
+    if (unchanged) {
+      return ensured;
+    }
+
+    const nextTranscript = {
+      ...currentTranscript,
+      updatedAt: timestamp,
+      providers: {
+        ...currentProviders,
+        [provider]: nextProvider
+      }
+    };
+
+    return {
+      ...ensured,
+      transcript: nextTranscript
+    };
+  }
+
   const api = {
     TRANSCRIPT_VERSION,
     TRANSCRIPT_STATUS_IDLE,
+    normalizeLiveStatus,
     createEmptyTranscriptProvider,
     normalizeTranscriptProvider,
     ensureSessionTranscript,
-    createTranscriptStore
+    createTranscriptStore,
+    applyProviderLiveStatus
   };
 
   if (typeof globalThis !== "undefined") {
