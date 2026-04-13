@@ -271,9 +271,13 @@
       currentTranscript.providers && typeof currentTranscript.providers === "object"
         ? currentTranscript.providers
         : {};
+    const currentTimeline = Array.isArray(currentTranscript.timeline)
+      ? currentTranscript.timeline
+      : [];
     const nextProviders = {
       ...currentProviders
     };
+    const nextTimeline = currentTimeline.slice();
     let changed = false;
 
     for (const provider of providerIds) {
@@ -291,6 +295,13 @@
         ],
         lastActiveAt: timestamp
       };
+      nextTimeline.push({
+        provider,
+        role: TRANSCRIPT_TURN_ROLE_USER,
+        content,
+        createdAt: timestamp,
+        status: TRANSCRIPT_TURN_STATUS_COMPLETED
+      });
       changed = true;
     }
 
@@ -304,6 +315,7 @@
       transcript: {
         ...currentTranscript,
         updatedAt: timestamp,
+        timeline: nextTimeline,
         providers: nextProviders
       }
     };
@@ -395,6 +407,9 @@
       currentTranscript.providers && typeof currentTranscript.providers === "object"
         ? currentTranscript.providers
         : {};
+    const currentTimeline = Array.isArray(currentTranscript.timeline)
+      ? currentTranscript.timeline
+      : [];
     const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
     const currentTurns = Array.isArray(currentProvider.turns) ? currentProvider.turns : [];
     const lastTurn = currentTurns.length > 0 ? currentTurns[currentTurns.length - 1] : null;
@@ -404,6 +419,7 @@
     }
 
     let nextTurns;
+    let nextTimeline;
     if (shouldMergeTurnContent(lastTurn, normalizedRole, normalizedContent, timestamp)) {
       const lastContent = typeof lastTurn.content === "string" ? lastTurn.content.trim() : "";
       const mergedContent = normalizedContent.length >= lastContent.length
@@ -419,10 +435,45 @@
           content: mergedContent
         }
       ];
+      const timelineIndex = currentTimeline.findLastIndex((entry) => (
+        entry &&
+        entry.provider === provider &&
+        entry.role === normalizedRole &&
+        entry.createdAt === lastTurn.createdAt
+      ));
+
+      if (timelineIndex >= 0) {
+        nextTimeline = currentTimeline.slice();
+        nextTimeline[timelineIndex] = {
+          ...nextTimeline[timelineIndex],
+          content: mergedContent
+        };
+      } else {
+        nextTimeline = [
+          ...currentTimeline,
+          {
+            provider,
+            role: normalizedRole,
+            content: mergedContent,
+            createdAt: lastTurn.createdAt || timestamp,
+            status: TRANSCRIPT_TURN_STATUS_COMPLETED
+          }
+        ];
+      }
     } else {
       nextTurns = [
         ...currentTurns,
         {
+          role: normalizedRole,
+          content: normalizedContent,
+          createdAt: timestamp,
+          status: TRANSCRIPT_TURN_STATUS_COMPLETED
+        }
+      ];
+      nextTimeline = [
+        ...currentTimeline,
+        {
+          provider,
           role: normalizedRole,
           content: normalizedContent,
           createdAt: timestamp,
@@ -437,6 +488,7 @@
       transcript: {
         ...currentTranscript,
         updatedAt: timestamp,
+        timeline: nextTimeline,
         providers: {
           ...currentProviders,
           [provider]: {

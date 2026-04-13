@@ -299,3 +299,95 @@ test("handleSessionTranscriptUserTurn records one unified-send user turn per tar
   assert.equal(grokTurns[0].content, prompt);
   assert.equal(grokTurns[0].createdAt, occurredAt);
 });
+
+test("provider raw turns and session timeline are updated together for unified-send and manual turns", async () => {
+  const { createSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const now = "2026-04-13T13:00:00.000Z";
+  const sessionId = "sess_transcript_timeline_sync";
+  const managedSession = ensureSessionTranscript(createSessionRecord({
+    sessionId,
+    providers: ["deepseek", "gemini", "grok"],
+    now
+  }), now);
+  managedSession.windowId = 109;
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [managedSession]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+
+  const prompt = "Summarize transfer learning in one paragraph.";
+  const userOccurredAt = "2026-04-13T13:01:00.000Z";
+  const userTurnResult = await background.handleSessionTranscriptUserTurn({
+    type: "session:transcript-user-turn",
+    sessionId,
+    prompt,
+    providers: ["deepseek", "grok"],
+    occurredAt: userOccurredAt
+  }, {
+    tab: {
+      id: 31,
+      windowId: 109
+    }
+  });
+  assert.equal(userTurnResult.ok, true);
+
+  const sender = {
+    tab: {
+      id: 32,
+      windowId: 109
+    }
+  };
+  const assistantPartialResult = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "Transfer learning reuses pretrained representations",
+    occurredAt: "2026-04-13T13:01:20.000Z"
+  }, sender);
+  assert.equal(assistantPartialResult.ok, true);
+
+  const assistantExpandedResult = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content:
+      "Transfer learning reuses pretrained representations and fine-tunes them on task-specific data",
+    occurredAt: "2026-04-13T13:01:23.000Z"
+  }, sender);
+  assert.equal(assistantExpandedResult.ok, true);
+
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const storedSession = storedSessions[0];
+  const deepseekTurns = storedSession.transcript.providers.deepseek.turns;
+  const grokTurns = storedSession.transcript.providers.grok.turns;
+  const timeline = storedSession.transcript.timeline;
+
+  assert.equal(deepseekTurns.length, 2);
+  assert.equal(grokTurns.length, 1);
+  assert.equal(timeline.length, 3);
+
+  assert.deepEqual(timeline[0], {
+    provider: "deepseek",
+    role: "user",
+    content: prompt,
+    createdAt: userOccurredAt,
+    status: "completed"
+  });
+  assert.deepEqual(timeline[1], {
+    provider: "grok",
+    role: "user",
+    content: prompt,
+    createdAt: userOccurredAt,
+    status: "completed"
+  });
+  assert.deepEqual(timeline[2], {
+    provider: "deepseek",
+    role: "assistant",
+    content:
+      "Transfer learning reuses pretrained representations and fine-tunes them on task-specific data",
+    createdAt: "2026-04-13T13:01:20.000Z",
+    status: "completed"
+  });
+});
