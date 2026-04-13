@@ -1558,3 +1558,37 @@
   - 本轮没有处理 `手动继续聊` transcript 缺失，`T-20260413-010` 仍待继续。
 - 下一步建议：
   - 下一轮领取 `T-20260413-010`，专门补“手动继续聊 turn 捕获”这条链路，并做对应真机回归。
+
+## 2026-04-13（记录 43）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-010
+- 任务名：回归修复：手动继续聊 turn 捕获
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 修复手动续聊缺失 user turn 的根因：DeepSeek/Grok 的 user 消息 DOM 选择器不稳定，导致仅能抓到 assistant 文本而 user 丢失。
+  - 在 provider 页新增“手动发送侦测”能力：监听用户真实输入事件（`isTrusted`），在用户按 Enter 或点击发送时把 user turn 写入 transcript。
+  - 复用现有 `waitForResponseStart/Complete` + `extractLatestResponse`，对手动续聊同样补齐 liveStatus（`responding -> completed`）以及最终 assistant turn（带 `status: completed`）。
+  - 保持隔离：只对 `DeepSeek/Gemini/Grok` 生效；并通过 `isTrusted` 避免干扰 dashboard 统一发送的自动化事件。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --test tests/session/*.test.js`（防回归）。
+3. 连接本机 Chrome `127.0.0.1:9222`，热重载当前 worktree 扩展 `hcflhfnjaaihifgfnmobkdlcklifeflg`。
+4. 新建受管会话，在各 provider iframe 内手动输入并发送一轮消息（不使用 dashboard 的 `sendAll`）。
+5. 轮询 `chrome.storage.local['multi-ai-sessions']` 中对应 `sessionId` 的 transcript，确认新增的 user/assistant turn 与 liveStatus 更新。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 47, fail 0`。
+  - 真机验证（Playwright+CDP）：
+    - DeepSeek：手动发送 `手动续聊测试C：请只回复“收到”。` 后，新增 user/assistant 两条 turn，且 `status = completed`。
+    - Gemini：手动发送 `手动续聊测试Gemini：请只回复“收到”。` 后，新增 user/assistant 两条 turn，且 `status = completed`。
+    - Grok：手动发送 `Manual grok follow-up: reply only OK.` 后，新增 user/assistant 两条 turn，且 `status = completed`。
+- 风险/问题：
+  - 目前将“Enter”视为发送（忽略 Shift+Enter）；若某 provider 未来改为 Ctrl+Enter 发送，需要再补对应键位策略或仅依赖点击发送按钮。
+  - Grok 的 OneTrust cookie banner 可能影响自动化回归脚本的点击，但不影响真实用户操作后的转录逻辑。
+- 下一步建议：
+  - 你确认手动续聊三站点都符合预期后，把 `T-20260413-010` 标记为 `完成`。

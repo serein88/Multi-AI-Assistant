@@ -531,6 +531,11 @@ let manualTurnNodeSnapshot = new WeakMap();
 const pendingManualTurnRoots = new Set();
 let manualTurnFlushTimer = null;
 
+let manualSendCaptureStarted = false;
+let lastManualSendProvider = "";
+let lastManualSendText = "";
+let lastManualSendAt = 0;
+
 function getManualSelectors(map, provider, fallback = []) {
   const scoped = Array.isArray(map?.[provider]) ? map[provider] : [];
   const defaults = Array.isArray(map?.default) ? map.default : fallback;
@@ -800,6 +805,147 @@ function startManualTurnCapture(provider) {
     subtree: true,
     characterData: true
   });
+}
+
+function isManualSendSuppressed(provider, prompt) {
+  if (!provider || !prompt) {
+    return false;
+  }
+
+  if (provider !== lastManualSendProvider) {
+    return false;
+  }
+
+  if (prompt !== lastManualSendText) {
+    return false;
+  }
+
+  return Date.now() - lastManualSendAt < 1200;
+}
+
+function rememberManualSend(provider, prompt) {
+  lastManualSendProvider = provider;
+  lastManualSendText = prompt;
+  lastManualSendAt = Date.now();
+}
+
+function isEditableElement(el) {
+  if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") return true;
+  return el.isContentEditable === true || el.getAttribute("contenteditable") === "true";
+}
+
+function findClosestEditableTarget(start) {
+  if (!start || start.nodeType !== Node.ELEMENT_NODE) return null;
+  if (isEditableElement(start)) return start;
+  return start.closest("textarea, input, [contenteditable='true'], [role='textbox']");
+}
+
+function extractPromptFromEditable(el) {
+  if (!el) return "";
+  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+    return typeof el.value === "string" ? el.value : "";
+  }
+  return getEditableText(el) || el.innerText || el.textContent || "";
+}
+
+function getManualSendButtonSelectors(provider) {
+  const selectors = Array.isArray(PROVIDER_CONFIGS?.[provider]?.sendButtonSelectors)
+    ? PROVIDER_CONFIGS[provider].sendButtonSelectors
+    : [];
+
+  // Some configs intentionally include broad fallbacks for automation (e.g. `button:has(svg)`).
+  // For manual user send detection we must keep it conservative to avoid false positives.
+  return selectors.filter((sel) => sel && sel !== "button:has(svg)");
+}
+
+function findAncestorMatchingAnySelector(node, selectors, maxDepth = 6) {
+  let current = node;
+  let depth = 0;
+  while (current && depth <= maxDepth) {
+    if (elementMatchesAnySelector(current, selectors)) {
+      return current;
+    }
+    current = current.parentElement;
+    depth += 1;
+  }
+  return null;
+}
+
+function recordManualSend(provider, prompt) {
+  const normalized = normalizeProviderTurnText(provider, "user", prompt);
+  if (!normalized) return;
+
+  if (isManualSendSuppressed(provider, normalized)) {
+    return;
+  }
+  rememberManualSend(provider, normalized);
+
+  const occurredAt = new Date().toISOString();
+  sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
+
+  // Best-effort: detect answering state and capture the final assistant text for manual sends too.
+  waitForResponseStart(provider).then((started) => {
+    if (!started) {
+      sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
+      return;
+    }
+
+    sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
+
+    waitForResponseComplete(provider).then(() => {
+      const latest = extractLatestResponse(provider);
+      if (latest) {
+        sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
+          status: "completed"
+        });
+      }
+      sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
+    });
+  });
+}
+
+function startManualSendCapture(provider) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
+  if (manualSendCaptureStarted) return;
+  if (!document.body) return;
+  manualSendCaptureStarted = true;
+
+  document.addEventListener("keydown", (event) => {
+    if (!event || !event.isTrusted) return;
+    if (event.defaultPrevented) return;
+
+    const key = event.key || "";
+    if (key !== "Enter") return;
+    if (event.shiftKey) return;
+
+    const target = findClosestEditableTarget(event.target);
+    if (!target) return;
+    const prompt = extractPromptFromEditable(target);
+    if (!prompt || !String(prompt).trim()) return;
+
+    recordManualSend(provider, prompt);
+  }, true);
+
+  document.addEventListener("click", (event) => {
+    if (!event || !event.isTrusted) return;
+    if (!event.target || event.target.nodeType !== Node.ELEMENT_NODE) return;
+
+    const selectors = getManualSendButtonSelectors(provider);
+    if (selectors.length === 0) return;
+    const matched = findAncestorMatchingAnySelector(event.target, selectors);
+    if (!matched) return;
+
+    const active = findClosestEditableTarget(document.activeElement) ||
+      findClosestEditableTarget(document.querySelector("textarea, [contenteditable='true'], [role='textbox']")) ||
+      findClosestEditableTarget(findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []));
+    if (!active) return;
+
+    const prompt = extractPromptFromEditable(active);
+    if (!prompt || !String(prompt).trim()) return;
+
+    recordManualSend(provider, prompt);
+  }, true);
 }
 
 const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
@@ -2448,6 +2594,7 @@ function initializeCustomFixes() {
 
   startChildSessionSync(provider);
   startManualTurnCapture(provider);
+  startManualSendCapture(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");
