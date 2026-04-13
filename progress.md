@@ -289,6 +289,45 @@
 - 下一步建议：
   - 下一轮进入 transcript Task3：把“统一发送产生的 user turn”写入账本，为后面的完整多轮记录铺路。
 
+## 2026-04-13（记录 38）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-003
+- 任务名：扩展会话转录层 Task3：记录统一发送产生的 user turn
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `background.js`
+  - `session/transcript-store.js`
+  - `tests/session/transcript-store.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `dashboard.js` 的统一发送入口增加 `session:transcript-user-turn` 上报，按当前 `sessionId + target providers + prompt` 把 user turn 先写入扩展账本。
+  - 在 `background.js` 增加受管会话 user turn 处理入口，校验 `sessionId / windowId / providers` 后再写入 transcript，避免非受管窗口或错误会话串写。
+  - 在 `session/transcript-store.js` 增加 `appendUserTurn()`，为统一发送目标 provider 逐个追加 `role=user` 的 turn，并更新时间戳与 provider 最近活跃时间。
+  - 保持范围收紧：本轮不记录 assistant 正文，不维护 timeline，不处理手动继续聊。
+  - 子代理未按时回报，但改动已落到 working tree，本轮由主控接管完成验证与收口。
+- 验证步骤：
+1. 执行 `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node --check dashboard.js`。
+5. 执行 `node --check session/transcript-store.js`。
+- 验证证据：
+  - `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js` 通过：`pass 8, fail 0`。
+  - `node --test tests/session/*.test.js` 通过：`pass 40, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check dashboard.js` 通过（无语法错误）。
+  - `node --check session/transcript-store.js` 通过（无语法错误）。
+  - 新增测试 `handleSessionTranscriptUserTurn records one unified-send user turn per target provider` 已覆盖：仅目标 provider 写入 user turn，未命中的 provider 不写入。
+- 风险/问题：
+  - 当前统一发送的 user turn 会在“派发前”写入账本，表示用户已发起该轮请求；如果后续某个 provider 实际发送失败，该失败状态仍依赖 Task2 的实时状态链路，不在本轮额外回滚。
+  - 本轮仍未开始 timeline 维护，所以 user turn 目前只进入各 provider 原始记录，不会出现在总时间线中。
+  - 未做真实浏览器手工联调；Chrome 中 user turn 可视化检查仍放到后续 dashboard 展示和 Task7 总回归统一验证。
+- 下一步建议：
+  - 下一轮进入 transcript Task4：记录用户在 provider 页面里手动继续聊产生的 user/assistant turn，并补最小去重。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

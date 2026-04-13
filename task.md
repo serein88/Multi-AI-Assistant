@@ -28,6 +28,7 @@
 | T-20260412-008 | 输出扩展会话转录层 MVP 实施计划 | P0 | 完成 | 输出正式实施计划；明确文件边界、任务拆分、验证矩阵与实施顺序 | 2026-04-12 用户已确认通过并已进入实现 |
 | T-20260413-001 | 扩展会话转录层 Task1：定义转录数据结构 | P0 | 待确认 | 新建/旧会话均具备 transcript 壳结构；转录基础逻辑独立成模块；相关 session 测试通过 | 仅完成数据结构基础，不含实时状态消息与 UI |
 | T-20260413-002 | 扩展会话转录层 Task2：打通实时状态消息 | P0 | 待确认 | `content/content.js -> background.js` 可同步 `responding/completed/failed/interrupted` 等实时状态；相关 transcript 测试通过 | 本轮只做实时状态，不记录 user/assistant 正文 |
+| T-20260413-003 | 扩展会话转录层 Task3：记录统一发送产生的 user turn | P0 | 待确认 | dashboard 统一发送后可把 user turn 写入受管会话 transcript；相关 transcript 测试通过 | 本轮只记录统一发送 user turn，不记录 assistant 正文和手动继续聊 |
 
 ## 待进行（技术债 Backlog，按优先级）
 
