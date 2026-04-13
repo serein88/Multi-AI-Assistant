@@ -328,6 +328,45 @@
 - 下一步建议：
   - 下一轮进入 transcript Task4：记录用户在 provider 页面里手动继续聊产生的 user/assistant turn，并补最小去重。
 
+## 2026-04-13（记录 39）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-004
+- 任务名：扩展会话转录层 Task4：记录手动继续对话产生的轮次
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `background.js`
+  - `session/transcript-store.js`
+  - `tests/session/transcript-normalization.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `content/content.js` 增加手动轮次监听：仅对 `DeepSeek / Gemini / Grok` 启动新增消息观察，先用 `captureOnly` 记录当前页面基线，再只对后续 DOM 变化发出 `session:transcript-provider-turn`，避免把接管前旧历史导入 transcript。
+  - 在 `background.js` 增加 `handleSessionTranscriptProviderTurn()`，按 `windowId + provider` 命中当前受管会话，把 provider 页面手动产生的 `user / assistant turn` 写入 transcript。
+  - 在 `session/transcript-store.js` 增加 provider turn 归并逻辑：相同 user 内容在去重窗口内忽略，assistant 连续增量内容在合并窗口内按“长内容覆盖短内容”归并成单条。
+  - 保持范围收紧：本轮只做新增手动轮次记录，不回填旧历史，不维护 timeline，不涉及 dashboard 展示。
+  - 子代理未按时回报，但代码已落到 working tree，本轮由主控接管完成验证与收口。
+- 验证步骤：
+1. 执行 `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node --check content/content.js`。
+5. 执行 `node --check session/transcript-store.js`。
+- 验证证据：
+  - `node --test tests/session/transcript-store.test.js tests/session/transcript-normalization.test.js` 通过：`pass 9, fail 0`。
+  - `node --test tests/session/*.test.js` 通过：`pass 41, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check content/content.js` 通过（无语法错误）。
+  - `node --check session/transcript-store.js` 通过（无语法错误）。
+  - 新增测试 `handleSessionTranscriptProviderTurn records manual user and assistant turns with minimal dedupe and merge` 已覆盖：user 重复不重复入账，assistant 扩展回答会归并成单条。
+- 风险/问题：
+  - 当前手动轮次检测依赖 DOM 选择器和增量观察，对站点结构波动敏感；后续若某个 provider 页面结构变化，需要针对性补选择器。
+  - 当前去重/归并策略是最小实现：同角色连续相同内容按时间窗口去重，assistant 连续增量按前缀覆盖合并；复杂编辑场景或非前缀式流式变化未额外处理。
+  - 本轮仍未做真实浏览器手工联调；Chrome 中手动继续聊后的记录展示，建议放到 Task6/Task7 结合 dashboard 可视化一起验证。
+- 下一步建议：
+  - 下一轮进入 transcript Task5：维护总时间线，把各 provider 原始记录同步聚合成会话级 timeline。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12
