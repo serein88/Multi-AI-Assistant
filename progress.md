@@ -1510,3 +1510,51 @@
 - 下一步建议：
   - 你先在扩展主界面里重新打开 Grok 面板，重点看原来的 `Something went wrong` 是否已经消失。
   - 如果还有异常，我下一轮会继续沿“Grok 前端嵌入态异常”这条线追，优先检查是否需要在 `document_start` 更早阶段做 Grok 专项兼容。
+
+## 2026-04-13（记录 42）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-009
+- 任务名：回归修复：DeepSeek / Grok assistant turn 与完成态落库
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `session/transcript-store.js`
+  - `tests/session/provider-response-selectors.test.js`
+  - `tests/session/transcript-normalization.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 收紧 `Grok` assistant 提取选择器，移除会误命中 prompt echo 的宽泛 `message-bubble` 规则，并把手动转录观察器的 `Grok` assistant 选择器同步收窄到 `response-content-markdown`。
+  - 在 `session/transcript-store.js` 中增加两层兜底：
+    - `Grok` assistant turn 若与最近 user prompt 相同，则视为 echo 噪音忽略。
+    - `Grok` assistant turn 若在最近时间窗内已出现同内容 assistant，则视为重复 turn 忽略。
+  - 为 `DeepSeek` 的统一发送完成链路增加 provider 级完成判定：当最新 assistant 文本稳定一段时间且无流式标记时，即认定本轮完成，避免该站点因没有稳定 `Stop` 按钮而长期卡在 `responding`。
+  - 本轮只修 `DeepSeek / Grok assistant turn` 与完成态落库，不处理“手动继续聊”链路；该链路继续留给 `T-20260413-010`。
+- 验证步骤：
+1. 执行 `node --test tests/session/provider-response-selectors.test.js`。
+2. 执行 `node --test tests/session/transcript-normalization.test.js`。
+3. 执行 `node --test tests/session/*.test.js`。
+4. 执行 `node --check background.js`、`node --check content/content.js`、`node --check session/transcript-store.js`。
+5. 连接本机 Chrome `127.0.0.1:9222`，热重载当前 worktree 扩展 `hcflhfnjaaihifgfnmobkdlcklifeflg`。
+6. 通过 `popup.html` 新建受管会话，在 `dashboard` 统一发送 `回归测试七：请只回复“收到”。`，轮询 `chrome.storage.local['multi-ai-sessions']` 中对应 `sessionId` 的 transcript 状态。
+- 验证证据：
+  - `node --test tests/session/provider-response-selectors.test.js` 通过：`pass 3, fail 0`。
+  - `node --test tests/session/transcript-normalization.test.js` 通过：`pass 6, fail 0`。
+  - `node --test tests/session/*.test.js` 通过：`pass 47, fail 0`。
+  - `node --check background.js`、`node --check content/content.js`、`node --check session/transcript-store.js` 全部通过，无语法错误。
+  - 真机回归会话：`sess_20260413_kcnnqm`。
+  - 真机轮询结果稳定显示：
+    - `deepseek.status = completed`，turns 仅有：
+      - user：`回归测试七：请只回复“收到”。`
+      - assistant：`收到`
+    - `grok.status = completed`，turns 仅有：
+      - user：`回归测试七：请只回复“收到”。`
+      - assistant：`收到`
+  - 与上一轮失败证据相比，`DeepSeek` 不再长期停在 `responding`，`Grok` 也不再插入等于用户 prompt 的 assistant 脏数据。
+- 风险/问题：
+  - `DeepSeek` 的完成判定目前依赖“最新 assistant 文本稳定 + 无流式标记”的 provider 专项规则；如果该站点后续改成更细粒度流式结构，可能需要再调稳定窗口。
+  - `Grok` 的噪音兜底目前是面向当前 observed DOM 的最小修复，后续若站点把真实回答结构再次调整，仍可能需要补 selector 或降噪规则。
+  - 本轮没有处理 `手动继续聊` transcript 缺失，`T-20260413-010` 仍待继续。
+- 下一步建议：
+  - 下一轮领取 `T-20260413-010`，专门补“手动继续聊 turn 捕获”这条链路，并做对应真机回归。

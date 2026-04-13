@@ -358,6 +358,85 @@
     return lastTurn.createdAt === nextCreatedAt;
   }
 
+  function shouldIgnoreEchoedAssistantTurn(provider, lastTurn, nextRole, nextContent, nextCreatedAt) {
+    if (
+      provider !== "grok" ||
+      nextRole !== TRANSCRIPT_TURN_ROLE_ASSISTANT ||
+      !lastTurn ||
+      lastTurn.role !== TRANSCRIPT_TURN_ROLE_USER
+    ) {
+      return false;
+    }
+
+    const lastContent = typeof lastTurn.content === "string" ? lastTurn.content : "";
+    if (!isSameTurnContent(lastContent, nextContent)) {
+      return false;
+    }
+
+    const lastMs = toTimestampMs(lastTurn.createdAt);
+    const nextMs = toTimestampMs(nextCreatedAt);
+    if (lastMs !== null && nextMs !== null) {
+      return Math.abs(nextMs - lastMs) <= TURN_MERGE_WINDOW_MS;
+    }
+
+    return false;
+  }
+
+  function findRecentTurn(turns, matcher, nextCreatedAt, windowMs = TURN_DEDUPE_WINDOW_MS) {
+    if (!Array.isArray(turns) || turns.length === 0 || typeof matcher !== "function") {
+      return null;
+    }
+
+    const nextMs = toTimestampMs(nextCreatedAt);
+    for (let index = turns.length - 1; index >= 0; index -= 1) {
+      const turn = turns[index];
+      if (!turn) {
+        continue;
+      }
+
+      if (nextMs !== null) {
+        const turnMs = toTimestampMs(turn.createdAt);
+        if (turnMs !== null && Math.abs(nextMs - turnMs) > windowMs) {
+          if (turnMs < nextMs) {
+            break;
+          }
+          continue;
+        }
+      }
+
+      if (matcher(turn)) {
+        return turn;
+      }
+    }
+
+    return null;
+  }
+
+  function hasRecentAssistantDuplicate(provider, turns, nextRole, nextContent, nextCreatedAt) {
+    if (provider !== "grok" || nextRole !== TRANSCRIPT_TURN_ROLE_ASSISTANT) {
+      return false;
+    }
+
+    return Boolean(findRecentTurn(
+      turns,
+      (turn) => turn.role === nextRole && isSameTurnContent(turn.content || "", nextContent),
+      nextCreatedAt
+    ));
+  }
+
+  function shouldIgnoreRecentUserEcho(provider, turns, nextRole, nextContent, nextCreatedAt) {
+    if (provider !== "grok" || nextRole !== TRANSCRIPT_TURN_ROLE_ASSISTANT) {
+      return false;
+    }
+
+    return Boolean(findRecentTurn(
+      turns,
+      (turn) => turn.role === TRANSCRIPT_TURN_ROLE_USER && isSameTurnContent(turn.content || "", nextContent),
+      nextCreatedAt,
+      TURN_MERGE_WINDOW_MS
+    ));
+  }
+
   function shouldMergeTurnContent(lastTurn, nextRole, nextContent, nextCreatedAt) {
     if (!lastTurn || nextRole !== TRANSCRIPT_TURN_ROLE_ASSISTANT || lastTurn.role !== nextRole) {
       return false;
@@ -413,6 +492,14 @@
     const currentProvider = normalizeTranscriptProvider(provider, currentProviders[provider]);
     const currentTurns = Array.isArray(currentProvider.turns) ? currentProvider.turns : [];
     const lastTurn = currentTurns.length > 0 ? currentTurns[currentTurns.length - 1] : null;
+
+    if (
+      shouldIgnoreEchoedAssistantTurn(provider, lastTurn, normalizedRole, normalizedContent, timestamp) ||
+      shouldIgnoreRecentUserEcho(provider, currentTurns, normalizedRole, normalizedContent, timestamp) ||
+      hasRecentAssistantDuplicate(provider, currentTurns, normalizedRole, normalizedContent, timestamp)
+    ) {
+      return ensured;
+    }
 
     if (isLikelyDuplicateTurn(lastTurn, normalizedRole, normalizedContent, timestamp)) {
       return ensured;

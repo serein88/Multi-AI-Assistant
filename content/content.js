@@ -24,10 +24,9 @@ const RESPONSE_SELECTORS = {
     "[class*='ai-message']"
   ],
   grok: [
-    "[data-role='assistant']",
-    ".assistant",
-    "[class*='message-ai']",
-    "[data-testid*='chat-message']"
+    ".response-content-markdown",
+    ".response-content-markdown.markdown",
+    "[id^='response-'] .response-content-markdown"
   ],
   kimi: [
     "[class*='assistant']",
@@ -35,9 +34,10 @@ const RESPONSE_SELECTORS = {
     "[class*='answer']"
   ],
   deepseek: [
-    "[class*='assistant']",
-    "[data-role='assistant']",
-    "[data-testid*='chat-message']"
+    ".ds-markdown",
+    ".ds-markdown-paragraph",
+    ".ds-message .ds-markdown",
+    ".ds-message .ds-markdown-paragraph"
   ],
   doubao: [
     "[data-role='assistant']",
@@ -117,10 +117,9 @@ const MANUAL_ASSISTANT_SELECTORS = {
     ".model-response-text"
   ],
   grok: [
-    "[data-role='assistant']",
-    "[data-message-author-role='assistant']",
-    "[class*='message-assistant']",
-    "[class*='assistant-message']"
+    ".response-content-markdown",
+    ".response-content-markdown.markdown",
+    "[id^='response-'] .response-content-markdown"
   ]
 };
 
@@ -664,7 +663,7 @@ function detectManualTurnRole(provider, node, userSelectors, assistantSelectors)
   return "";
 }
 
-function sendTranscriptProviderTurn(provider, role, content, occurredAt = null) {
+function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, extra = null) {
   if (!provider || !role || !content) return;
 
   const payload = {
@@ -674,6 +673,9 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null) 
     content,
     occurredAt: occurredAt || new Date().toISOString()
   };
+  if (extra && typeof extra === "object") {
+    Object.assign(payload, extra);
+  }
 
   try {
     if (chrome?.runtime?.sendMessage) {
@@ -2123,6 +2125,8 @@ async function waitForResponseComplete(provider) {
   const stopSelectors = getStopSelectors(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
+  let lastStableResponse = "";
+  let lastStableResponseAt = 0;
 
   // Helper for deep check
   const hasElementDeep = (selectors) => {
@@ -2170,6 +2174,31 @@ async function waitForResponseComplete(provider) {
         // Stop button disappeared -> generation likely done
         cleanup();
         resolve(true);
+        return;
+      }
+
+      if (provider === "deepseek") {
+        const latest = extractLatestResponse(provider);
+        const normalized = typeof latest === "string" ? latest.trim() : "";
+        if (!normalized) {
+          return;
+        }
+
+        if (normalized !== lastStableResponse) {
+          lastStableResponse = normalized;
+          lastStableResponseAt = Date.now();
+          return;
+        }
+
+        if (
+          lastStableResponseAt > 0 &&
+          !hasStreamingIndicator(provider) &&
+          Date.now() - lastStableResponseAt >= 1200
+        ) {
+          cleanup();
+          resolve(true);
+          return;
+        }
       }
     };
 
@@ -2369,6 +2398,11 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
       waitForResponseComplete(provider).then(() => {
         const latest = extractLatestResponse(provider);
+        if (latest) {
+          sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
+            status: "completed"
+          });
+        }
         postToDashboard({
           source: "multi-ai-content",
           type: "responseComplete",

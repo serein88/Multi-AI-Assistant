@@ -34,7 +34,7 @@
 | T-20260413-006 | 扩展会话转录层 Task6：在 Dashboard 中显示记录 | P0 | 待确认 | dashboard 可查看会话总时间线、provider 原始记录和 live status；UI 可读；相关检查通过 | 本轮只做 dashboard 展示，不做额外搜索/筛选能力 |
 | T-20260413-007 | 扩展会话转录层 Task7：整体回归与收口 | P0 | 失败 | 新建会话、统一发送、手动继续聊、恢复后查看记录四条链路完成实机验证；`task.md/progress.md` 收口；提交最终回归记录 | 2026-04-13 实机回归发现转录链路仍有阻塞缺陷：Gemini 重复记账、DeepSeek/Grok assistant turn 缺失、手动继续聊未入账 |
 | T-20260413-008 | 回归修复：统一发送 transcript 去重与 Gemini 误抓取 | P0 | 待确认 | 统一发送一轮后，每个命中 provider 只新增 1 条 user turn 与 1 条 assistant turn；Gemini 不再把欢迎语、`你说` 回显或中间碎片重复写入 transcript/timeline | 2026-04-13 实机复测通过：Gemini 重复 turn 已消失；DeepSeek/Grok assistant turn 仍留待 T-20260413-009 处理 |
-| T-20260413-009 | 回归修复：DeepSeek / Grok assistant turn 与完成态落库 | P0 | 待进行 | DeepSeek、Grok 在统一发送后都能写入 assistant turn，`liveStatus` 能从 `responding` 正确回到 `completed`，不再长期卡住 | 由 Task7 实机回归拆出 |
+| T-20260413-009 | 回归修复：DeepSeek / Grok assistant turn 与完成态落库 | P0 | 待确认 | DeepSeek、Grok 在统一发送后都能写入 assistant turn，`liveStatus` 能从 `responding` 正确回到 `completed`，不再长期卡住 | 2026-04-13 实机复测通过：DeepSeek/Grok 统一发送后均只保留 1 条 user turn 与 1 条 assistant turn，状态均回到 `completed` |
 | T-20260413-010 | 回归修复：手动继续聊 turn 捕获 | P0 | 待进行 | 在 provider 页面手动继续聊后，新增 `user / assistant turn` 会进入 transcript 与 timeline；不依赖统一发送入口 | 由 Task7 实机回归拆出 |
 
 ## 待进行（技术债 Backlog，按优先级）

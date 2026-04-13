@@ -297,3 +297,140 @@ test("handleSessionTranscriptProviderTurn records manual user and assistant turn
   assert.equal(turns[1].role, "assistant");
   assert.equal(turns[1].content, "First sentence. Second sentence.");
 });
+
+test("handleSessionTranscriptProviderTurn can finalize provider live status when assistant turn is complete", async () => {
+  const { createSessionRecord, updateChildSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript, applyTranscriptStatus } = require("../../session/transcript-store.js");
+  const baseSession = applyTranscriptStatus(
+    ensureSessionTranscript(createSessionRecord({
+      sessionId: "sess_complete_on_assistant_turn",
+      providers: ["deepseek"],
+      now: "2026-04-13T16:00:00.000Z"
+    })),
+    {
+      provider: "deepseek",
+      status: "responding",
+      timestamp: "2026-04-13T16:01:00.000Z"
+    }
+  );
+  const withWindow = {
+    ...baseSession,
+    windowId: 61,
+    childSessions: {
+      ...baseSession.childSessions,
+      deepseek: updateChildSessionRecord(baseSession, "deepseek", {
+        tabId: 33,
+        url: "https://chat.deepseek.com/",
+        title: "DeepSeek",
+        lastActiveAt: "2026-04-13T16:00:00.000Z",
+        recoverable: true
+      }).childSessions.deepseek
+    }
+  };
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [withWindow]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+
+  const result = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "deepseek",
+    role: "assistant",
+    content: "收到",
+    status: "completed",
+    occurredAt: "2026-04-13T16:01:06.000Z"
+  }, {
+    tab: {
+      id: 33,
+      windowId: 61
+    }
+  });
+
+  assert.equal(result.ok, true);
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const providerState = storedSessions[0].transcript.providers.deepseek;
+  assert.equal(providerState.status, "completed");
+  assert.equal(providerState.answerCompletedAt, "2026-04-13T16:01:06.000Z");
+  assert.equal(providerState.turns.at(-1).content, "收到");
+});
+
+test("handleSessionTranscriptProviderTurn ignores grok echoed prompts and repeated assistant duplicates", async () => {
+  const { createSessionRecord, updateChildSessionRecord } = require("../../session/session-model.js");
+  const { ensureSessionTranscript } = require("../../session/transcript-store.js");
+  const baseSession = ensureSessionTranscript(createSessionRecord({
+    sessionId: "sess_ignore_grok_echo",
+    providers: ["grok"],
+    now: "2026-04-13T17:00:00.000Z"
+  }));
+  const withWindow = {
+    ...baseSession,
+    windowId: 71,
+    childSessions: {
+      ...baseSession.childSessions,
+      grok: updateChildSessionRecord(baseSession, "grok", {
+        tabId: 41,
+        url: "https://grok.com/",
+        title: "Grok",
+        lastActiveAt: "2026-04-13T17:00:00.000Z",
+        recoverable: true
+      }).childSessions.grok
+    }
+  };
+
+  const chromeStub = createChromeStub({
+    "multi-ai-sessions": [withWindow]
+  });
+  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const sender = {
+    tab: {
+      id: 41,
+      windowId: 71
+    }
+  };
+
+  const prompt = "回归测试二：请只回复“收到”。";
+  const userResult = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "grok",
+    role: "user",
+    content: prompt,
+    occurredAt: "2026-04-13T17:01:00.000Z"
+  }, sender);
+  assert.equal(userResult.ok, true);
+
+  const firstAssistant = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "grok",
+    role: "assistant",
+    content: "收到",
+    occurredAt: "2026-04-13T17:01:01.000Z"
+  }, sender);
+  assert.equal(firstAssistant.ok, true);
+
+  const echoedAssistant = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "grok",
+    role: "assistant",
+    content: prompt,
+    occurredAt: "2026-04-13T17:01:02.000Z"
+  }, sender);
+  assert.equal(echoedAssistant.ok, true);
+
+  const duplicateAssistant = await background.handleSessionTranscriptProviderTurn({
+    type: "session:transcript-provider-turn",
+    provider: "grok",
+    role: "assistant",
+    content: "收到",
+    occurredAt: "2026-04-13T17:01:03.000Z"
+  }, sender);
+  assert.equal(duplicateAssistant.ok, true);
+
+  const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
+  const turns = storedSessions[0].transcript.providers.grok.turns;
+  assert.equal(turns.length, 2);
+  assert.equal(turns[0].role, "user");
+  assert.equal(turns[0].content, prompt);
+  assert.equal(turns[1].role, "assistant");
+  assert.equal(turns[1].content, "收到");
+});
