@@ -214,6 +214,42 @@
 - 下一步建议：
   - 由你先审阅 spec 与 plan；如果通过，下一轮直接进入实现。
 
+## 2026-04-13（记录 36）
+
+- 时间：2026-04-13
+- 任务 ID：T-20260413-001
+- 任务名：扩展会话转录层 Task1：定义转录数据结构
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/transcript-store.js`
+  - `background.js`
+  - `tests/session/transcript-store.test.js`
+  - `tests/session/worker-module-compat.test.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 把 transcript 基础逻辑从 `background.js` 抽到独立模块 `session/transcript-store.js`，降低后续转录任务和后台编排逻辑的耦合。
+  - 为新建会话和旧会话回填统一接入 transcript 壳结构，确保 session 创建与读取时都能拿到 `version / timeline / providers` 基础字段。
+  - 调整 transcript 归一化策略，保留未来扩展字段，避免后续 Task2+ 新增 provider 级元数据时被读路径静默抹掉。
+  - 去掉 `JSON.stringify` 的热路径比较，改为显式字段检查，避免 transcript 轮次增大后在 `session:list/get` 上产生不必要的全量序列化成本。
+  - 补充更接近真实链路的测试：覆盖 `handleSessionCreate` 持久化 transcript 壳、`sanitizeSessionIfNeeded` 为 legacy session 回填 transcript。
+  - 同步将已获用户确认的 `T-20260412-007 / T-20260412-008` 从 `待确认` 更新为 `完成`。
+- 验证步骤：
+1. 执行 `node --test tests/session/*.test.js`。
+2. 执行 `node --check background.js`。
+3. 执行 `node --check session/transcript-store.js`。
+- 验证证据：
+  - `node --test tests/session/*.test.js` 通过：`pass 36, fail 0`。
+  - `node --check background.js` 通过（无语法错误）。
+  - `node --check session/transcript-store.js` 通过（无语法错误）。
+  - Spec 复核通过：确认 Task1 仍停留在“转录数据结构基础”，未混入实时消息或 UI 逻辑。
+  - 代码质量复核后已修正两类风险：转录逻辑已从 `background.js` 抽出；归一化不再丢弃未知字段；并新增 session 创建/legacy 回填回归测试。
+- 风险/问题：
+  - 当前仅完成 transcript 壳结构与创建/回填基础，还没有实时状态消息、统一发送记录、手动继续聊记录与 dashboard 展示。
+  - `background.js` 仍保留少量 transcript 接线代码，后续 Task2+ 若继续膨胀，需要继续守住“模块逻辑在 session 层、背景只编排”的边界。
+- 下一步建议：
+  - 下一轮领取 transcript Task2：打通 `content/content.js -> background.js` 的实时状态消息链路，并补 `transcript-normalization` 测试。
+
 ## 2026-04-12（记录 27）
 
 - 时间：2026-04-12

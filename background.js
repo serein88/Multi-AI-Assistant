@@ -8,6 +8,7 @@ try {
     "session/session-model.js",
     "session/session-registry.js",
     "session/provider-session-bindings.js",
+    "session/transcript-store.js",
     "session/window-manager.js"
   );
 } catch (error) {
@@ -24,12 +25,12 @@ const SESSION_CONSTANTS = globalThis.MultiAISessionConstants || {};
 const SESSION_MODEL = globalThis.MultiAISessionModel || {};
 const SESSION_REGISTRY = globalThis.MultiAISessionRegistry || {};
 const SESSION_BINDINGS = globalThis.MultiAISessionProviderBindings || {};
+const SESSION_TRANSCRIPT_STORE = globalThis.MultiAISessionTranscriptStore || {};
 const SESSION_WINDOW_MANAGER = globalThis.MultiAISessionWindowManager || {};
 const buildManagedDashboardUrl = SESSION_WINDOW_MANAGER.buildManagedDashboardUrl;
 const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
 const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
-const TRANSCRIPT_VERSION = 1;
-const TRANSCRIPT_STATUS_IDLE = "idle";
+const ensureSessionTranscript = SESSION_TRANSCRIPT_STORE.ensureSessionTranscript;
 
 const PROVIDERS_BY_ID =
   typeof PROVIDER_BY_ID !== "undefined" && PROVIDER_BY_ID
@@ -47,113 +48,6 @@ const sessionRegistry = SESSION_REGISTRY.createSessionRegistry
 const sessionWindowManager = SESSION_WINDOW_MANAGER.createWindowManager
   ? SESSION_WINDOW_MANAGER.createWindowManager({ chromeApi: chrome })
   : null;
-
-function createEmptyTranscriptProvider(provider) {
-  return {
-    provider,
-    turns: [],
-    status: TRANSCRIPT_STATUS_IDLE,
-    answerStartedAt: null,
-    answerCompletedAt: null,
-    lastActiveAt: null
-  };
-}
-
-function normalizeTranscriptProvider(provider, existing) {
-  const current = existing && typeof existing === "object" ? existing : {};
-  return {
-    provider,
-    turns: Array.isArray(current.turns) ? current.turns : [],
-    status: typeof current.status === "string" && current.status ? current.status : TRANSCRIPT_STATUS_IDLE,
-    answerStartedAt: current.answerStartedAt ?? null,
-    answerCompletedAt: current.answerCompletedAt ?? null,
-    lastActiveAt: current.lastActiveAt ?? null
-  };
-}
-
-function createTranscriptStore({ providers, now }) {
-  const safeProviders = Array.isArray(providers) ? providers : [];
-  const createdAt = typeof now === "string" && now ? now : new Date().toISOString();
-  return {
-    version: TRANSCRIPT_VERSION,
-    createdAt,
-    updatedAt: createdAt,
-    timeline: [],
-    providers: safeProviders.reduce((acc, provider) => {
-      acc[provider] = createEmptyTranscriptProvider(provider);
-      return acc;
-    }, {})
-  };
-}
-
-function ensureSessionTranscript(session, now) {
-  if (!session) {
-    return session;
-  }
-
-  const providers = Array.isArray(session.providers)
-    ? session.providers
-    : Object.keys(session.childSessions || {});
-  const timestamp = typeof now === "string" && now
-    ? now
-    : (session.lastActiveAt || session.createdAt || new Date().toISOString());
-
-  const current = session.transcript && typeof session.transcript === "object"
-    ? session.transcript
-    : null;
-
-  if (!current) {
-    return {
-      ...session,
-      transcript: createTranscriptStore({ providers, now: timestamp })
-    };
-  }
-
-  let changed = false;
-  const currentProviders = current.providers && typeof current.providers === "object"
-    ? current.providers
-    : {};
-  const normalizedProviders = {};
-
-  for (const provider of providers) {
-    const existing = currentProviders[provider];
-    const normalized = normalizeTranscriptProvider(provider, existing);
-    normalizedProviders[provider] = normalized;
-
-    if (!existing || JSON.stringify(existing) !== JSON.stringify(normalized)) {
-      changed = true;
-    }
-  }
-
-  const timeline = Array.isArray(current.timeline) ? current.timeline : [];
-  if (!Array.isArray(current.timeline)) {
-    changed = true;
-  }
-
-  const normalized = {
-    version: typeof current.version === "number" ? current.version : TRANSCRIPT_VERSION,
-    createdAt: current.createdAt || timestamp,
-    updatedAt: current.updatedAt || timestamp,
-    timeline,
-    providers: normalizedProviders
-  };
-
-  if (
-    !changed &&
-    current.version === normalized.version &&
-    current.createdAt === normalized.createdAt &&
-    current.updatedAt === normalized.updatedAt &&
-    current.timeline === timeline &&
-    Object.keys(currentProviders).length === Object.keys(normalizedProviders).length
-  ) {
-    return session;
-  }
-
-  return {
-    ...session,
-    transcript: normalized
-  };
-}
 
 function getSessionProviderIds() {
   if (Array.isArray(SESSION_BINDINGS.SESSION_PROVIDER_IDS) && SESSION_BINDINGS.SESSION_PROVIDER_IDS.length > 0) {
@@ -283,7 +177,7 @@ async function sanitizeSessionIfNeeded(session) {
 }
 
 async function handleSessionCreate(message) {
-  if (!sessionRegistry || !sessionWindowManager || !SESSION_MODEL.createSessionRecord) {
+  if (!sessionRegistry || !sessionWindowManager || !SESSION_MODEL.createSessionRecord || !ensureSessionTranscript) {
     throw new Error("session-modules-unavailable");
   }
 
@@ -886,9 +780,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
-    createTranscriptStore,
-    createEmptyTranscriptProvider,
+    handleSessionCreate,
+    sanitizeSessionIfNeeded,
     ensureSessionTranscript,
-    normalizeTranscriptProvider
+    createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,
+    createEmptyTranscriptProvider: SESSION_TRANSCRIPT_STORE.createEmptyTranscriptProvider,
+    normalizeTranscriptProvider: SESSION_TRANSCRIPT_STORE.normalizeTranscriptProvider
   };
 }

@@ -25,11 +25,13 @@ test("session scripts can be loaded sequentially in a shared worker context", ()
   runScriptInWorkerContext("session/session-model.js", context);
   runScriptInWorkerContext("session/session-registry.js", context);
   runScriptInWorkerContext("session/provider-session-bindings.js", context);
+  runScriptInWorkerContext("session/transcript-store.js", context);
   runScriptInWorkerContext("session/window-manager.js", context);
 
   assert.ok(context.MultiAISessionConstants);
   assert.ok(context.MultiAISessionModel);
   assert.ok(context.MultiAISessionRegistry);
   assert.ok(context.MultiAISessionProviderBindings);
+  assert.ok(context.MultiAISessionTranscriptStore);
   assert.ok(context.MultiAISessionWindowManager);
 });
