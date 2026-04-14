@@ -1718,3 +1718,41 @@
   - 自动化脚本不覆盖“真实用户在 iframe 内手动发送”的链路：该链路依赖 `event.isTrusted`，Playwright 无法模拟；需你实机再验一次手动续聊是否仍可入库。
 - 下一步建议：
   - 你实机验收：统一发送 1 轮 + 在 DeepSeek/Gemini iframe 内各手动继续聊 1 轮，确认 transcript 每轮只新增 `user+assistant` 且恢复后不重复；通过后把 `T-20260413-014` 标记为 `完成`。
+
+---
+
+## 2026-04-14（记录 48）
+
+- 时间：2026-04-14
+- 任务 ID：T-20260413-014
+- 任务名：回归：Task7 二次收口（补充 Grok 实测）
+- 状态流转：待确认 -> 待确认
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 追加一轮真实浏览器 Grok 单独发送验证，确认此前因账号/站点状态未稳定覆盖到的 Grok 链路现在是否可用。
+  - 先检查中断会话 `sess_20260414_23xesu`，发现当时 Grok 页面停在 Cookie 同意层，transcript 只记录了 1 条 user turn，没有 assistant turn，也没有状态变化。
+  - 随后新建会话 `sess_20260414_xdbnqs`，在 dashboard 中只向 `@3 Grok` 发送 `Grok回归验证：请只回复“收到”。`，并轮询 session transcript。
+- 验证步骤：
+1. 连接本机 Chrome 调试端口 `127.0.0.1:9222`。
+2. 打开支线扩展 popup，创建新会话。
+3. 在 dashboard 中统一发送 `@3 Grok回归验证：请只回复“收到”。`。
+4. 轮询 `session:get`，检查 `transcript.providers.grok.status/turns`。
+5. 同时读取 Grok iframe DOM，核对页面是否真的出现用户消息与 assistant 回复。
+- 验证证据：
+  - 旧会话 `sess_20260414_23xesu` 的 Grok 页面正文只有 Cookie/升级层，`transcript.providers.grok.turns = [user]`，`status = idle`，说明那次不是账本误判，而是页面当时没有进入正常可聊状态。
+  - 新会话 `sess_20260414_xdbnqs` 中，Grok iframe 最终 URL 为：
+    - `https://grok.com/c/57346a91-65ab-4de8-9554-52e974b6cf1d?...`
+  - 页面正文可见：
+    - `Grok回归验证：请只回复“收到”。`
+    - `收到`
+  - transcript 同步结果为：
+    - `status = completed`
+    - `turns = [user(\"Grok回归验证：请只回复“收到”。\"), assistant(\"收到\")]`
+    - `answerStartedAt = 2026-04-14T13:10:19.599Z`
+    - `answerCompletedAt = 2026-04-14T13:10:20.563Z`
+- 风险/问题：
+  - Grok 首次进入时仍可能被 Cookie/升级层拦住，因此“是否能发出”存在页面前置状态依赖；当前验证结论是：在页面进入正常聊天态后，统一发送链路已经可用。
+- 下一步建议：
+  - 这条支线现在优先进入最终人工验收和主线集成准备，不建议再继续堆功能。
