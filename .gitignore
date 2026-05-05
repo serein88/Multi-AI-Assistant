@@ -4,3 +4,7 @@
 /.agent
 /_metadata
 /.worktrees
+/.claude
+/.mcp.json
+/.opencode.json
+/.code-review-graph
