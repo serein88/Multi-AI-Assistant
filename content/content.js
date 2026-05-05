@@ -34,10 +34,7 @@ const RESPONSE_SELECTORS = {
     "[class*='answer']"
   ],
   deepseek: [
-    ".ds-markdown",
-    ".ds-markdown-paragraph",
-    ".ds-message .ds-markdown",
-    ".ds-message .ds-markdown-paragraph"
+    ".ds-markdown"
   ],
   doubao: [
     "[data-role='assistant']",
@@ -122,6 +119,49 @@ const MANUAL_ASSISTANT_SELECTORS = {
     "[id^='response-'] .response-content-markdown"
   ]
 };
+
+const THINKING_SELECTORS = {
+  deepseek: [
+    "[class*='ds-think-content']",
+    ".ds-think-content"
+  ],
+  gemini: [
+    "[class*='thinking']",
+    "[class*='reasoning']",
+    "[data-testid*='thinking']",
+    ".thought-content",
+    ".thinking-chip"
+  ],
+  grok: [
+    "[class*='thinking']",
+    "[class*='reasoning']",
+    "[class*='thought']",
+    "[data-testid*='thinking']",
+    "[class*='think-block']"
+  ]
+};
+
+function shouldIgnoreThinkingNode(provider, node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+  const selectors = THINKING_SELECTORS[provider];
+  if (!selectors || selectors.length === 0) return false;
+
+  // Check if the node itself matches a thinking selector
+  for (const sel of selectors) {
+    try {
+      if (node.matches(sel)) return true;
+    } catch { /* ignore invalid selector */ }
+  }
+
+  // Check if the node is inside a thinking block
+  for (const sel of selectors) {
+    try {
+      if (node.closest(sel)) return true;
+    } catch { /* ignore invalid selector */ }
+  }
+
+  return false;
+}
 
 function extractLatestResponse(provider) {
   const selectors = RESPONSE_SELECTORS[provider] || RESPONSE_SELECTORS.chatgpt || [];
@@ -339,13 +379,17 @@ const PROVIDER_CONFIGS = {
   deepseek: {
     inputSelectors: [
       "textarea[placeholder*='输入']",
+      "textarea[placeholder*='发送消息']",
+      "textarea[placeholder*='DeepSeek']",
       "textarea",
       "div[contenteditable='true']"
     ],
     sendButtonSelectors: [
       "button[aria-label*='发送']",
       "button[aria-label*='Send']",
-      "button[type='submit']"
+      "button[type='submit']",
+      "div[role='button'].ds-icon-button:not(.ds-icon-button--disabled)",
+      "div[role='button'].ds-icon-button"
     ],
     inputType: "textarea"
   },
@@ -739,6 +783,10 @@ function scanManualTurnRoots(provider, roots, options = {}) {
 
   const orderedNodes = pruneManualTurnNodes(Array.from(candidates.keys()));
   orderedNodes.forEach((node) => {
+    // Skip thinking/reasoning content blocks
+    if (shouldIgnoreThinkingNode(provider, node)) {
+      return;
+    }
     const fallbackRole = candidates.get(node);
     const role = detectManualTurnRole(provider, node, userSelectors, assistantSelectors) || fallbackRole;
     if (role !== "user" && role !== "assistant") {
