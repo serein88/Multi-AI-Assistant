@@ -16,12 +16,17 @@ test("buildManagedDashboardUrl appends sessionId to dashboard url", () => {
   assert.equal(url, "chrome-extension://example/dashboard.html?sessionId=sess_123");
 });
 
-test("createManagedSessionWindow opens a non-focused window in background mode", async () => {
+test("createManagedSessionWindow creates a tab in current window (not focused)", async () => {
   const calls = [];
   const chromeApi = {
-    windows: {
+    tabs: {
       async create(payload) {
-        calls.push(payload);
+        calls.push({ method: "tabs.create", payload });
+        return { id: 9001 };
+      }
+    },
+    windows: {
+      async getCurrent() {
         return { id: 500 };
       }
     }
@@ -34,15 +39,22 @@ test("createManagedSessionWindow opens a non-focused window in background mode",
   });
 
   assert.equal(result.id, 500);
-  assert.equal(calls[0].focused, false);
+  assert.equal(result.tabs[0].id, 9001);
+  assert.equal(calls[0].payload.url, "https://chat.deepseek.com/");
+  assert.equal(calls[0].payload.active, false); // focused=false → active=false
 });
 
-test("createManagedSessionWindow forwards urls and focused truthy values", async () => {
+test("createManagedSessionWindow creates a tab with active=true when focused is truthy", async () => {
   const calls = [];
   const chromeApi = {
-    windows: {
+    tabs: {
       async create(payload) {
-        calls.push(payload);
+        calls.push({ method: "tabs.create", payload });
+        return { id: 9002 };
+      }
+    },
+    windows: {
+      async getCurrent() {
         return { id: 501 };
       }
     }
@@ -56,8 +68,9 @@ test("createManagedSessionWindow forwards urls and focused truthy values", async
   });
 
   assert.equal(result.id, 501);
-  assert.deepEqual(calls[0].url, urls);
-  assert.equal(calls[0].focused, true);
+  assert.equal(result.tabs[0].id, 9002);
+  assert.equal(calls[0].payload.url, "https://chat.deepseek.com/");
+  assert.equal(calls[0].payload.active, true);
 });
 
 test("normalizeWindowCreatePayload coerces focused and defaults urls", () => {

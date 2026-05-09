@@ -50,7 +50,21 @@
     return {
       async createManagedSessionWindow({ urls, focused }) {
         const payload = normalizeWindowCreatePayload({ urls, focused });
-        return chromeApi.windows.create(payload);
+        const firstUrl = Array.isArray(payload.url) && payload.url.length > 0
+          ? payload.url[0]
+          : undefined;
+        // Open in the current window instead of creating a new one.
+        // If a URL is provided, create a tab; otherwise just return the current window.
+        if (firstUrl) {
+          const tab = await chromeApi.tabs.create({
+            url: firstUrl,
+            active: payload.focused !== false
+          });
+          // Return a window-like object for compatibility
+          const win = await chromeApi.windows.getCurrent();
+          return { id: win?.id, tabs: [tab] };
+        }
+        return chromeApi.windows.getCurrent();
       }
     };
   }
