@@ -94,6 +94,9 @@ function createChromeStub(initialStore = {}) {
             ? payload.url.map((url, index) => ({ id: index + 1, url }))
             : []
         };
+      },
+      async getCurrent() {
+        return { id: nextWindowId };
       }
     }
   };

@@ -314,7 +314,16 @@ async function handleSessionSyncChild(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  const session = sessions.find((record) => record.windowId === windowId);
+  // First try to find by windowId, then fall back to finding by sessionId from sender URL
+  let session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    const senderUrl = sender?.tab?.url || "";
+    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
+    if (sessionIdMatch) {
+      const sessionId = decodeURIComponent(sessionIdMatch[1]);
+      session = sessions.find((record) => record.sessionId === sessionId);
+    }
+  }
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -369,7 +378,16 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  const session = sessions.find((record) => record.windowId === windowId);
+  // First try to find by windowId, then fall back to finding by sessionId from sender URL
+  let session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    const senderUrl = sender?.tab?.url || "";
+    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
+    if (sessionIdMatch) {
+      const sessionId = decodeURIComponent(sessionIdMatch[1]);
+      session = sessions.find((record) => record.sessionId === sessionId);
+    }
+  }
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -517,7 +535,17 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  const session = sessions.find((record) => record.windowId === windowId);
+  // First try to find by windowId, then fall back to finding by sessionId from sender URL
+  let session = sessions.find((record) => record.windowId === windowId);
+  if (!session) {
+    // Try to extract sessionId from the sender's tab URL (dashboard URL)
+    const senderUrl = sender?.tab?.url || "";
+    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
+    if (sessionIdMatch) {
+      const sessionId = decodeURIComponent(sessionIdMatch[1]);
+      session = sessions.find((record) => record.sessionId === sessionId);
+    }
+  }
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
