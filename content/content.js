@@ -75,6 +75,7 @@ const MANUAL_USER_SELECTORS = {
     "[class*='from-user']"
   ],
   deepseek: [
+    ".ds-message:not(:has(.ds-markdown))",
     "[class*='message-user']",
     "[data-role='user']",
     "[data-message-author-role='user']"
@@ -103,6 +104,7 @@ const MANUAL_ASSISTANT_SELECTORS = {
     "[class*='ai-message']"
   ],
   deepseek: [
+    ".ds-message:has(.ds-markdown)",
     "[data-role='assistant']",
     "[data-message-author-role='assistant']",
     "[class*='message-assistant']",
@@ -163,17 +165,40 @@ function shouldIgnoreThinkingNode(provider, node) {
   return false;
 }
 
+function extractTextExcludingThinking(provider, node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return node ? (node.textContent || "") : "";
+  }
+  const selectors = THINKING_SELECTORS[provider];
+  if (!selectors || selectors.length === 0) {
+    return node.innerText || node.textContent || "";
+  }
+  const clone = node.cloneNode(true);
+  for (const sel of selectors) {
+    try {
+      clone.querySelectorAll(sel).forEach((el) => el.remove());
+    } catch { /* ignore */ }
+  }
+  return clone.innerText || clone.textContent || "";
+}
+
 function extractLatestResponse(provider) {
   const selectors = RESPONSE_SELECTORS[provider] || RESPONSE_SELECTORS.chatgpt || [];
   const root = document.body || document;
   let latest = "";
   for (const sel of selectors) {
     const nodes = root.querySelectorAll ? Array.from(root.querySelectorAll(sel)) : [];
-    if (nodes.length) {
-      const target = nodes[nodes.length - 1];
-      const text = target.innerText || target.textContent || "";
+    // Iterate in reverse to find the last non-thinking response node
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const target = nodes[i];
+      // Skip nodes that ARE thinking blocks or are INSIDE thinking blocks
+      if (shouldIgnoreThinkingNode(provider, target)) {
+        continue;
+      }
+      const text = extractTextExcludingThinking(provider, target);
       if (text.trim()) {
         latest = text.trim();
+        break;
       }
     }
     if (latest) break;
@@ -387,9 +412,7 @@ const PROVIDER_CONFIGS = {
     sendButtonSelectors: [
       "button[aria-label*='发送']",
       "button[aria-label*='Send']",
-      "button[type='submit']",
-      "div[role='button'].ds-icon-button:not(.ds-icon-button--disabled)",
-      "div[role='button'].ds-icon-button"
+      "button[type='submit']"
     ],
     inputType: "textarea"
   },
@@ -575,6 +598,8 @@ let manualTurnNodeSnapshot = new WeakMap();
 const pendingManualTurnRoots = new Set();
 let manualTurnFlushTimer = null;
 let manualTurnWarmupUntil = 0;
+let manualTurnCapturingActiveResponse = false;
+let manualTurnObserver = null;
 
 let manualSendCaptureStarted = false;
 let lastManualSendProvider = "";
@@ -739,6 +764,35 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
   }
 }
 
+function isCapturingActiveResponse() {
+  return manualTurnCapturingActiveResponse;
+}
+
+function pauseManualTurnObserver() {
+  if (manualTurnObserver) {
+    manualTurnObserver.disconnect();
+  }
+  if (manualTurnFlushTimer) {
+    clearTimeout(manualTurnFlushTimer);
+    manualTurnFlushTimer = null;
+  }
+  pendingManualTurnRoots.clear();
+}
+
+function resumeManualTurnObserver(provider) {
+  if (manualTurnObserver && document.body) {
+    manualTurnObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+}
+
+function setCapturingActiveResponse(active) {
+  manualTurnCapturingActiveResponse = active;
+}
+
 function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
   if (!node || node.nodeType !== Node.ELEMENT_NODE) {
     return;
@@ -756,6 +810,12 @@ function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
 
   manualTurnNodeSnapshot.set(node, { role, content: normalized });
   if (options.captureOnly) {
+    return;
+  }
+
+  // During active response capture, the waitForResponseComplete path sends the
+  // final turn. Suppress intermediate streaming chunks from the MutationObserver.
+  if (role === "assistant" && isCapturingActiveResponse()) {
     return;
   }
 
@@ -792,7 +852,7 @@ function scanManualTurnRoots(provider, roots, options = {}) {
     if (role !== "user" && role !== "assistant") {
       return;
     }
-    const text = normalizeProviderTurnText(provider, role, node.innerText || node.textContent || "");
+    const text = normalizeProviderTurnText(provider, role, extractTextExcludingThinking(provider, node));
     if (!text) {
       return;
     }
@@ -802,7 +862,18 @@ function scanManualTurnRoots(provider, roots, options = {}) {
 
 function enqueueManualTurnRoot(provider, root) {
   if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
-  pendingManualTurnRoots.add(root);
+  // Walk up to find the nearest message container so querySelectorAll can match
+  // deep selectors like ".ds-message:has(.ds-markdown)". Without this, mutation
+  // targets are often deeply nested text spans that contain no matching children.
+  const MESSAGE_CONTAINER_SELECTORS = [".ds-message", ".response-content-markdown", "[data-message-author-role]"];
+  let container = root;
+  for (const sel of MESSAGE_CONTAINER_SELECTORS) {
+    try {
+      const found = root.closest(sel);
+      if (found) { container = found; break; }
+    } catch { /* ignore */ }
+  }
+  pendingManualTurnRoots.add(container);
   if (manualTurnFlushTimer) return;
 
   manualTurnFlushTimer = setTimeout(() => {
@@ -856,6 +927,7 @@ function startManualTurnCapture(provider) {
     subtree: true,
     characterData: true
   });
+  manualTurnObserver = observer;
 }
 
 function isManualSendSuppressed(provider, prompt) {
@@ -944,9 +1016,18 @@ function recordManualSend(provider, prompt) {
   // Only start DOM-based turn capture when a *real user action* happens.
   // This avoids restore/load re-ingestion while still making manual-chat capture robust.
   startManualTurnCapture(provider);
+  // Pause MutationObserver entirely during response capture to prevent interference.
+  // Only the waitForResponseComplete path will send the final turn.
+  setCapturingActiveResponse(true);
+  pauseManualTurnObserver();
 
   const inputEl = arguments.length >= 3 ? arguments[2] : null;
   const occurredAt = new Date().toISOString();
+
+  const finishCapture = () => {
+    setCapturingActiveResponse(false);
+    resumeManualTurnObserver(provider);
+  };
 
   const startResponseFlow = (assumeStarted = false) => {
     sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
@@ -956,6 +1037,7 @@ function recordManualSend(provider, prompt) {
     // Best-effort: detect answering state and capture the final assistant text for manual sends too.
     startedPromise.then((started) => {
       if (!started) {
+        finishCapture();
         sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
         return;
       }
@@ -969,6 +1051,7 @@ function recordManualSend(provider, prompt) {
             status: "completed"
           });
         }
+        finishCapture();
         sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
       });
     });
@@ -981,6 +1064,7 @@ function recordManualSend(provider, prompt) {
       // Fallback: input did not clear, so confirm by observing response start.
       waitForResponseStart(provider).then((started) => {
         if (!started) {
+          finishCapture();
           return;
         }
         startResponseFlow(true);
@@ -2173,6 +2257,7 @@ function getStopSelectors(provider) {
   return [
     'button[aria-label*="Stop"]',
     'button[aria-label*="停止"]',
+    'button[aria-label*="停止回答"]',
     'button[aria-label*="暂停"]',
     'button[data-testid*="stop"]',
     'button[aria-label*="Pause"]',
@@ -2213,6 +2298,13 @@ function hasStreamingIndicator(provider) {
   const base = '.result-streaming, .streaming, [data-testid*="stream"], .ds-loading, [class*="result-streaming"]';
   if (provider === "chatgpt") {
     return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming, .result-streaming, .markdown.result-streaming`);
+  }
+  if (provider === "deepseek") {
+    // DeepSeek-specific: thinking content block is a strong streaming signal.
+    // Also check for loading/generating classes that may appear during streaming.
+    return !!document.querySelector(
+      '.ds-think-content, [class*="ds-loading"], [class*="ds-generating"], [class*="result-streaming"]'
+    );
   }
   return !!document.querySelector(base);
 }
@@ -2358,6 +2450,7 @@ async function waitForResponseComplete(provider) {
   const stopSelectors = getStopSelectors(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
+  let stopDisappearAt = 0;
   let lastStableResponse = "";
   let lastStableResponseAt = 0;
 
@@ -2387,56 +2480,154 @@ async function waitForResponseComplete(provider) {
       clearInterval(interval);
     };
 
+    // --- Provider-specific helpers (based on real DOM investigation 2026-05-06) ---
+
+    // DeepSeek: no stop button. Primary signal: hasStreamingIndicator (thinking block / loading).
+    // Text stability (8s) as fallback. Hard max 25s to prevent permanent hangs.
+    // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
+    const deepseekRespondingStartedAt = { current: 0 };
+
+    // Gemini: "停止回答" (Stop response) button appears during response.
+    // On completion: stop button disappears, send button returns (ariaDisabled=true because input cleared).
+    // NOTE: No position filter — must work inside dashboard iframe (smaller viewport).
+    const geminiStopWasSeen = { current: false };
+    const isGeminiStopVisible = () => {
+      const stopBtns = document.querySelectorAll('button[aria-label*="停止回答"]');
+      for (const b of stopBtns) {
+        const r = b.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return true;
+      }
+      return false;
+    };
+    const isGeminiSendVisible = () => {
+      const sendBtn = document.querySelector('button.send-button, button[aria-label="发送"], button[aria-label="Send"]');
+      if (!sendBtn) return false;
+      const r = sendBtn.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+
     const check = () => {
       if (settled) return;
+
+      // === Step 1: Provider-specific detection (based on real DOM) ===
+
+      if (provider === "deepseek") {
+        // Track when we first detect responding state
+        if (deepseekRespondingStartedAt.current === 0) {
+          deepseekRespondingStartedAt.current = Date.now();
+        }
+
+        // Primary: streaming indicator (thinking block, loading class)
+        if (hasStreamingIndicator("deepseek")) {
+          log(`[DS] streaming indicator present → still responding`);
+          return;
+        }
+
+        // Hard max: if we've been tracking for 25s without streaming indicator, force complete
+        const dsElapsed = Date.now() - deepseekRespondingStartedAt.current;
+        if (dsElapsed >= 25000) {
+          log(`[DS] hard max ${dsElapsed}ms → COMPLETED`);
+          cleanup();
+          resolve(true);
+          return;
+        }
+        // Fall through to text stability (Step 3) below
+      }
+
+      if (provider === "gemini") {
+        const gmStopVisible = isGeminiStopVisible();
+        if (gmStopVisible) {
+          geminiStopWasSeen.current = true;
+          log(`[GM] stop visible → still responding`);
+          return; // Still responding
+        }
+        // Stop button gone — if it was seen before, check send button is back
+        if (geminiStopWasSeen.current) {
+          const sendVis = isGeminiSendVisible();
+          if (sendVis) {
+            log(`[GM] stop gone + send visible → COMPLETED`);
+            cleanup();
+            resolve(true);
+            return;
+          }
+          log(`[GM] stop gone but send not visible → wait`);
+        }
+      }
+
+      // === Step 2: Universal stop button tracking (ChatGPT, Grok, etc.) ===
       const stopVisible = hasElementDeep(stopSelectors);
       if (stopVisible) {
         sawStop = true;
-        return;
-      }
-      if (provider === "chatgpt" && sendSelectors.length > 0) {
-        const sendVisible = hasElementDeep(sendSelectors);
-        if (sawStop || sendVisible) {
-          cleanup();
-          resolve(true);
-        }
+        stopDisappearAt = 0;
+        log(`[${provider}] stop button visible → still responding`);
         return;
       }
 
-      if (sawStop) {
-        // Stop button disappeared -> generation likely done
+      // Stop just disappeared — record timestamp for grace period
+      if (sawStop && stopDisappearAt === 0) {
+        stopDisappearAt = Date.now();
+        log(`[${provider}] stop just disappeared, grace period started`);
+      }
+
+      // Stop disappeared AND send button is back → completed
+      if (sawStop && sendSelectors.length > 0) {
+        for (const sel of sendSelectors) {
+          const el = document.querySelector(sel);
+          if (el && isElementVisible(el)) {
+            const btn = el.closest('button, [role="button"], input') || el;
+            if (!isElementDisabled(btn)) {
+              log(`[${provider}] stop gone + send enabled → COMPLETED`);
+              cleanup();
+              resolve(true);
+              return;
+            }
+          }
+        }
+      }
+
+      // === Step 3: Fallback — text stability ===
+      const latest = extractLatestResponse(provider);
+      const normalized = typeof latest === "string" ? latest.trim() : "";
+      if (normalized) {
+        if (normalized !== lastStableResponse) {
+          lastStableResponse = normalized;
+          lastStableResponseAt = Date.now();
+        } else if (
+          lastStableResponseAt > 0 &&
+          !hasStreamingIndicator(provider)
+        ) {
+          const stabilityMs = provider === "deepseek" ? 8000 : provider === "grok" ? 5000 : 1200;
+          const elapsed = Date.now() - lastStableResponseAt;
+          if (elapsed >= stabilityMs) {
+            log(`[${provider}] text stable ${elapsed}ms → COMPLETED (fallback)`);
+            cleanup();
+            resolve(true);
+            return;
+          }
+        }
+      }
+
+      // === Step 4: Grace period fallback ===
+      if (
+        sawStop &&
+        stopDisappearAt > 0 &&
+        !stopVisible &&
+        !hasStreamingIndicator(provider) &&
+        Date.now() - stopDisappearAt >= 3000
+      ) {
         cleanup();
         resolve(true);
         return;
       }
-
-      if (provider === "deepseek" || provider === "gemini" || provider === "grok") {
-        const latest = extractLatestResponse(provider);
-        const normalized = typeof latest === "string" ? latest.trim() : "";
-        if (!normalized) {
-          return;
-        }
-
-        if (normalized !== lastStableResponse) {
-          lastStableResponse = normalized;
-          lastStableResponseAt = Date.now();
-          return;
-        }
-
-        if (
-          lastStableResponseAt > 0 &&
-          !hasStreamingIndicator(provider) &&
-          Date.now() - lastStableResponseAt >= 1200
-        ) {
-          cleanup();
-          resolve(true);
-          return;
-        }
-      }
     };
 
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid']
+    });
 
     const interval = setInterval(check, 500);
     const timer = setTimeout(() => {
@@ -2536,6 +2727,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
   let sendOk = false;
 
+  // Pause MutationObserver entirely during send + response capture.
+  // This prevents the observer from capturing streaming chunks during the send
+  // process (especially important for Grok which has its own response detection).
+  setCapturingActiveResponse(true);
+  pauseManualTurnObserver();
+
   // Special handlers for complex editors
   if (provider === "chatgpt") {
     sendOk = await sendChatGPTMessage(input, prompt, config);
@@ -2558,6 +2755,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         await new Promise(resolve => setTimeout(resolve, 50));
         return trySendPrompt(provider, prompt, retryCount + 1);
       }
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
       postSendResult(provider, false);
       sendTranscriptLiveStatus(provider, "failed");
       return false;
@@ -2565,11 +2764,10 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    sendOk = config.useShadow
-      ? clickSendButtonDeep(config.sendButtonSelectors)
-      : clickSendButton(config.sendButtonSelectors);
-
-    if (!sendOk && input) {
+    // For DeepSeek, the Enter key is more reliable than button click because
+    // the send button selector may match sidebar toggle buttons.
+    // For other providers, try button click first, then Enter as fallback.
+    if (provider === "deepseek") {
       try {
         input.focus({ preventScroll: true });
         const baseEventInit = {
@@ -2581,21 +2779,56 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
           which: 13
         };
 
-        const targets = [input];
         ["keydown", "keypress", "keyup"].forEach((type) => {
-          targets.forEach((t) => {
-            try {
-              const evt = new KeyboardEvent(type, baseEventInit);
-              t.dispatchEvent(evt);
-            } catch (e) {
-              // ignore
-            }
-          });
+          try {
+            const evt = new KeyboardEvent(type, baseEventInit);
+            input.dispatchEvent(evt);
+          } catch (e) {
+            // ignore
+          }
         });
 
         sendOk = true;
       } catch (error) {
         console.error("发送 Enter 事件失败:", error);
+        // Fall back to button click
+        sendOk = config.useShadow
+          ? clickSendButtonDeep(config.sendButtonSelectors)
+          : clickSendButton(config.sendButtonSelectors);
+      }
+    } else {
+      sendOk = config.useShadow
+        ? clickSendButtonDeep(config.sendButtonSelectors)
+        : clickSendButton(config.sendButtonSelectors);
+
+      if (!sendOk && input) {
+        try {
+          input.focus({ preventScroll: true });
+          const baseEventInit = {
+            bubbles: true,
+            cancelable: true,
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13
+          };
+
+          const targets = [input];
+          ["keydown", "keypress", "keyup"].forEach((type) => {
+            targets.forEach((t) => {
+              try {
+                const evt = new KeyboardEvent(type, baseEventInit);
+                t.dispatchEvent(evt);
+              } catch (e) {
+                // ignore
+              }
+            });
+          });
+
+          sendOk = true;
+        } catch (error) {
+          console.error("发送 Enter 事件失败:", error);
+        }
       }
     }
   }
@@ -2607,6 +2840,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       console.error(`[Content] Failed to postMessage: sendResult`);
     }
     if (!sendOk) {
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "failed");
     }
 
@@ -2615,6 +2850,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
 
     if (provider === "grok" && sendOk && !responseStarted) {
       log("[Content] Grok response start not detected, downgrade sendResult to failed");
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "interrupted");
       sendOk = false;
       postSendResult(provider, false);
@@ -2630,6 +2867,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       });
 
       waitForResponseComplete(provider).then(() => {
+        // Send final turn BEFORE resuming observer to prevent duplicates
         const latest = extractLatestResponse(provider);
         if (latest) {
           sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
@@ -2643,8 +2881,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
           text: latest
         });
         sendTranscriptLiveStatus(provider, "completed");
+        setCapturingActiveResponse(false);
+        resumeManualTurnObserver(provider);
       });
     } else if (sendOk) {
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "interrupted");
     }
   }
@@ -2681,6 +2923,9 @@ function initializeCustomFixes() {
 
   startChildSessionSync(provider);
   startManualSendCapture(provider);
+  // Start MutationObserver early so the warmup period expires before the user sends a message.
+  // Without this, the observer only starts on send and all captures within 2.5s are captureOnly.
+  startManualTurnCapture(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");

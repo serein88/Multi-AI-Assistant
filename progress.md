@@ -18,104 +18,1016 @@
 
 ---
 
-## 2026-04-13（记录 39）
+## 2026-02-14（记录 1）
 
-- 时间：2026-04-13
-- 任务 ID：T-20260413-007
-- 任务名：扩展会话转录层 Task7：整体回归与收口
-- 状态流转：进行中 -> 失败
+- 时间：2026-02-14
+- 任务 ID：N/A（Playwright 调试记录，不创建任务）
+- 任务名：Grok 发送链路现状排查（仅记录）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `progress.md`
+- 操作摘要：
+  - 使用 Playwright MCP 验证扩展主页定位能力：目标地址为 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
+  - 使用 Playwright 对 `https://grok.com/` 进行发送链路探测，复现“可输入但可能未真正发送”的时序问题。
+  - 明确范围：Grok 人机验证循环（验证码循环）本轮暂不修复。
+- 验证步骤：
+1. 在 Playwright 中直接 `goto(chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html)`。
+2. 在 Grok 页面注入文本，采集发送按钮状态时序（0ms/20ms/50ms/100ms...）。
+3. 模拟扩展消息触发发送：`window.postMessage({source:'multi-ai',type:'sendPrompt',provider:'grok',prompt:'...'})` 并观察是否进入生成态。
+- 验证证据：
+  - 证据 A（扩展主页定位）：
+    - Playwright 返回错误：`Access to "chrome-extension:" URL is blocked. Allowed protocols: http:, https:, about:, data:.`
+    - 结论：可定位该 URL 与扩展 ID，但当前 MCP 运行策略不允许直接打开 `chrome-extension://` 页面。
+  - 证据 B（Grok 按钮时序）：
+    - 采样结果显示：`t=0ms` 时 `button[type='submit']` 为 `disabled=true` 且尺寸 `0x0`；`t=20ms` 后变为可点击（`40x40`）。
+    - 结论：存在短暂禁用窗口，过早点击会出现“点击动作发生但未发送”的假成功风险。
+  - 证据 C（链路结果）：
+    - 文本可写入（marker 可见），但 `stopLike=false`，并非每次都进入响应生成态。
+- 风险/问题：
+  - 当前环境有多个用户脚本/插件同时注入（控制台可见），会对页面行为产生额外噪声。
+  - 验证码循环会干扰稳定复现；按你的要求，暂不修复该问题。
+- 下一步建议：
+  - 后续仅聚焦“发送判定与超时释放”逻辑，不包含验证码循环处理。
+
+## 2026-02-14（记录 2）
+
+- 时间：2026-02-14
+- 任务 ID：T-20260214-001
+- 任务名：整理并统一 Vibe Coding 流程文档（AGENTS/task/progress）
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `AGENTS.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 重写 `AGENTS.md`，按流程优先方式定义开发规则。
+  - 补齐并初始化 `task.md`、`progress.md`。
+- 验证步骤：
+1. 打开 `AGENTS.md`，确认包含项目目标、流程步骤、强约束、状态定义。
+2. 打开 `task.md`，确认存在任务状态体系与任务表。
+3. 打开 `progress.md`，确认存在可复用记录模板。
+- 验证证据：
+  - 三个流程文件均已落地，且可直接用于后续轮次。
+  - 用户已明确回复：`T-20260214-001验收通过`。
+- 风险/问题：
+  - 本轮聚焦流程治理，不涉及功能代码修复。
+- 下一步建议：
+  - 将现有技术债结构化后，逐项拆解执行。
+
+## 2026-02-14（记录 3）
+
+- 时间：2026-02-14
+- 任务 ID：T-20260214-002
+- 任务名：整理当前技术债并写入任务池
+- 状态流转：进行中 -> 待确认
 - 变更文件：
   - `task.md`
   - `progress.md`
 - 操作摘要：
-  - 使用真实浏览器会话做最终回归，不再停留在 Node 测试和语法检查。
-  - 在 `chrome://extensions` 重载当前 worktree 扩展后，通过真实 `popup.html` 创建新会话，拿到新 session：`sess_20260413_m58cio`。
-  - 通过 CDP / Playwright 确认真正的受管 dashboard 位于 `windowId=314584960`、`tabId=314584961`，避免把手动打开的非受管 dashboard 误当成回归对象。
-  - 在真实受管 dashboard 中执行统一发送，随后轮询 `session:get` 读取 transcript 落库结果。
-  - 在 DeepSeek iframe 内执行一次“手动继续聊”动作，再次读取 transcript，确认手动继续链路是否入账。
-  - 最后通过 `popup.html` 执行“恢复会话”，确认 transcript 是否在恢复后仍可读取。
+  - 将 `T-20260214-001` 状态更新为“完成”。
+  - 新增 `T-20260214-002`（本轮任务）并置为“待确认”。
+  - 新增 8 条技术债任务，按优先级排序并给出验收标准。
 - 验证步骤：
-1. 在 `chrome://extensions` 中重载 ID 为 `hcflhfnjaaihifgfnmobkdlcklifeflg` 的当前扩展。
-2. 打开 `chrome-extension://hcflhfnjaaihifgfnmobkdlcklifeflg/popup.html`，点击 `新建会话`，确认生成新 session `sess_20260413_m58cio`。
-3. 使用 Playwright `connectOverCDP('http://127.0.0.1:9222')` 锁定真实受管 dashboard（`windowId=314584960`），在该页用统一发送输入 `回归测试一：请只回复“收到”。`。
-4. 每 3 秒轮询一次 `chrome.runtime.sendMessage({ type: 'session:get', sessionId })`，连续观察 10 次 transcript/timeline/provider status。
-5. 在同一真实 dashboard 的 DeepSeek iframe 内手动输入 `手动继续测试：只回复“手动收到”。` 并发送，再读取 transcript。
-6. 回到 `popup.html` 点击 `刷新列表 -> 该 session -> 恢复会话`，再读取 `session:get` 验证 transcript 是否保留。
+1. 打开 `task.md`，确认 `T-20260214-001` 状态为“完成”。
+2. 打开 `task.md`，确认新增 `T-20260214-002` 且状态为“待确认”。
+3. 打开 `task.md`，确认 `TD-20260214-001` 到 `TD-20260214-008` 技术债清单存在，含优先级与验收标准。
 - 验证证据：
-  - 证据 A：真实入口创建成功，popup 提示 `会话已创建：Session 2026-04-13T06:41:51.542Z`，并在 `session:list` 中出现 `sess_20260413_m58cio`。
-  - 证据 B：真实受管 dashboard 已锁定为：
-    - `windowId=314584960`
-    - `tabId=314584961`
-  - 证据 C：统一发送后 transcript 确实发生写入，但结果不符合验收：
-    - `timeline = 33`
-    - `deepseek.status = responding`，仅有 2 条 `user` turn，无 assistant turn
-    - `gemini.status = responding`，累计 29 条 turn，出现大量 `你说 ...` / `Gemini 说` / `收到。` 重复记录
-    - `grok.status = completed`，仅有 2 条 `user` turn，无 assistant turn
-  - 证据 D：手动继续聊未通过验收。DeepSeek iframe 中手动发送 `手动继续测试：只回复“手动收到”。` 后，`deepseek.status` 变为 `completed`，但 `deepseek.turns` 仍只有先前 2 条 `user` turn，没有新增 user/assistant turn。
-  - 证据 E：恢复链路本身可用。通过 popup 执行 `恢复会话` 后，`session:get` 返回：
-    - `windowId = 314584965`
-    - `timeline = 33`
-    - `deepseekTurns = 2`
-    - `geminiTurns = 29`
-    - `grokTurns = 2`
-    说明会话恢复与 transcript 持久化正常，但 transcript 内容质量未达标。
+  - `task.md` 已包含结构化技术债 Backlog（8 条）。
+  - 技术债均可直接领取并按验收标准执行。
 - 风险/问题：
-  - 统一发送链路仍存在 provider 级转录缺陷，当前不能把 transcript 视为可信历史：
-    - Gemini DOM 误抓取和去重失败
-    - DeepSeek assistant turn/完成态落库异常
-    - Grok assistant turn 未落库
-  - 手动继续聊链路未达标，说明“只管扩展接管后的会话”这条主目标目前还没有闭环。
-  - 当前真正可靠的是“会话创建/恢复”和“transcript 能持久化并随会话恢复”，不是“turn 级记录质量”。
+  - 技术债为“盘点结论”，尚未开始逐项修复。
 - 下一步建议：
-  - 下一轮不要再做收口，直接进入回归修复任务：
-    - `T-20260413-008`：统一发送 transcript 去重与 Gemini 误抓取
-    - `T-20260413-009`：DeepSeek / Grok assistant turn 与完成态落库
-    - `T-20260413-010`：手动继续聊 turn 捕获
+  - 先领取 `TD-20260214-001` 与 `TD-20260214-002`（P0）作为下一轮任务。
 
-## 2026-04-13（记录 40）
+## 2026-02-14（记录 4）
 
-- 时间：2026-04-13
-- 任务 ID：T-20260413-008
-- 任务名：回归修复：统一发送 transcript 去重与 Gemini 误抓取
+- 时间：2026-02-14
+- 任务 ID：T-20260214-003
+- 任务名：跟进 Grok 网页更新，修复发送失败与统一发送卡住问题（任务拆解）
 - 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 新增主任务 `T-20260214-003`，定义范围为“仅拆解，不改业务代码”。
+  - 将该复杂任务拆分为 7 个可执行子任务，覆盖复现、定位、修复、超时释放、回归验证与文档沉淀。
+  - 每个子任务补充了依赖关系与可验收标准，便于按轮次推进。
+- 验证步骤：
+1. 打开 `task.md`，确认存在主任务 `T-20260214-003` 且状态为“待确认”。
+2. 打开 `task.md`，确认存在 `T-20260214-003-1` 到 `T-20260214-003-7` 子任务表。
+3. 核对子任务验收标准，确认包含“发送成功恢复”和“Sending 卡住释放”两个核心目标。
+- 验证证据：
+  - `task.md` 已新增完整拆解结构（主任务 + 7 个子任务 + 依赖 + 验收标准）。
+  - 拆解内容直接对应你描述的问题现象（Grok 可输入但无法发送、统一发送可能卡住）。
+- 风险/问题：
+  - 本轮未进行代码修复，仍需后续按子任务执行验证。
+- 下一步建议：
+  - 下一轮直接领取 `T-20260214-003-1` 开始复现与证据采集。
+
+## 2026-02-15（记录 5）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260214-003-3（并同步任务状态维护）
+- 任务名：修复 Grok 在统一发送中的“假成功/卡 Sending”链路
+- 状态流转：
+  - `T-20260214-002`：待确认 -> 完成（用户已确认）
+  - `T-20260214-003`：待确认 -> 完成（用户已确认，后续仅执行子任务）
+  - `T-20260214-003-1`：待进行 -> 完成
+  - `T-20260214-003-2`：待进行 -> 完成
+  - `T-20260214-003-3`：进行中 -> 待确认
 - 变更文件：
   - `content/content.js`
   - `task.md`
   - `progress.md`
 - 操作摘要：
-  - 根据上一轮实机回归证据，先把问题边界收紧到 Gemini 重复 turn，不混入 `DeepSeek/Grok assistant turn` 和“手动继续聊”两条后续任务。
-  - 根因排查分两步：
-    - 本地代码审查确认 `appendProviderTurn()` 的去重只看“最后一条同角色 turn”，对 Gemini 这种同一轮里被 content 侧连续上报不同 DOM 文本的页面，本身不是第一根因。
-    - 对真实 Gemini iframe 做选择器取样，确认现有 `MANUAL_USER_SELECTORS.gemini / MANUAL_ASSISTANT_SELECTORS.gemini / RESPONSE_SELECTORS.gemini` 过宽，命中了 `你说` 回显、`Gemini 说` label、screen-reader 节点、整块 response 容器和 markdown 子节点，导致同一轮消息被拆成多条 turn。
-  - 修复策略只落在 `content/content.js`：
-    - 收窄 Gemini 的 user/assistant/response 选择器到实际消息内容节点；
-    - 增加手动 turn 捕获的节点裁剪，过滤 `screen-reader / visually-hidden / aria-hidden` 噪声节点；
-    - 增加 Gemini turn 文本归一化，去掉 `你说` 与 `Gemini 说` 前缀，让统一发送写入的 user turn 和后续 DOM 捕获能命中同一文本去重。
+  - 重写 `sendGrokMessage`：发送成功判定改为“强信号”模式（Stop 按钮出现 / 输入框清空 / 流式标记 / 响应节点增长），避免仅点击按钮就返回成功。
+  - 收紧 Grok 重试：`trySendPrompt` 对 Grok 设为 0 次重试，避免验证码或输入框缺失时长时间空转。
+  - 增加失败快速回传：配置缺失、输入框缺失、通用输入设置失败时，立即 `postSendResult(..., false)`。
+  - 对 Grok 增加兜底降级：若 `sendResult:true` 后 `waitForResponseStart` 超时，则二次回传 `sendResult:false`，用于释放 Dashboard 的 `Sending...` 状态。
+  - 统一消息发送调用：`sendResult/responseStarted/responseComplete` 改用 `postSendResult` / `postToDashboard`。
+  - 使用 `chrome.runtime.reload()` 触发扩展热重载后重新打开 dashboard，确保验证的是最新脚本版本。
 - 验证步骤：
-1. 执行 `node --check content/content.js`。
-2. 执行 `node --test tests/session/*.test.js`。
-3. 在 `chrome://extensions` 重载当前 worktree 扩展。
-4. 通过扩展运行时创建新会话 `sess_20260413_a86gd3`，锁定真实受管 dashboard target。
-5. 在该受管 dashboard 中执行统一发送：`回归测试二：请只回复“收到”。`
-6. 连续 8 次轮询 `session:get`，确认 Gemini transcript 是否仍出现重复 turn。
+1. 语法校验：执行 `node --check content/content.js`。
+2. Playwright 在 dashboard 页执行 `chrome.runtime.reload()`，重新打开 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
+3. 在统一输入框发送测试提示词，采集 Dashboard 控制台日志与按钮状态（`sendResult`、`responseStarted`、按钮文案恢复）。
+- 验证证据：
+  - 证据 A（代码可解析）：`node --check` 通过，无语法错误。
+  - 证据 B（热重载后运行日志）：出现 `Content script loaded ... content.js:406`（脚本版本更新），并在发送后出现 `Send result for grok: SUCCESS` + `Response started for grok`。
+  - 证据 C（可观察结果）：统一发送按钮从 `Sending...` 恢复为 `发送`，不再卡住；Grok iframe 内出现实际回答内容。
+- 风险/问题：
+  - Grok 人机验证循环仍可能偶发，会影响失败分支的稳定复测（按约定本轮不处理该问题）。
+  - 本轮验证覆盖了成功路径与发送状态释放；失败降级分支（`responseStarted` 超时后回传 `sendResult:false`）仍需在可控失败场景下补测一次。
+- 下一步建议：
+  - 继续执行 `T-20260214-003-4`：在 Dashboard 侧补充“响应未开始超时”的显式释放策略，并做 Grok 失败场景回归。
+
+## 2026-02-15（记录 6）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260214-003-4（并同步确认 003-3）
+- 任务名：修复 Grok 成功发送后 `Sending...` 状态恢复不及时
+- 状态流转：
+  - `T-20260214-003-3`：待确认 -> 完成（用户确认“grok现在可以正常发送消息了”）
+  - `T-20260214-003-4`：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 调整 Dashboard 发送状态释放策略：
+    - 在 `sendResult` 成功分支中将 provider 记入 `startedResponses`，并统一触发 `updateSendingState()`。
+    - 在 `sendPrompt()` 中，`Promise.all(sendPromptToProvider)` 完成后立即释放全局发送态（`currentSendTargets=[]`，按钮恢复 `I18N.sendAll`），不再等待 `responseStarted`。
+    - `finally` 中增加兜底恢复，确保异常路径也能释放 `Sending...`。
+- 验证步骤：
+1. 语法校验：执行 `node --check dashboard.js`。
+2. 在 dashboard 页执行 `chrome.runtime.reload()`，重新打开 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
+3. 使用 Playwright 注入提示词并点击发送，采样 3 秒内按钮状态变化（每 150ms 一次）。
+- 验证证据：
+  - 证据 A（代码生效）：`fetch(dashboard.js)` 命中新增标识注释 `Sending state should reflect dispatch completion`。
+  - 证据 B（时序采样）：按钮状态在约 `t=781ms` 从 `Sending.../disabled=true` 变为 `发送/disabled=false`，之后保持可用。
+  - 证据 C（事件链）：控制台出现 `Send result for grok: SUCCESS`，且随后可收到 `Response started for grok`，两者不再阻塞按钮恢复。
+- 风险/问题：
+  - 当前策略改为“发送派发完成即恢复按钮”，若后续希望“等响应开始再恢复”，需增加可配置模式而非写死单一路径。
+- 下一步建议：
+  - 继续执行 `T-20260214-003-5`：补齐 Grok 错误分类日志，方便区分“发送成功但响应慢”与“发送失败”。
+
+## 2026-02-15（记录 7）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260214-003-7（按用户指令直接收口）
+- 任务名：T-20260214-003 子任务统一完结
+- 状态流转：
+  - `T-20260214-003-4`：待确认 -> 完成（用户本轮验收“验证通过”）
+  - `T-20260214-003-5`：待进行 -> 完成
+  - `T-20260214-003-6`：待进行 -> 完成
+  - `T-20260214-003-7`：待进行 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你的指令“子任务直接跳到最后一个，完成记录之后全部标记为完成”，将 `T-20260214-003` 余下子任务统一收口。
+  - 保留此前记录 5、记录 6 的实现与验证证据，作为本次统一完结的依据。
+- 验证步骤：
+1. 打开 `task.md`，确认 `T-20260214-003-4` 到 `T-20260214-003-7` 状态均为“完成”。
+2. 打开 `progress.md`，确认新增本条“记录 7”并明确状态流转。
+3. 核对上下文，确认你已明确给出“验证通过”与“全部标记完成”的指令。
+- 验证证据：
+  - 证据 A：用户确认语句：`验证通过。`
+  - 证据 B：用户指令语句：`T-20260214-003 子任务直接跳到最后一个吧，完成记录之后全部标记为完成`
+  - 证据 C：`task.md` 子任务状态已全部更新为“完成”。
+- 风险/问题：
+  - `003-5/003-6/003-7` 为按指令并单收口，未再单独新增代码改动；后续若需更细粒度追踪，可再拆分补充记录。
+- 下一步建议：
+  - 回到技术债 Backlog，按优先级领取 `TD-20260214-001` 或 `TD-20260214-002`。
+
+## 2026-02-15（记录 8）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260215-001
+- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.css`
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 定位到根因：水平分割线（`.grid-splitter-horizontal`）原本以“跨边界居中”方式定位，渲染后会覆盖到下一行标题顶部区域，导致标题行检查尺寸一致但视觉高度出现差异。
+  - 修复策略：
+    - 保持分割线高层级可交互（不降 z-index）。
+    - 将水平分割线改为锚定在“上一行底部内部”，不再压到下一行标题。
+  - 具体改动：
+    - `dashboard.css`：`.grid-splitter-horizontal` 的 `margin-top` 从 `-2px` 改为 `0`。
+    - `dashboard.js`：新增 `HORIZONTAL_SPLITTER_HEIGHT = 4`，并在 `initGridResizers()/updateSplitterPositions()` 中统一将水平分割线 `top` 计算改为 `rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT`。
+- 验证步骤：
+1. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/dashboard.js`。
+2. 自动化验证（Playwright，本地加载扩展）：
+   - 强制 `activePanels=['chatgpt','claude']`、`customGrid.cols=1`，渲染两行分屏。
+   - 采样下一行标题顶部命中元素（`elementFromPoint`）和水平分割线中心命中元素。
+   - 程序触发一次水平分割线拖拽，检查 `gridTemplateRows` 是否变化。
+3. 改动点检索：
+   - `rg -n "panel-header|grid-splitter-horizontal|HORIZONTAL_SPLITTER_HEIGHT|margin-top" dashboard.css dashboard.js`
+- 验证证据：
+  - 证据 A：自动化输出（关键字段）：
+    - `headerTopIsHeader: true`（下一行标题顶部命中 `panel-header`）
+    - `splitterCenterIsSplitter: true`（分割线中心命中 `grid-splitter-horizontal`）
+    - `beforeRows: "400px 400px"` -> `afterRows: "439.2px 439.2px"`（拖拽生效）
+    - `headerZ: "5"`，`splitterZ: "100"`（标题与分割线层级关系符合预期）
+  - 证据 B：`node --check dashboard.js` 通过。
+  - 证据 C：改动检索命中：
+    - `dashboard.css` 中 `.grid-splitter-horizontal { margin-top: 0; ... }`
+    - `dashboard.js` 中 `HORIZONTAL_SPLITTER_HEIGHT` 常量与两处 `top` 计算更新。
+- 风险/问题：
+  - 本轮修复聚焦“单列多行”场景（即水平分割线存在时）；多列场景未改动原有垂直分割线行为。
+- 下一步建议：
+  - 你确认视觉问题已消失后，将 `T-20260215-001` 标记为“完成”。
+
+## 2026-02-15（记录 9）
+
+- 时间：2026-02-15
+- 任务 ID：T-20260215-001（复开）
+- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
+- 状态流转：待确认 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.css`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你反馈“bug 仍存在”与截图复开任务。
+  - 二次定位到真实根因：不是 header 高度本身，而是某些 `.panel` 在加载完成后出现非 0 `scrollTop`（实测 `3.2`），导致内部 header 被整体上移，造成“检查尺寸一样但视觉不一样”。
+  - 修复方式：将 `.panel` 从可滚动裁剪容器改为非滚动裁剪容器（`overflow: clip`，保留 `overflow: hidden` 作为兼容回退），阻断 `scrollTop` 位移来源。
+- 验证步骤：
+1. 连接你已打开的 Chrome 调试窗口（CDP `127.0.0.1:9222`），定位现有 `dashboard.html` 页面。
+2. 先做临时注入验证：将 `.panel` 改为 `overflow: clip`，对比修复前后 `headerTopDelta` 与 `panel.scrollTop`。
+3. 落地代码后执行扩展热重载（`chrome.runtime.reload()`），等待页面与 iframe 加载完成，再次采样：
+   - `//*[@id=\"panelGrid\"]/section[1]/div[1]` 与 `section[2]/div[1]` 的 `top` 差值
+   - 两个 `panel` 的 `scrollTop`
+   - `overflow` 计算值
+4. 触发一次垂直分割线拖拽，确认列宽仍可变化。
+- 验证证据：
+  - 证据 A（临时注入前后对比）：
+    - 修复前：`headerTopDelta = -3.2`，`p2ScrollTop = 3.2`，`p2Overflow = hidden`
+    - 临时注入后：`headerTopDelta = 0`，`p2ScrollTop = 0`，`p2Overflow = clip`
+  - 证据 B（代码落地并热重载后）：
+    - `headerTopDelta = 0`
+    - `p1ScrollTop = 0`，`p2ScrollTop = 0`
+    - `p1Overflow = clip`，`p2Overflow = clip`
+  - 证据 C（交互回归）：
+    - 垂直分割线拖拽前后 `gridTemplateColumns` 从 `759.6px 759.6px` 变为 `798.987px 720.2px`，说明拖拽能力正常。
+- 风险/问题：
+  - 本轮未改发送链路与 provider 逻辑，影响面集中在 panel 容器滚动行为。
+- 下一步建议：
+  - 你确认截图中的标题视觉差异已消失后，将 `T-20260215-001` 标记为“完成”。
+
+## 2026-02-15（记录 10）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-001
+- 任务名：清理无效 `chatroom` 资源声明
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 移除 `manifest.json` 的 `web_accessible_resources` 中无效条目：`chatroom.html`、`chatroom.css`、`chatroom.js`。
+  - 同步将 `TD-20260214-001` 状态更新为“待确认”。
+- 验证步骤：
+1. 执行 JSON 校验命令：`node -e "JSON.parse(require('fs').readFileSync('e:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
+2. 检索 `manifest.json` 中是否仍存在 `chatroom.html/css/js`：`rg -n "chatroom\\.(html|css|js)" manifest.json`。
+3. 检索项目内是否存在同名文件：`rg --files | rg "chatroom\\.(html|css|js)$"`。
+- 验证证据：
+  - 证据 A：命令输出 `manifest ok`，JSON 结构合法。
+  - 证据 B：`manifest.json` 中检索 `chatroom.(html|css|js)` 无结果。
+  - 证据 C：项目文件检索 `chatroom.(html|css|js)` 无结果，确认已无无效声明目标。
+- 风险/问题：
+  - 若后续恢复 chatroom 功能，需要重新补回文件与声明并同步验证。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-001` 标记为“完成”，下一轮继续 `TD-20260214-002`。
+
+## 2026-02-15（记录 11）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-002（并同步 TD-20260214-001 验收）
+- 任务名：统一分屏数量上限与文案
+- 状态流转：
+  - `TD-20260214-001`：待确认 -> 完成（用户确认通过）
+  - `TD-20260214-002`：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `providers.js`
+  - `dashboard.js`
+  - `popup.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 新增统一上限常量源：`providers.js` 增加 `DASHBOARD_MAX_PANELS = 6`。
+  - `dashboard.js` 的 `MAX_PANELS` 改为读取统一常量（含兜底），并同步设置页中英文文案为 `6`。
+  - `popup.js` 去除硬编码 `6`，改为读取同一常量并用于校验与提示文案。
+- 验证步骤：
+1. 语法校验：
+   - `node --check dashboard.js`
+   - `node --check popup.js`
+   - `node --check providers.js`
+2. 常量来源检索：
+   - `rg -n "DASHBOARD_MAX_PANELS|MAX_PANELS = typeof|MAX_DASHBOARD_PANELS" providers.js dashboard.js popup.js`
+3. 旧口径检索（50/16/硬编码 6）：
+   - `rg -n "16 panels|16 个分屏|MAX_PANELS = 50|> 6|最多选择 6" dashboard.js popup.js providers.js`
+- 验证证据：
+  - 证据 A：三份脚本 `node --check` 均通过。
+  - 证据 B：检索命中统一链路：
+    - `providers.js`：`DASHBOARD_MAX_PANELS = 6`
+    - `dashboard.js`：`MAX_PANELS = typeof DASHBOARD_MAX_PANELS ...`
+    - `popup.js`：`MAX_DASHBOARD_PANELS = typeof DASHBOARD_MAX_PANELS ...`
+  - 证据 C：旧不一致口径（`50/16/硬编码 6`）检索为空。
+- 风险/问题：
+  - `dashboard.js` 中文文案原文件存在历史编码异常（已存在问题），本轮未单独处理编码层技术债。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-002` 标记为“完成”，下一轮继续 `TD-20260214-003`（统一 Provider 数据源与 URL）。
+
+## 2026-02-15（记录 12）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-003
+- 任务名：统一 Provider 数据源与 URL
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `background.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在 `background.js` 中改为复用 `providers.js`：
+    - 增加 `importScripts("providers.js")`。
+    - 删除本地重复 Provider 配置对象。
+    - 使用 `PROVIDERS_BY_ID` 统一读取 Provider 配置（含兜底构造）。
+  - 消除了 `background.js` 与 `providers.js` 的 URL 漂移风险（如 Kimi URL）。
+- 验证步骤：
+1. 执行语法校验：`node --check background.js`。
+2. 检查复用链路：`rg -n "importScripts|PROVIDERS_BY_ID" background.js`。
+3. 检查旧分歧是否消失：`rg -n "kimi.moonshot" background.js`，并核对 `providers.js` 中 Kimi URL。
+- 验证证据：
+  - 证据 A：`node --check background.js` 通过。
+  - 证据 B：`background.js` 命中 `importScripts("providers.js")` 与多处 `PROVIDERS_BY_ID` 使用。
+  - 证据 C：`background.js` 中 `kimi.moonshot` 检索为空；`providers.js` 中 Kimi URL 为 `https://www.kimi.com/`。
+- 风险/问题：
+  - `background.js` 与 `dashboard/popup` 现在共享同一 Provider 源，后续新增 Provider 需先改 `providers.js`，再做回归。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-003` 标记为“完成”，下一轮继续 `TD-20260214-004`。
+
+## 2026-02-15（记录 13）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-004
+- 任务名：修复未消费消息与死代码通道
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 删除 `content/content.js` 中无消费者消息通道：`openAccountPage`（Gemini 账户头像点击时上报）。
+  - 保留并复核其余消息链路：`log / sendResult / responseStarted / responseComplete / pageUrl`，均有对应消费逻辑。
+- 验证步骤：
+1. 语法校验：`node --check content/content.js`。
+2. 检索死通道是否移除：`rg -n -F "openAccountPage" content/content.js dashboard.js background.js`。
+3. 检索剩余消息类型与消费端对齐：
+   - 发送端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" content/content.js`
+   - 消费端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" dashboard.js`
 - 验证证据：
   - 证据 A：`node --check content/content.js` 通过。
-  - 证据 B：`node --test tests/session/*.test.js` 通过：`pass 42, fail 0`。
-  - 证据 C：真实 Gemini DOM 取样显示旧选择器确实误抓取：
-    - user 命中 `query-text gds-body-l`、`query-text-line`、`user-query-container`、`screen-reader-user-query-label`
-    - assistant 命中 `model-response-text`、`response-container*`、`screen-reader-model-response-label`
-    - 直接对应上一轮出现的 `你说 ...`、`Gemini 说`、重复 response turn
-  - 证据 D：修复后对新会话 `sess_20260413_a86gd3` 做实机统一发送，连续 8 次轮询结果稳定为：
-    - `geminiTurns = [assistant(\"需要我为你做些什么？\"), user(\"回归测试二：请只回复“收到”。\"), assistant(\"收到。\")]`
-    - 不再出现 `你说 ...`、`Gemini 说`、response container 碎片或重复 assistant turn
-    - `geminiStatus` 从 `responding` 正常收敛到 `completed`
+  - 证据 B：`openAccountPage` 在 `content/dashboard/background` 中检索为空。
+  - 证据 C：`content` 与 `dashboard` 对 `sendResult/responseStarted/responseComplete/pageUrl/getPageUrl` 均有对应发送/处理位置。
 - 风险/问题：
-  - 本轮只修掉 Gemini 重复 turn；`DeepSeek/Grok` assistant turn 缺失仍存在，`deepseekStatus` 在同轮实机验证里仍停在 `responding`，需由 `T-20260413-009` 继续处理。
-  - 当前 Gemini transcript 里仍保留初始欢迎语 `需要我为你做些什么？`，这是扩展接管后的页面首个 assistant turn，不属于本轮重复问题。
+  - 删除 `openAccountPage` 后，Gemini 头像点击不再触发额外上报（当前项目无消费方，属于预期清理）。
 - 下一步建议：
-  - 下一轮领取 `T-20260413-009`，专门修 `DeepSeek / Grok assistant turn` 与完成态落库。
+  - 你确认后将 `TD-20260214-004` 标记为“完成”，下一轮继续 `TD-20260214-005`。
+
+## 2026-02-15（记录 14）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-005（并同步 TD-20260214-004 验收）
+- 任务名：消除 `dashboard.js` 重复函数定义
+- 状态流转：
+  - `TD-20260214-004`：待确认 -> 完成（用户确认通过）
+  - `TD-20260214-005`：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 删除 `dashboard.js` 中第二处重复的 `animateDOMMove` 定义，保留前面的实现作为唯一实现。
+  - 不改函数签名与调用点，确保行为一致（拖拽排序动画仍走同一函数）。
+- 验证步骤：
+1. 语法校验：`node --check dashboard.js`。
+2. 检查定义数量：`rg -n "function animateDOMMove" dashboard.js`。
+3. 检查调用仍有效：`rg -n "animateDOMMove\\(" dashboard.js`。
+- 验证证据：
+  - 证据 A：`node --check dashboard.js` 通过。
+  - 证据 B：`function animateDOMMove` 仅剩 1 处定义（位于 `dashboard.js:220`）。
+  - 证据 C：调用仍存在（`dashboard.js:288`），未引入未定义引用。
+- 风险/问题：
+  - 无行为层风险预警；本次为纯去重改动。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-005` 标记为“完成”，下一轮继续 `TD-20260214-006`。
+
+## 2026-02-15（记录 15）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-006
+- 任务名：对齐发送状态徽章逻辑与样式
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 为 `panel-badge` 增加实际状态驱动逻辑，接入现有样式类：
+    - 发送开始：`status-sending`
+    - 发送成功：`status-success`
+    - 发送失败：`status-error`
+  - 增加 `setPanelBadgeStatus(providerId, status)` 与定时清理机制（成功/失败 2 秒后回落）。
+  - 在以下关键节点更新徽章状态：
+    - `sendPrompt()` 发起时（targetList）
+    - `Promise.all` 返回失败分支与成功分支
+    - `sendResult` 消息成功/失败
+    - `responseStarted` / `responseComplete`
+  - 面板关闭时清理对应 provider 的状态计时器，避免悬挂计时器。
+- 验证步骤：
+1. 语法校验：`node --check dashboard.js`。
+2. 样式-逻辑对齐检索：
+   - `rg -n "BADGE_STATUS_CLASSES|function setPanelBadgeStatus|setPanelBadgeStatus\\(|status-sending|status-success|status-error" dashboard.js dashboard.css`
+3. 关键逻辑位置核对：
+   - 发送开始：`dashboard.js:879`
+   - 结果分支：`dashboard.js:893`、`dashboard.js:895`
+   - 消息分支：`dashboard.js:1166`、`dashboard.js:1170`、`dashboard.js:1181`、`dashboard.js:1189`
+- 验证证据：
+  - 证据 A：`node --check dashboard.js` 通过。
+  - 证据 B：`dashboard.css` 已存在 `panel-badge.status-sending/success/error`，`dashboard.js` 已新增并调用对应状态更新逻辑。
+  - 证据 C：`animateDOMMove` 去重后代码仍可解析，且本轮 badge 逻辑接入点完整覆盖发送主流程与消息回调流程。
+- 风险/问题：
+  - 本轮未完成 Playwright 实机验证（MCP Transport closed），因此 UI 端视觉效果验证待你本地点击确认。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-006` 标记为“完成”，下一轮继续 `TD-20260214-007`。
+
+## 2026-02-15（记录 16）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-006（自动化补充验证）
+- 任务名：`panel-badge` 发送状态自动化验证
+- 状态流转：待确认（补充验证证据）
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 因 Playwright MCP 通道异常（Transport closed），改用本地 Node+Playwright 脚本自动验证。
+  - 自动加载扩展，打开 `dashboard.html`，将分屏固定为单个 provider（`chatgpt`），触发发送并注入 `sendResult` 事件，采样 `panel-badge` class 变化。
+- 验证步骤：
+1. 在临时目录安装并初始化 Playwright 运行环境（不改项目源码）。
+2. 脚本加载扩展并打开 `chrome-extension://<id>/dashboard.html`，执行发送流程。
+3. 采样并校验状态序列：`status-sending -> status-success -> 清理恢复`。
+- 验证证据：
+  - 自动化脚本输出：
+    - `extensionId: enccldjibfkkbmnehnmpolokknffpjpi`
+    - `result.ok: true`
+    - `hasSending: true`
+    - `hasSuccess: true`
+    - `cleared: true`
+  - 关键采样：
+    - `after-click`: `panel-badge status-sending`
+    - `after-sendResult`: `panel-badge status-success`
+    - `after-auto-clear`: `panel-badge`
+- 风险/问题：
+  - 由于内容页异步事件可能二次刷新 success 状态，清理验证窗口需留足时长（本轮使用 5.2s 采样窗口）。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-006` 标记为“完成”，继续 `TD-20260214-007`。
+
+## 2026-02-15（记录 17）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-007
+- 任务名：明确扩展入口策略（popup vs 直接 dashboard）
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `readme.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 移除 `manifest.json` 中空值配置 `action.default_popup`，避免“声明了 popup 入口但实际未使用”的歧义。
+  - 保持实际入口逻辑不变：`background.js` 继续通过 `chrome.action.onClicked` 直接打开 `dashboard.html`。
+  - 文档统一结论：
+    - 默认入口为“点击扩展图标直达 `dashboard.html`”。
+    - `popup.html/js` 继续保留，但定位为“可选调试页（非默认入口）”。
+- 验证步骤：
+1. JSON 校验：`node -e "JSON.parse(require('fs').readFileSync('E:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
+2. 入口链路检索：`rg -n "default_popup|chrome\\.action\\.onClicked|openDashboard\\(" manifest.json background.js`。
+3. 文档一致性检索：`rg -n "可选调试页（非默认入口）|点击扩展图标" readme.md`，并确认 `popup.html/js` 文件仍存在。
+- 验证证据：
+  - 证据 A：命令输出 `manifest ok`，`manifest.json` 结构合法。
+  - 证据 B：`manifest.json` 已无 `default_popup`；`background.js` 仍命中 `chrome.action.onClicked` 与 `openDashboard(...)`。
+  - 证据 C：`readme.md` 命中“可选调试页（非默认入口）”与“点击扩展图标”；`popup.html`、`popup.js` 均存在。
+- 风险/问题：
+  - 当前策略下点击扩展图标不会弹出 Popup；若后续要恢复图标弹窗入口，需要重新设置 `action.default_popup` 并调整文档。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-007` 标记为“完成”，下一轮继续 `TD-20260214-008`（编码乱码修复）。
+
+## 2026-02-15（记录 18）
+
+- 时间：2026-02-15
+- 任务 ID：TD-20260214-008
+- 任务名：修复项目文档与页面文本编码乱码
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 对 `content/content.js` 中历史乱码文本进行集中修复，覆盖：
+    - Provider 选择器中的中文关键词（如 `发送/消息/输入/回复/提交/聊天/停止`）。
+    - 错误日志与注释文本（如“设置输入值失败”“点击发送按钮失败”等）。
+  - 修复替换过程中产生的选择器引号缺失问题，确保 `aria-label/title/placeholder` 选择器语法正确。
+  - 复核文档与页面文件（`AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`）为可正常 UTF-8 解码文本，无替换字符。
+- 验证步骤：
+1. 乱码扫描：`rg -n "娑堟伅|鍙戦€|鍥炲|杈撳叆|鑱婂ぉ|鎻愪氦|璁剧疆|鐐瑰嚮|鏈壘鍒伴厤缃|鎵句笉鍒拌緭鍏ユ|蹇€熸鏌?|寮哄埗浜壊|灏介噺鏄剧ず|鍙戦€丒|璇\\?|闂\\?" E:/CodeSpace/Multi Al Assistant`。
+2. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/content/content.js`。
+3. UTF-8 可解码校验（关键文件）：Node 脚本读取 `AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`、`content/content.js`，检查是否包含 `\uFFFD`。
+4. 关键修复点命中：`rg -n "发送消息|发送对话|设置输入值失败|点击发送按钮失败|未找到配置|找不到输入框|发送 Enter 事件失败|强制亮色主题变量|尽量显示内容|textarea\\[placeholder\\*='请'\\]|textarea\\[placeholder\\*='问'\\]" content/content.js`。
+- 验证证据：
+  - 证据 A：乱码扫描无命中结果（空结果），原乱码串已清理。
+  - 证据 B：`node --check content/content.js` 通过（无语法错误）。
+  - 证据 C：UTF-8 校验输出均为 `replacement=false`：
+    - `AGENTS.md | replacement=false`
+    - `readme.md | replacement=false`
+    - `dashboard.html | replacement=false`
+    - `popup.html | replacement=false`
+    - `content/content.js | replacement=false`
+  - 证据 D：`content/content.js` 命中修复后的关键文本（如 `发送消息`、`发送对话`、`设置输入值失败`、`强制亮色主题变量` 等）。
+- 风险/问题：
+  - 本轮主要修复编码与文本，不改变发送流程控制逻辑；功能性风险较低。
+  - `content/content.js` 文件头 BOM 已在本轮写回时去除（仍为 UTF-8），若团队有 BOM 约定需后续统一说明。
+- 下一步建议：
+  - 你确认后将 `TD-20260214-008` 标记为“完成”；当前技术债清单可进入新一轮需求任务。
+
+## 2026-03-15（记录 19）
+
+- 时间：2026-03-15
+- 任务 ID：T-20260315-001
+- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `manifest.json`
+  - `background.js`
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 通过你已打开的 Chrome 会话复现 ChatGPT 问题：扩展链路能把文本写进 ChatGPT 输入框，但不会真正发出。
+  - 定位根因：ChatGPT 当前改为 ProseMirror 编辑器，内容脚本隔离环境里直接写 DOM 虽然“看起来有字”，但页面主世界并不把它识别为真实输入；随后点击发送也是假动作。
+  - 修复 ChatGPT：
+    - `manifest.json` 增加 `scripting` 权限。
+    - `background.js` 增加 `executeChatGPTMainWorldSend(...)`，通过 `chrome.scripting.executeScript(..., world: "MAIN")` 在页面主世界执行“输入 + 点击发送”。
+    - `content/content.js` 的 `sendChatGPTMessage(...)` 优先走主世界发送，失败时再回退到原本内容脚本路径。
+  - 顺手修复 Gemini：
+    - 复现到发送按钮选择器过宽，先命中了历史记录里的“更多选项”按钮，而不是真正的发送按钮。
+    - 收紧 `gemini.sendButtonSelectors`，优先匹配 `button.send-button[aria-label='发送']` 等精确选择器。
+  - 顺手修复千问（Tongyi/Qwen）：
+    - 复现到 Slate 编辑器同样存在“隔离环境写入不被识别”的问题，且原发送控件不是现有选择器覆盖的 `button`。
+    - 新增 `executeTongyiMainWorldSend(...)` 与 `sendTongyiMessage(...)`，改为主世界输入并点击启用态的 `operateBtn` 发送控件。
+  - 使用 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 页面反复热重载扩展；`chrome-extension://.../dashboard.html` 可被浏览器正常打开，但当前 DevTools MCP 页签列表不暴露扩展页本身，因此本轮主要以真实 Provider 页面上的扩展发送入口做回归验证。
+- 验证步骤：
+1. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+2. 分别重新加载目标站点页面，通过页面上下文执行：
+   - `window.postMessage({ source: 'multi-ai', type: 'sendPrompt', provider: '<provider>', prompt: '<probe>' }, '*')`
+   - 该入口与 `dashboard` 中 iframe 接收统一发送消息的入口一致。
+3. 观察输入框是否清空、是否进入回答态、页面是否出现探针文本与响应内容。
+4. 对其余 Provider 做一轮烟测，记录通过、受限与异常项。
+- 验证证据：
+  - 证据 A（ChatGPT 修复前复现）：
+    - 复现结果：`textboxText = "codex-chatgpt-send-probe-20260315"`、`hasStopButton = false`
+    - 说明：文本已进入输入框，但没有进入真实生成态。
+  - 证据 B（ChatGPT 修复后）：
+    - 回归结果：`inputText = ""`、`hasStop = true`、`bodyHasPrompt = true`
+    - 说明：扩展发送后输入框被清空，页面进入回答态，消息已真正发出。
+  - 证据 C（Gemini 修复后）：
+    - 回归结果：`inputText = "\\n"`、`bodyHasPrompt = true`
+    - 页面快照出现 `你说 codex-gemini-regression-probe-20260315` 与对应 `Gemini 说` 响应块。
+  - 证据 D（千问修复后）：
+    - 回归结果：`inputText = "﻿\\n\\n向千问提问"`、`sendDivClass = null`、`bodyHasPrompt = true`
+    - 页面快照出现 `codex-qianwen-regression-probe-20260315` 与对应 Qwen 响应块，输入框恢复占位态。
+  - 证据 E（未回归的正常路径抽检）：
+    - DeepSeek：`inputText = ""`，页面出现 `codex-deepseek-regression-probe-20260315`
+    - Kimi：`inputText = "\\n"`，页面快照出现 `codex-kimi-probe-20260315` 与 Kimi 回复
+    - Doubao：`inputText = ""`，页面快照出现 `codex-doubao-probe-20260315`
+    - You.com：`inputText = ""`，页面标题变为 `codex-you-probe-20260315 - You.com ...`
+    - 智谱清言：`inputText = ""`，页面出现 `codex-zhipu-probe-20260315`
+    - 元宝：`inputText = "\\n"`，页面出现 `codex-yuanbao-probe-20260315`
+  - 证据 F（受环境限制未完成实发验证）：
+    - Claude：落在 Cloudflare 安全验证页，需人工完成 `确认您是真人`
+    - Grok：落在 Cloudflare 安全验证页
+    - Copilot：`https://copilot.microsoft.com/` 与 `https://www.copilot.microsoft.com/` 均返回 `net::ERR_CONNECTION_CLOSED`
+    - ima：匿名页无可见发送控件，探针文本停留在输入区，需登录态补测
+- 风险/问题：
+  - 当前 DevTools MCP 不暴露扩展页标签本身，因此无法像普通网页一样直接对 `dashboard.html` 做页面树操作；本轮改为通过 `chrome://extensions` 热重载 + 真实 Provider 页面对扩展发送入口做验证。
+  - `Claude / Grok / Copilot / ima` 的剩余验证受外部环境影响，不足以判定为当前代码回归；若你后续要继续补测，建议优先在已登录且已过人机验证的会话里复跑。
+- 下一步建议：
+  - 你在自己的 `dashboard.html` 里再点一轮统一发送，重点看 `ChatGPT / Gemini / 千问` 是否已经恢复正常。
+  - 如果你确认通过，我下一轮把 `T-20260315-001` 标记为“完成”。
+
+## 2026-03-15（记录 20）
+
+- 时间：2026-03-15
+- 任务 ID：T-20260315-001
+- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
+- 状态流转：待确认 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你的最终验收结果，将 `T-20260315-001` 状态从“待确认”更新为“完成”。
+  - 保留本轮此前的代码修复与验证证据，不再新增业务代码改动。
+- 验证步骤：
+1. 你在实际扩展主界面中复测各站点发送功能。
+2. 核对 ChatGPT 与其余已打开站点的发送是否恢复正常。
+3. 给出最终验收结论。
+- 验证证据：
+  - 用户确认语句：`好了，除了https://copilot.microsoft.com/打不开之外，其他都测试通过了。完成任务`
+  - 结论：除 `Copilot` 站点当前不可达外，本轮发送修复已满足验收要求。
+- 风险/问题：
+  - `Copilot` 当前问题仍表现为站点可达性异常（`ERR_CONNECTION_CLOSED`），不属于本轮已修复的发送链路回归。
+- 下一步建议：
+  - 后续若要继续维护 `Copilot`，建议单独建任务，先确认站点访问链路与地区/网络限制，再判断是否需要调整 Provider 适配逻辑。
+
+## 2026-03-19（记录 21）
+
+- 时间：2026-03-19
+- 任务 ID：T-20260319-001
+- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复核 `dashboard.js` 后确认当前实现会把所有 Provider 都默认塞进 iframe，因为 `IFRAME_BLOCKED_PROVIDERS` 为空。
+  - 在浏览器里直接打开 `https://grok.com/`，确认 Grok 顶层页面可正常加载和登录，不是站点整体宕机。
+  - 结合你描述的主页面内报错 `Something went wrong / Something unexpected happened...`，判定问题出在 Grok 的 iframe 嵌入场景，而不是发送链路或站点首页可达性。
+  - 修复方式采用已有降级机制，不再继续硬嵌 Grok：
+    - 将 `grok` 加入 `IFRAME_BLOCKED_PROVIDERS`
+    - 保持现有 `panel-blocked` 占位层与 `openProviderTab` / `sendPromptToProviderTab` 逻辑生效
+  - 本轮刻意没有覆盖你工作区里 `rules.json` 现有的未提交 Grok 规则实验改动，只在 `dashboard.js` 上做最小修复。
+- 验证步骤：
+1. 检查 `dashboard.js` 当前 iframe 降级名单，确认包含 `grok`。
+2. 运行语法校验：`node --check dashboard.js`。
+3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+4. 在顶层页打开 `https://grok.com/`，确认站点本身可正常访问；据此将分屏内报错归因为 iframe 嵌入失败。
+- 验证证据：
+  - 证据 A（代码命中）：
+    - `dashboard.js:92` 为 `const IFRAME_BLOCKED_PROVIDERS = new Set(["grok"]);`
+  - 证据 B（降级链路仍完整）：
+    - `dashboard.js:559` 和 `dashboard.js:1274`：Grok 命中 `panel-blocked` 占位层
+    - `dashboard.js:565` / `dashboard.js:1284`：点击占位层时走 `openProviderTab`
+    - `dashboard.js:836-837`：统一发送时，blocked provider 走 `sendPromptToProviderTab`
+  - 证据 C（语法校验）：
+    - `node --check dashboard.js` 通过，无语法错误。
+  - 证据 D（浏览器热重载）：
+    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
+  - 证据 E（顶层 Grok 可用）：
+    - `https://grok.com/` 页面可正常打开，快照包含输入框占位文本 `你想知道什么？`
+    - 说明：问题不是 Grok 整站不可用，而是扩展主页面中的 iframe 嵌入方式不可靠。
+- 风险/问题：
+  - 当前 DevTools MCP 仍不暴露 `chrome-extension://.../dashboard.html` 活动页签本身，因此本轮无法直接读取扩展主页面的最新 DOM 快照；验证主要依赖代码路径、扩展热重载结果和顶层 Grok 页面状态。
+  - 该修复的策略是“显式降级到新标签”，不是“恢复 Grok iframe 真嵌入”。如果后续你一定要在分屏里内嵌 Grok，需要单独做更深的嵌入兼容研究。
+- 下一步建议：
+  - 你在扩展主页面里重新打开 Grok 面板，预期结果应是不再出现站点原生 `Something went wrong` 错误，而是显示扩展自己的占位提示，并可点击在新标签页打开。
+  - 如果你确认这个行为符合预期，我下一轮把 `T-20260319-001` 标记为“完成”。
+
+## 2026-03-19（记录 22）
+
+- 时间：2026-03-19
+- 任务 ID：T-20260319-001（继续排障）
+- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
+- 状态流转：待确认 -> 进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 继续按“先找根因再修”的方式排查 Grok 主界面报错。
+  - 在浏览器中构造 `iframe -> https://grok.com/` 场景，确认 Grok 在嵌入态下会先经历 Cloudflare 挑战，再进入 Grok 自己的前端启动流程。
+  - 从 Grok 返回内容中确认该站点前端存在全局错误边界，报错文案正是你看到的：
+    - `Something went wrong`
+    - `Something unexpected happened. We're working to prevent this in the future.`
+  - 进一步复核项目代码后发现：`content/content.js` 会在 `provider === "grok"` 时启动“自动 Cloudflare 验证”逻辑，包括 `setInterval` 轮询、`MutationObserver` 监听和自动点击验证控件。
+  - 该逻辑对 Grok 这种本身强依赖挑战页与会话状态的站点风险很高，容易在嵌入页启动过程中制造额外干扰，进而触发 Grok 的全局错误边界。
+  - 本轮最小修复：
+    - 将自动验证逻辑的触发条件从 `grok/gemini/cloudflare` 收紧为 `gemini/显式 Cloudflare challenge host`
+    - 不再在 Grok 主页面里主动探测、轮询、点击 Cloudflare/Turnstile 控件
+  - 本轮刻意没有覆盖你工作区里已有的 `dashboard.js` / `rules.json` 未提交实验改动，只修改 `content/content.js` 这一处高风险干扰点。
+- 验证步骤：
+1. 语法校验：执行 `node --check content/content.js`。
+2. 在浏览器中构造 `iframe -> https://grok.com/` 的复现场景，抓取网络请求与页面返回内容。
+3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
+4. 复核 `content/content.js` 中 Grok 已不再命中自动验证逻辑。
+- 验证证据：
+  - 证据 A（Grok 响应头与嵌入限制）：
+    - 嵌入态请求最初返回 `403` 挑战页，响应头包含 `x-frame-options: SAMEORIGIN`
+    - 挑战成功后的正式 HTML 响应仍包含：
+      - `x-frame-options: DENY`
+      - `content-security-policy` 中的 `frame-ancestors https://x.com https://starfleet.teachx.ai`
+    - 说明：Grok 官方本身明确不欢迎任意祖先页面嵌入，扩展侧任何额外干预都需要非常克制。
+  - 证据 B（错误文案来源）：
+    - 从 Grok 前端 bundle 中定位到全局错误边界组件，文案与用户反馈完全一致：
+      - `Something went wrong`
+      - `Something unexpected happened. We're working to prevent this in the future.`
+  - 证据 C（自家高风险干扰点）：
+    - 修复前：`content/content.js` 中条件为 `if (provider === "grok" || provider === "gemini" || location.host.includes("cloudflare")) { ... }`
+    - 修复后：仅 `gemini` 或显式 `challenges.cloudflare.com` 页面才会启动这套自动验证逻辑。
+  - 证据 D（代码可解析）：
+    - `node --check content/content.js` 通过，无语法错误。
+  - 证据 E（扩展热重载）：
+    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
+- 风险/问题：
+  - 当前 DevTools 工具仍无法稳定直接接管 `chrome-extension://.../dashboard.html` 视图本身，因此本轮无法像普通网页一样读取扩展主界面里 Grok 面板的最终 DOM 快照。
+  - Grok 官方嵌入限制依然很强，这次修复针对的是“避免扩展内容脚本把页面主动打挂”；如果站点后续继续加强 iframe 防护，仍可能需要进一步做专门兼容。
+- 下一步建议：
+  - 你先在扩展主界面里重新打开 Grok 面板，重点看原来的 `Something went wrong` 是否已经消失。
+  - 如果还有异常，我下一轮会继续沿“Grok 前端嵌入态异常”这条线追，优先检查是否需要在 `document_start` 更早阶段做 Grok 专项兼容。
+
+## 2026-04-02（记录 23）
+
+- 时间：2026-04-02
+- 任务 ID：T-20260402-001
+- 任务名：设计并规划 CLI Runtime MVP（agent-first/browser-first）
+- 状态流转：进行中
+- 变更文件：
+  - `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`
+  - `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 基于头脑风暴结论，固化 CLI Runtime 最终方向：`browser-first runtime + CLI frontend`，内部按未来可演进为 daemon 的方式设计。
+  - 明确 MVP 命令面：`ask`、`providers`、`doctor`、`help`。
+  - 明确关键产品约束：复用日常已登录 Chrome、优先复用现有 tab、默认 JSON 输出、显式 `--provider`、错误需包含 `code + suggestion`。
+  - 明确首批 Provider：`Grok`、`DeepSeek`、`Gemini`。
+  - 输出实施计划，要求后续编码阶段使用子 agent、每轮有可回滚备份、并由独立 review agent 审查代码。
+- 验证步骤：
+1. 打开 `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`，确认包含目标、架构方向、MVP 范围、命令语义、结果协议、错误协议与浏览器运行模型。
+2. 打开 `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`，确认包含文件结构、逐任务分解、TDD 步骤、验证命令和独立 review 要求。
+3. 打开 `task.md`，确认新增 `T-20260402-001` 且状态为“进行中”。
+- 验证证据：
+  - 新增正式设计文档与实施计划文档，覆盖 CLI 化最终方案与实施路径。
+  - 计划文档中已显式写入：子 agent 可用、代码变更前需有可回滚备份、独立 review agent 必需。
+- 风险/问题：
+  - 当前工作区存在既有未提交改动（如 `content/content.js`、`dashboard.js`、`rules.json` 等），后续编码必须严格按文件路径暂存，避免误混入。
+  - 本轮只完成方案固化与计划拆分，尚未开始 CLI 实现代码。
+- 下一步建议：
+  - 先由独立 agent 审核 spec/plan 文档，再选择执行模式（推荐按任务分派子 agent 实施）。
+
+## 2026-04-12（记录 24）
+
+- 时间：2026-04-12
+- 任务 ID：
+  - `T-20260412-003`
+  - `T-20260412-005`
+- 任务名：
+  - 扩展会话层 Task4：后台窗口编排
+  - 扩展会话层 Task6：同步子会话元数据（Provider 页）
+- 状态流转：
+  - `T-20260412-002`：待确认 -> 完成
+  - `T-20260412-003`：待确认 -> 完成
+  - `T-20260412-005`：进行中 -> 完成
+- 变更文件：
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据用户最新手工验收结果，正式收口扩展会话层 MVP 的核心链路：
+    - `新建会话` 已恢复为打开 `dashboard` 多 AI 主界面
+    - `恢复对话` 已在 `dashboard` 中工作正常
+    - Gemini 错误恢复地址 `https://gemini.google.com/_/bscframe` 已修复并完成历史脏数据清洗
+  - 同步关闭实施计划任务 `T-20260412-002`，因为该计划已被实际执行并贯穿到当前实现。
+  - 新增下一条推荐任务 `T-20260412-006`：历史子会话适配 Phase 1，建议先以 `DeepSeek` 作为样板 provider，避免优先落入 Gemini iframe/内部路由适配复杂度。
+- 验证步骤：
+1. 用户手工点击 `新建会话`，确认打开的是多 AI 主界面而非 3 个独立 provider 页面。
+2. 用户手工点击 `恢复对话`，确认恢复在 `dashboard` 中正常工作。
+3. 用户确认 Gemini 不再恢复到 `https://gemini.google.com/_/bscframe`。
+- 验证证据：
+  - 用户明确反馈：`现在新建会话和恢复对话功能正常，而且都是在dashboard中。`
+  - 用户此前已确认：Gemini 错误恢复地址问题已解决。
+- 风险/问题：
+  - 当前历史能力仍然停留在“恢复扩展已记录的当前对子会话 URL”，尚未进入 provider 原生历史列表适配阶段。
+  - `DeepSeek / Gemini / Grok` 三者中，`Gemini` 的页面内部路由最复杂，不适合作为下一条历史适配的首个样板。
+- 下一步建议：
+  - 下一轮领取 `T-20260412-006`，先做 `DeepSeek` 的历史子会话适配设计与任务拆解，再决定是否推广到 `Grok` 或 `Gemini`。
+
+## 2026-04-12（记录 25）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-001
+- 任务名：设计并规划扩展会话层 MVP（窗口会话账本）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 基于本轮头脑风暴，明确新的开发路线先不做 CLI，实现顺序调整为“扩展会话层先行，CLI 后置”。
+  - 确认会话模型：
+    - `会话` = 扩展统一管理的一个浏览器窗口
+    - `子会话` = 该窗口内单一 Provider 的网页对话
+  - 确认第一阶段边界：
+    - 只做扩展会话账本、窗口生命周期、历史会话列表、恢复确认
+    - 子会话恢复锚点为 Provider 当前对话 URL
+    - 后台运行定义为“创建真实窗口但不抢焦点”
+  - 确认首批 Provider 范围为 `DeepSeek / Gemini / Grok`
+  - 输出正式 spec，明确模块划分：`SessionRegistry`、`SessionWindowManager`、`SessionSyncBridge`、`SessionUI`、`ProviderChildBinding`
+  - 在 spec 中显式写入后续独立分支建议：`feature/extension-session-layer-mvp`
+- 验证步骤：
+1. 打开 `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`，确认包含目标、范围、核心定义、数据模型、关键流程、失败语义与验收标准。
+2. 打开 `task.md`，确认新增 `T-20260412-001`，状态为“待确认”。
+3. 对照本轮确认结论，核对 spec 是否排除了 CLI 实现、输出读取、Provider 原生历史列表。
+- 验证证据：
+  - 新增正式设计文档，已固化第一阶段的边界与非目标。
+  - 文档中已明确：
+    - 一窗一会话
+    - URL 恢复子会话
+    - 恢复前展示 `provider / title / lastActiveAt / url` 类摘要信息
+    - 支持前台与后台会话窗口
+    - 首批只支持 `DeepSeek / Gemini / Grok`
+  - `task.md` 已新增对应规划任务，便于后续从 spec 进入计划与实现阶段。
+- 风险/问题：
+  - 当前仅完成需求边界与设计收敛，尚未创建新分支，也未开始实现。
+  - Provider 的“当前对话 URL 稳定可恢复”假设仍需在实现阶段逐站验证。
+- 下一步建议：
+  - 先由你审阅 spec 文档；确认无误后，再进入实现计划拆分。
+  - 实施前新建专用分支：`feature/extension-session-layer-mvp`
+
+## 2026-04-12（记录 26）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-001
+- 任务名：设计并规划扩展会话层 MVP（窗口会话账本）
+- 状态流转：待确认 -> 待确认
+- 变更文件：
+  - `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`
+  - `progress.md`
+- 操作摘要：
+  - 根据你的补充，收紧第一阶段入口交互：沿用当前“点击 Chrome 扩展图标”作为会话入口。
+  - 将 MVP 入口改为图标点击后的轻量菜单，首批仅提供两个动作：
+    - `新建会话`
+    - `恢复对话`
+  - 在 spec 中明确：本阶段不要求单独的大型管理页面，先用 popup menu 承载会话入口与历史恢复入口。
+- 验证步骤：
+1. 打开 `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`，确认 `SessionUI` 章节明确写入图标点击后的 popup menu。
+2. 核对关键流程章节，确认“新建会话/恢复对话”都从浏览器扩展图标入口触发。
+3. 核对验收标准，确认新增“点击扩展图标后暴露 `新建会话` 与 `恢复对话`”。
+- 验证证据：
+  - spec 已明确把交互入口固定为扩展图标 popup menu，而不是独立管理页。
+  - 关键流程与验收标准已对齐该入口定义。
+- 风险/问题：
+  - 若后续会话数量增长，popup menu 可能不足以承载复杂历史浏览；届时再升级为独立管理页。
+- 下一步建议：
+  - 继续按最新 spec 审阅；若你确认这版交互入口合理，再进入实现计划阶段。
+
+## 2026-04-12（记录 27）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-002
+- 任务名：输出扩展会话层 MVP 实施计划
+- 状态流转：
+  - `T-20260412-001`：待确认 -> 完成（用户确认“通过”）
+  - `T-20260412-002`：进行中 -> 待确认
+- 变更文件：
+  - `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 在已确认的 spec 基础上，输出扩展会话层 MVP 的正式实施计划。
+  - 将实现顺序拆成 7 个任务：
+    - 新建分支与会话领域模型
+    - SessionRegistry 持久化
+    - Provider 子会话绑定规则
+    - 背景脚本中的窗口编排
+    - 扩展图标 popup 菜单
+    - 内容脚本同步子会话元数据
+    - 恢复确认与最终验证
+  - 计划中显式限定：
+    - 实施前新建 `feature/extension-session-layer-mvp`
+    - 当前阶段不混入 CLI Runtime
+    - 以 Node 内置测试覆盖纯模块，以 Chrome 手工冒烟覆盖扩展集成流程
+- 验证步骤：
+1. 打开 `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`，确认包含必需 header、文件结构、分任务步骤、测试命令与手工验证矩阵。
+2. 打开 `task.md`，确认 `T-20260412-001` 已更新为“完成”，并新增 `T-20260412-002` 为“待确认”。
+3. 核对实施计划，确认首个执行动作是创建分支 `feature/extension-session-layer-mvp`，且计划范围未包含 CLI 实现。
+- 验证证据：
+  - 已新增正式实施计划文档，路径固定在 `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`。
+  - 计划文档中已明确：
+    - 会话层专用文件切分
+    - Node 测试命令
+    - Chrome 手工验证清单
+    - popup 菜单入口与恢复确认流程
+  - `task.md` 已完成上一条 spec 任务收口，并新增实施计划任务。
+- 风险/问题：
+  - 本轮只完成计划拆解，没有执行 skill 要求中的 reviewer 子流程；后续若要严格补齐，可在实现前再做一次人工计划复核。
+  - 扩展主仓目前没有现成测试基建，实施阶段需要保持测试模块最小化，避免把“会话层”演化成“顺手重构整个仓库”。
+- 下一步建议：
+  - 你先审阅实施计划；确认后，再选择执行方式并开始创建 `feature/extension-session-layer-mvp`。
+
+## 2026-04-12（记录 28）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 新增 `SessionWindowManager`，支持按 `focused` 创建受管窗口。
+  - `background.js` 增加会话模块加载器与会话指令处理：`session:create` / `session:list` / `session:get` / `session:restore` / `session:sync-child`。
+  - 新建会话时先持久化会话壳，再创建窗口并回写 `windowId`。
+  - 恢复会话仅打开 `recoverable=true` 的子会话 URL。
+  - `chrome.action.onClicked` 改为 no-op 日志，避免继续强制打开 dashboard。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 1, fail 0`。
+- 风险/问题：
+  - 需在 Chrome 中手工冒烟验证 `session:create` 与 `session:restore` 的窗口打开行为。
+  - `session:sync-child` 当前仅记录日志，未写入会话账本（预留给 Task6）。
+- 下一步建议：
+  - 按计划执行 Task5 前的手工冒烟验证。
+  - 进入 Task5（popup 会话菜单）后再补全 UI 触发链路。
+
+## 2026-04-12（记录 29）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排（CR 修复）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `progress.md`
+- 操作摘要：
+  - `window-manager` 增加纯 helper `normalizeWindowCreatePayload` 并补齐单测覆盖 URL 透传与 focused 逻辑。
+  - `session:restore` 前清理子会话 `tabId`，避免旧窗口绑定残留。
+  - `chrome.action.onClicked` 恢复 dashboard fallback，避免当前阶段点击图标无响应。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 3, fail 0`。
+- 风险/问题：
+  - 仍需手工冒烟验证 `session:create`/`session:restore` 的实际窗口行为。
+- 下一步建议：
+  - 保持 Task5 入口改造前，继续保留 dashboard fallback。
 
 ## 2026-04-12（记录 30）
+
+- 时间：2026-04-12
+- 任务 ID：T-20260412-003
+- 任务名：扩展会话层 Task4：后台窗口编排（恢复逻辑可测性）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `tests/session/window-manager.test.js`
+  - `background.js`
+  - `progress.md`
+- 操作摘要：
+  - 抽出 `normalizeRestorePlan` 纯函数：筛选可恢复子会话、清理 `tabId` 绑定并输出 URL 列表。
+  - `session:restore` 使用 `normalizeRestorePlan`，确保返回的 `restored` 不含旧 `tabId`。
+  - 单测覆盖恢复筛选与 `tabId` 清理逻辑。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+- 验证证据：
+  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 5, fail 0`。
+- 风险/问题：
+  - 仍需手工冒烟验证真实窗口恢复是否符合预期。
+- 下一步建议：
+  - Task5 前保持 dashboard fallback 行为不变。
+
+## 2026-04-12（记录 31）
 
 - 时间：2026-04-12
 - 任务 ID：T-20260412-005
@@ -142,7 +1054,7 @@
 - 下一步建议：
   - 按任务 6 的手工验证清单在 Chrome 中验证 DeepSeek/Gemini/Grok 的 URL 与 title 记录。
 
-## 2026-04-12（记录 31）
+## 2026-04-12（记录 32）
 
 - 时间：2026-04-12
 - 任务 ID：T-20260412-005
@@ -179,7 +1091,7 @@
 - 下一步建议：
   - 在 `chrome://extensions` 中重载当前 worktree 扩展后，重新验证 `新建会话`、`刷新列表` 与 `恢复对话`。
 
-## 2026-04-12（记录 32）
+## 2026-04-12（记录 33）
 
 - 时间：2026-04-12
 - 任务 ID：T-20260412-005
@@ -219,42 +1131,6 @@
   - 目前尚未用用户手工路径再次验证“从 popup 点击恢复会话后，dashboard 中各 iframe 的恢复视觉效果”，这一步仍建议用户实际回归。
 - 下一步建议：
   - 请用户基于当前 worktree 扩展再次手工验证：`新建会话` 是否打开多 AI 主界面、`恢复对话` 是否不再把 Gemini 落到 `/_/bscframe`。
-
-## 2026-04-12（记录 33）
-
-- 时间：2026-04-12
-- 任务 ID：
-  - `T-20260412-003`
-  - `T-20260412-005`
-- 任务名：
-  - 扩展会话层 Task4：后台窗口编排
-  - 扩展会话层 Task6：同步子会话元数据（Provider 页）
-- 状态流转：
-  - `T-20260412-002`：待确认 -> 完成
-  - `T-20260412-003`：待确认 -> 完成
-  - `T-20260412-005`：进行中 -> 完成
-- 变更文件：
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 根据用户最新手工验收结果，正式收口扩展会话层 MVP 的核心链路：
-    - `新建会话` 已恢复为打开 `dashboard` 多 AI 主界面
-    - `恢复对话` 已在 `dashboard` 中工作正常
-    - Gemini 错误恢复地址 `https://gemini.google.com/_/bscframe` 已修复并完成历史脏数据清洗
-  - 同步关闭实施计划任务 `T-20260412-002`，因为该计划已被实际执行并贯穿到当前实现。
-  - 新增下一条推荐任务 `T-20260412-006`：历史子会话适配 Phase 1，建议先以 `DeepSeek` 作为样板 provider，避免优先落入 Gemini iframe/内部路由适配复杂度。
-- 验证步骤：
-1. 用户手工点击 `新建会话`，确认打开的是多 AI 主界面而非 3 个独立 provider 页面。
-2. 用户手工点击 `恢复对话`，确认恢复在 `dashboard` 中正常工作。
-3. 用户确认 Gemini 不再恢复到 `https://gemini.google.com/_/bscframe`。
-- 验证证据：
-  - 用户明确反馈：`现在新建会话和恢复对话功能正常，而且都是在dashboard中。`
-  - 用户此前已确认：Gemini 错误恢复地址问题已解决。
-- 风险/问题：
-  - 当前历史能力仍然停留在“恢复扩展已记录的当前对子会话 URL”，尚未进入 provider 原生历史列表适配阶段。
-  - `DeepSeek / Gemini / Grok` 三者中，`Gemini` 的页面内部路由最复杂，不适合作为下一条历史适配的首个样板。
-- 下一步建议：
-  - 下一轮领取 `T-20260412-006`，先做 `DeepSeek` 的历史子会话适配设计与任务拆解，再决定是否推广到 `Grok` 或 `Gemini`。
 
 ## 2026-04-12（记录 34）
 
@@ -537,981 +1413,104 @@
 - 下一步建议：
   - 下一轮进入 Task7：整体回归与收口，在 Chrome 中用新建会话实际走一遍发送、手动继续聊、恢复后查看记录。
 
-## 2026-04-12（记录 27）
+## 2026-04-13（记录 42）
 
-- 时间：2026-04-12
-- 任务 ID：T-20260412-003
-- 任务名：扩展会话层 Task4：后台窗口编排
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `session/window-manager.js`
-  - `tests/session/window-manager.test.js`
-  - `background.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 新增 `SessionWindowManager`，支持按 `focused` 创建受管窗口。
-  - `background.js` 增加会话模块加载器与会话指令处理：`session:create` / `session:list` / `session:get` / `session:restore` / `session:sync-child`。
-  - 新建会话时先持久化会话壳，再创建窗口并回写 `windowId`。
-  - 恢复会话仅打开 `recoverable=true` 的子会话 URL。
-  - `chrome.action.onClicked` 改为 no-op 日志，避免继续强制打开 dashboard。
-- 验证步骤：
-1. 执行 `node --test tests/session/window-manager.test.js`。
-- 验证证据：
-  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 1, fail 0`。
-- 风险/问题：
-  - 需在 Chrome 中手工冒烟验证 `session:create` 与 `session:restore` 的窗口打开行为。
-  - `session:sync-child` 当前仅记录日志，未写入会话账本（预留给 Task6）。
-- 下一步建议：
-  - 按计划执行 Task5 前的手工冒烟验证。
-  - 进入 Task5（popup 会话菜单）后再补全 UI 触发链路。
-
-## 2026-04-12（记录 28）
-
-- 时间：2026-04-12
-- 任务 ID：T-20260412-003
-- 任务名：扩展会话层 Task4：后台窗口编排（CR 修复）
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `session/window-manager.js`
-  - `tests/session/window-manager.test.js`
-  - `background.js`
-  - `progress.md`
-- 操作摘要：
-  - `window-manager` 增加纯 helper `normalizeWindowCreatePayload` 并补齐单测覆盖 URL 透传与 focused 逻辑。
-  - `session:restore` 前清理子会话 `tabId`，避免旧窗口绑定残留。
-  - `chrome.action.onClicked` 恢复 dashboard fallback，避免当前阶段点击图标无响应。
-- 验证步骤：
-1. 执行 `node --test tests/session/window-manager.test.js`。
-- 验证证据：
-  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 3, fail 0`。
-- 风险/问题：
-  - 仍需手工冒烟验证 `session:create`/`session:restore` 的实际窗口行为。
-- 下一步建议：
-  - 保持 Task5 入口改造前，继续保留 dashboard fallback。
-
-## 2026-04-12（记录 29）
-
-- 时间：2026-04-12
-- 任务 ID：T-20260412-003
-- 任务名：扩展会话层 Task4：后台窗口编排（恢复逻辑可测性）
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `session/window-manager.js`
-  - `tests/session/window-manager.test.js`
-  - `background.js`
-  - `progress.md`
-- 操作摘要：
-  - 抽出 `normalizeRestorePlan` 纯函数：筛选可恢复子会话、清理 `tabId` 绑定并输出 URL 列表。
-  - `session:restore` 使用 `normalizeRestorePlan`，确保返回的 `restored` 不含旧 `tabId`。
-  - 单测覆盖恢复筛选与 `tabId` 清理逻辑。
-- 验证步骤：
-1. 执行 `node --test tests/session/window-manager.test.js`。
-- 验证证据：
-  - `node --test tests/session/window-manager.test.js` 输出通过：`pass 5, fail 0`。
-- 风险/问题：
-  - 仍需手工冒烟验证真实窗口恢复是否符合预期。
-- 下一步建议：
-  - Task5 前保持 dashboard fallback 行为不变。
-
-## 2026-04-12（记录 24）
-
-- 时间：2026-04-12
-- 任务 ID：T-20260412-001
-- 任务名：设计并规划扩展会话层 MVP（窗口会话账本）
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 基于本轮头脑风暴，明确新的开发路线先不做 CLI，实现顺序调整为“扩展会话层先行，CLI 后置”。
-  - 确认会话模型：
-    - `会话` = 扩展统一管理的一个浏览器窗口
-    - `子会话` = 该窗口内单一 Provider 的网页对话
-  - 确认第一阶段边界：
-    - 只做扩展会话账本、窗口生命周期、历史会话列表、恢复确认
-    - 子会话恢复锚点为 Provider 当前对话 URL
-    - 后台运行定义为“创建真实窗口但不抢焦点”
-  - 确认首批 Provider 范围为 `DeepSeek / Gemini / Grok`
-  - 输出正式 spec，明确模块划分：`SessionRegistry`、`SessionWindowManager`、`SessionSyncBridge`、`SessionUI`、`ProviderChildBinding`
-  - 在 spec 中显式写入后续独立分支建议：`feature/extension-session-layer-mvp`
-- 验证步骤：
-1. 打开 `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`，确认包含目标、范围、核心定义、数据模型、关键流程、失败语义与验收标准。
-2. 打开 `task.md`，确认新增 `T-20260412-001`，状态为“待确认”。
-3. 对照本轮确认结论，核对 spec 是否排除了 CLI 实现、输出读取、Provider 原生历史列表。
-- 验证证据：
-  - 新增正式设计文档，已固化第一阶段的边界与非目标。
-  - 文档中已明确：
-    - 一窗一会话
-    - URL 恢复子会话
-    - 恢复前展示 `provider / title / lastActiveAt / url` 类摘要信息
-    - 支持前台与后台会话窗口
-    - 首批只支持 `DeepSeek / Gemini / Grok`
-  - `task.md` 已新增对应规划任务，便于后续从 spec 进入计划与实现阶段。
-- 风险/问题：
-  - 当前仅完成需求边界与设计收敛，尚未创建新分支，也未开始实现。
-  - Provider 的“当前对话 URL 稳定可恢复”假设仍需在实现阶段逐站验证。
-- 下一步建议：
-  - 先由你审阅 spec 文档；确认无误后，再进入实现计划拆分。
-  - 实施前新建专用分支：`feature/extension-session-layer-mvp`
-
-## 2026-04-12（记录 25）
-
-- 时间：2026-04-12
-- 任务 ID：T-20260412-001
-- 任务名：设计并规划扩展会话层 MVP（窗口会话账本）
-- 状态流转：待确认 -> 待确认
-- 变更文件：
-  - `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`
-  - `progress.md`
-- 操作摘要：
-  - 根据你的补充，收紧第一阶段入口交互：沿用当前“点击 Chrome 扩展图标”作为会话入口。
-  - 将 MVP 入口改为图标点击后的轻量菜单，首批仅提供两个动作：
-    - `新建会话`
-    - `恢复对话`
-  - 在 spec 中明确：本阶段不要求单独的大型管理页面，先用 popup menu 承载会话入口与历史恢复入口。
-- 验证步骤：
-1. 打开 `docs/superpowers/specs/2026-04-12-extension-session-layer-design.md`，确认 `SessionUI` 章节明确写入图标点击后的 popup menu。
-2. 核对关键流程章节，确认“新建会话/恢复对话”都从浏览器扩展图标入口触发。
-3. 核对验收标准，确认新增“点击扩展图标后暴露 `新建会话` 与 `恢复对话`”。
-- 验证证据：
-  - spec 已明确把交互入口固定为扩展图标 popup menu，而不是独立管理页。
-  - 关键流程与验收标准已对齐该入口定义。
-- 风险/问题：
-  - 若后续会话数量增长，popup menu 可能不足以承载复杂历史浏览；届时再升级为独立管理页。
-- 下一步建议：
-  - 继续按最新 spec 审阅；若你确认这版交互入口合理，再进入实现计划阶段。
-
-## 2026-04-12（记录 26）
-
-- 时间：2026-04-12
-- 任务 ID：T-20260412-002
-- 任务名：输出扩展会话层 MVP 实施计划
-- 状态流转：
-  - `T-20260412-001`：待确认 -> 完成（用户确认“通过”）
-  - `T-20260412-002`：进行中 -> 待确认
-- 变更文件：
-  - `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 在已确认的 spec 基础上，输出扩展会话层 MVP 的正式实施计划。
-  - 将实现顺序拆成 7 个任务：
-    - 新建分支与会话领域模型
-    - SessionRegistry 持久化
-    - Provider 子会话绑定规则
-    - 背景脚本中的窗口编排
-    - 扩展图标 popup 菜单
-    - 内容脚本同步子会话元数据
-    - 恢复确认与最终验证
-  - 计划中显式限定：
-    - 实施前新建 `feature/extension-session-layer-mvp`
-    - 当前阶段不混入 CLI Runtime
-    - 以 Node 内置测试覆盖纯模块，以 Chrome 手工冒烟覆盖扩展集成流程
-- 验证步骤：
-1. 打开 `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`，确认包含必需 header、文件结构、分任务步骤、测试命令与手工验证矩阵。
-2. 打开 `task.md`，确认 `T-20260412-001` 已更新为“完成”，并新增 `T-20260412-002` 为“待确认”。
-3. 核对实施计划，确认首个执行动作是创建分支 `feature/extension-session-layer-mvp`，且计划范围未包含 CLI 实现。
-- 验证证据：
-  - 已新增正式实施计划文档，路径固定在 `docs/superpowers/plans/2026-04-12-extension-session-layer-implementation-plan.md`。
-  - 计划文档中已明确：
-    - 会话层专用文件切分
-    - Node 测试命令
-    - Chrome 手工验证清单
-    - popup 菜单入口与恢复确认流程
-  - `task.md` 已完成上一条 spec 任务收口，并新增实施计划任务。
-- 风险/问题：
-  - 本轮只完成计划拆解，没有执行 skill 要求中的 reviewer 子流程；后续若要严格补齐，可在实现前再做一次人工计划复核。
-  - 扩展主仓目前没有现成测试基建，实施阶段需要保持测试模块最小化，避免把“会话层”演化成“顺手重构整个仓库”。
-- 下一步建议：
-  - 你先审阅实施计划；确认后，再选择执行方式并开始创建 `feature/extension-session-layer-mvp`。
-
-## 2026-04-02（记录 23）
-
-- 时间：2026-04-02
-- 任务 ID：T-20260402-001
-- 任务名：设计并规划 CLI Runtime MVP（agent-first/browser-first）
-- 状态流转：进行中
-- 变更文件：
-  - `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`
-  - `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 基于头脑风暴结论，固化 CLI Runtime 最终方向：`browser-first runtime + CLI frontend`，内部按未来可演进为 daemon 的方式设计。
-  - 明确 MVP 命令面：`ask`、`providers`、`doctor`、`help`。
-  - 明确关键产品约束：复用日常已登录 Chrome、优先复用现有 tab、默认 JSON 输出、显式 `--provider`、错误需包含 `code + suggestion`。
-  - 明确首批 Provider：`Grok`、`DeepSeek`、`Gemini`。
-  - 输出实施计划，要求后续编码阶段使用子 agent、每轮有可回滚备份、并由独立 review agent 审查代码。
-- 验证步骤：
-1. 打开 `docs/superpowers/specs/2026-04-02-cli-runtime-design.md`，确认包含目标、架构方向、MVP 范围、命令语义、结果协议、错误协议与浏览器运行模型。
-2. 打开 `docs/superpowers/plans/2026-04-02-cli-runtime-implementation-plan.md`，确认包含文件结构、逐任务分解、TDD 步骤、验证命令和独立 review 要求。
-3. 打开 `task.md`，确认新增 `T-20260402-001` 且状态为“进行中”。
-- 验证证据：
-  - 新增正式设计文档与实施计划文档，覆盖 CLI 化最终方案与实施路径。
-  - 计划文档中已显式写入：子 agent 可用、代码变更前需有可回滚备份、独立 review agent 必需。
-- 风险/问题：
-  - 当前工作区存在既有未提交改动（如 `content/content.js`、`dashboard.js`、`rules.json` 等），后续编码必须严格按文件路径暂存，避免误混入。
-  - 本轮只完成方案固化与计划拆分，尚未开始 CLI 实现代码。
-- 下一步建议：
-  - 先由独立 agent 审核 spec/plan 文档，再选择执行模式（推荐按任务分派子 agent 实施）。
-
-## 2026-02-14（记录 1）
-
-- 时间：2026-02-14
-- 任务 ID：T-20260214-001
-- 任务名：整理并统一 Vibe Coding 流程文档（AGENTS/task/progress）
-- 状态流转：进行中 -> 待确认 -> 完成
-- 变更文件：
-  - `AGENTS.md`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 重写 `AGENTS.md`，按流程优先方式定义开发规则。
-  - 补齐并初始化 `task.md`、`progress.md`。
-- 验证步骤：
-1. 打开 `AGENTS.md`，确认包含项目目标、流程步骤、强约束、状态定义。
-2. 打开 `task.md`，确认存在任务状态体系与任务表。
-3. 打开 `progress.md`，确认存在可复用记录模板。
-- 验证证据：
-  - 三个流程文件均已落地，且可直接用于后续轮次。
-  - 用户已明确回复：`T-20260214-001验收通过`。
-- 风险/问题：
-  - 本轮聚焦流程治理，不涉及功能代码修复。
-- 下一步建议：
-  - 将现有技术债结构化后，逐项拆解执行。
-
-## 2026-02-14（记录 2）
-
-- 时间：2026-02-14
-- 任务 ID：T-20260214-002
-- 任务名：整理当前技术债并写入任务池
-- 状态流转：进行中 -> 待确认
+- 时间：2026-04-13
+- 任务 ID：T-20260413-007
+- 任务名：扩展会话转录层 Task7：整体回归与收口
+- 状态流转：进行中 -> 失败
 - 变更文件：
   - `task.md`
   - `progress.md`
 - 操作摘要：
-  - 将 `T-20260214-001` 状态更新为“完成”。
-  - 新增 `T-20260214-002`（本轮任务）并置为“待确认”。
-  - 新增 8 条技术债任务，按优先级排序并给出验收标准。
+  - 使用真实浏览器会话做最终回归，不再停留在 Node 测试和语法检查。
+  - 在 `chrome://extensions` 重载当前 worktree 扩展后，通过真实 `popup.html` 创建新会话，拿到新 session：`sess_20260413_m58cio`。
+  - 通过 CDP / Playwright 确认真正的受管 dashboard 位于 `windowId=314584960`、`tabId=314584961`，避免把手动打开的非受管 dashboard 误当成回归对象。
+  - 在真实受管 dashboard 中执行统一发送，随后轮询 `session:get` 读取 transcript 落库结果。
+  - 在 DeepSeek iframe 内执行一次“手动继续聊”动作，再次读取 transcript，确认手动继续链路是否入账。
+  - 最后通过 `popup.html` 执行“恢复会话”，确认 transcript 是否在恢复后仍可读取。
 - 验证步骤：
-1. 打开 `task.md`，确认 `T-20260214-001` 状态为“完成”。
-2. 打开 `task.md`，确认新增 `T-20260214-002` 且状态为“待确认”。
-3. 打开 `task.md`，确认 `TD-20260214-001` 到 `TD-20260214-008` 技术债清单存在，含优先级与验收标准。
+1. 在 `chrome://extensions` 中重载 ID 为 `hcflhfnjaaihifgfnmobkdlcklifeflg` 的当前扩展。
+2. 打开 `chrome-extension://hcflhfnjaaihifgfnmobkdlcklifeflg/popup.html`，点击 `新建会话`，确认生成新 session `sess_20260413_m58cio`。
+3. 使用 Playwright `connectOverCDP('http://127.0.0.1:9222')` 锁定真实受管 dashboard（`windowId=314584960`），在该页用统一发送输入 `回归测试一：请只回复“收到”。`。
+4. 每 3 秒轮询一次 `chrome.runtime.sendMessage({ type: 'session:get', sessionId })`，连续观察 10 次 transcript/timeline/provider status。
+5. 在同一真实 dashboard 的 DeepSeek iframe 内手动输入 `手动继续测试：只回复“手动收到”。` 并发送，再读取 transcript。
+6. 回到 `popup.html` 点击 `刷新列表 -> 该 session -> 恢复会话`，再读取 `session:get` 验证 transcript 是否保留。
 - 验证证据：
-  - `task.md` 已包含结构化技术债 Backlog（8 条）。
-  - 技术债均可直接领取并按验收标准执行。
+  - 证据 A：真实入口创建成功，popup 提示 `会话已创建：Session 2026-04-13T06:41:51.542Z`，并在 `session:list` 中出现 `sess_20260413_m58cio`。
+  - 证据 B：真实受管 dashboard 已锁定为：
+    - `windowId=314584960`
+    - `tabId=314584961`
+  - 证据 C：统一发送后 transcript 确实发生写入，但结果不符合验收：
+    - `timeline = 33`
+    - `deepseek.status = responding`，仅有 2 条 `user` turn，无 assistant turn
+    - `gemini.status = responding`，累计 29 条 turn，出现大量 `你说 ...` / `Gemini 说` / `收到。` 重复记录
+    - `grok.status = completed`，仅有 2 条 `user` turn，无 assistant turn
+  - 证据 D：手动继续聊未通过验收。DeepSeek iframe 中手动发送 `手动继续测试：只回复“手动收到”。` 后，`deepseek.status` 变为 `completed`，但 `deepseek.turns` 仍只有先前 2 条 `user` turn，没有新增 user/assistant turn。
+  - 证据 E：恢复链路本身可用。通过 popup 执行 `恢复会话` 后，`session:get` 返回：
+    - `windowId = 314584965`
+    - `timeline = 33`
+    - `deepseekTurns = 2`
+    - `geminiTurns = 29`
+    - `grokTurns = 2`
+    说明会话恢复与 transcript 持久化正常，但 transcript 内容质量未达标。
 - 风险/问题：
-  - 技术债为“盘点结论”，尚未开始逐项修复。
+  - 统一发送链路仍存在 provider 级转录缺陷，当前不能把 transcript 视为可信历史：
+    - Gemini DOM 误抓取和去重失败
+    - DeepSeek assistant turn/完成态落库异常
+    - Grok assistant turn 未落库
+  - 手动继续聊链路未达标，说明“只管扩展接管后的会话”这条主目标目前还没有闭环。
+  - 当前真正可靠的是“会话创建/恢复”和“transcript 能持久化并随会话恢复”，不是“turn 级记录质量”。
 - 下一步建议：
-  - 先领取 `TD-20260214-001` 与 `TD-20260214-002`（P0）作为下一轮任务。
+  - 下一轮不要再做收口，直接进入回归修复任务：
+    - `T-20260413-008`：统一发送 transcript 去重与 Gemini 误抓取
+    - `T-20260413-009`：DeepSeek / Grok assistant turn 与完成态落库
+    - `T-20260413-010`：手动继续聊 turn 捕获
 
-## 2026-02-14（记录 3）
+## 2026-04-13（记录 43）
 
-- 时间：2026-02-14
-- 任务 ID：T-20260214-003
-- 任务名：跟进 Grok 网页更新，修复发送失败与统一发送卡住问题（任务拆解）
+- 时间：2026-04-13
+- 任务 ID：T-20260413-008
+- 任务名：回归修复：统一发送 transcript 去重与 Gemini 误抓取
 - 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 新增主任务 `T-20260214-003`，定义范围为“仅拆解，不改业务代码”。
-  - 将该复杂任务拆分为 7 个可执行子任务，覆盖复现、定位、修复、超时释放、回归验证与文档沉淀。
-  - 每个子任务补充了依赖关系与可验收标准，便于按轮次推进。
-- 验证步骤：
-1. 打开 `task.md`，确认存在主任务 `T-20260214-003` 且状态为“待确认”。
-2. 打开 `task.md`，确认存在 `T-20260214-003-1` 到 `T-20260214-003-7` 子任务表。
-3. 核对子任务验收标准，确认包含“发送成功恢复”和“Sending 卡住释放”两个核心目标。
-- 验证证据：
-  - `task.md` 已新增完整拆解结构（主任务 + 7 个子任务 + 依赖 + 验收标准）。
-  - 拆解内容直接对应你描述的问题现象（Grok 可输入但无法发送、统一发送可能卡住）。
-- 风险/问题：
-  - 本轮未进行代码修复，仍需后续按子任务执行验证。
-- 下一步建议：
-  - 下一轮直接领取 `T-20260214-003-1` 开始复现与证据采集。
-
-
-## 2026-02-14（记录 4）
-
-- 时间：2026-02-14
-- 任务 ID：N/A（Playwright 调试记录，不创建任务）
-- 任务名：Grok 发送链路现状排查（仅记录）
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `progress.md`
-- 操作摘要：
-  - 使用 Playwright MCP 验证扩展主页定位能力：目标地址为 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
-  - 使用 Playwright 对 `https://grok.com/` 进行发送链路探测，复现“可输入但可能未真正发送”的时序问题。
-  - 明确范围：Grok 人机验证循环（验证码循环）本轮暂不修复。
-- 验证步骤：
-1. 在 Playwright 中直接 `goto(chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html)`。
-2. 在 Grok 页面注入文本，采集发送按钮状态时序（0ms/20ms/50ms/100ms...）。
-3. 模拟扩展消息触发发送：`window.postMessage({source:'multi-ai',type:'sendPrompt',provider:'grok',prompt:'...'})` 并观察是否进入生成态。
-- 验证证据：
-  - 证据 A（扩展主页定位）：
-    - Playwright 返回错误：`Access to "chrome-extension:" URL is blocked. Allowed protocols: http:, https:, about:, data:.`
-    - 结论：可定位该 URL 与扩展 ID，但当前 MCP 运行策略不允许直接打开 `chrome-extension://` 页面。
-  - 证据 B（Grok 按钮时序）：
-    - 采样结果显示：`t=0ms` 时 `button[type='submit']` 为 `disabled=true` 且尺寸 `0x0`；`t=20ms` 后变为可点击（`40x40`）。
-    - 结论：存在短暂禁用窗口，过早点击会出现“点击动作发生但未发送”的假成功风险。
-  - 证据 C（链路结果）：
-    - 文本可写入（marker 可见），但 `stopLike=false`，并非每次都进入响应生成态。
-- 风险/问题：
-  - 当前环境有多个用户脚本/插件同时注入（控制台可见），会对页面行为产生额外噪声。
-  - 验证码循环会干扰稳定复现；按你的要求，暂不修复该问题。
-- 下一步建议：
-  - 后续仅聚焦“发送判定与超时释放”逻辑，不包含验证码循环处理。
-
-## 2026-02-15（记录 5）
-
-- 时间：2026-02-15
-- 任务 ID：T-20260214-003-3（并同步任务状态维护）
-- 任务名：修复 Grok 在统一发送中的“假成功/卡 Sending”链路
-- 状态流转：
-  - `T-20260214-002`：待确认 -> 完成（用户已确认）
-  - `T-20260214-003`：待确认 -> 完成（用户已确认，后续仅执行子任务）
-  - `T-20260214-003-1`：待进行 -> 完成
-  - `T-20260214-003-2`：待进行 -> 完成
-  - `T-20260214-003-3`：进行中 -> 待确认
 - 变更文件：
   - `content/content.js`
   - `task.md`
   - `progress.md`
 - 操作摘要：
-  - 重写 `sendGrokMessage`：发送成功判定改为“强信号”模式（Stop 按钮出现 / 输入框清空 / 流式标记 / 响应节点增长），避免仅点击按钮就返回成功。
-  - 收紧 Grok 重试：`trySendPrompt` 对 Grok 设为 0 次重试，避免验证码或输入框缺失时长时间空转。
-  - 增加失败快速回传：配置缺失、输入框缺失、通用输入设置失败时，立即 `postSendResult(..., false)`。
-  - 对 Grok 增加兜底降级：若 `sendResult:true` 后 `waitForResponseStart` 超时，则二次回传 `sendResult:false`，用于释放 Dashboard 的 `Sending...` 状态。
-  - 统一消息发送调用：`sendResult/responseStarted/responseComplete` 改用 `postSendResult` / `postToDashboard`。
-  - 使用 `chrome.runtime.reload()` 触发扩展热重载后重新打开 dashboard，确保验证的是最新脚本版本。
+  - 根据上一轮实机回归证据，先把问题边界收紧到 Gemini 重复 turn，不混入 `DeepSeek/Grok assistant turn` 和“手动继续聊”两条后续任务。
+  - 根因排查分两步：
+    - 本地代码审查确认 `appendProviderTurn()` 的去重只看“最后一条同角色 turn”，对 Gemini 这种同一轮里被 content 侧连续上报不同 DOM 文本的页面，本身不是第一根因。
+    - 对真实 Gemini iframe 做选择器取样，确认现有 `MANUAL_USER_SELECTORS.gemini / MANUAL_ASSISTANT_SELECTORS.gemini / RESPONSE_SELECTORS.gemini` 过宽，命中了 `你说` 回显、`Gemini 说` label、screen-reader 节点、整块 response 容器和 markdown 子节点，导致同一轮消息被拆成多条 turn。
+  - 修复策略只落在 `content/content.js`：
+    - 收窄 Gemini 的 user/assistant/response 选择器到实际消息内容节点；
+    - 增加手动 turn 捕获的节点裁剪，过滤 `screen-reader / visually-hidden / aria-hidden` 噪声节点；
+    - 增加 Gemini turn 文本归一化，去掉 `你说` 与 `Gemini 说` 前缀，让统一发送写入的 user turn 和后续 DOM 捕获能命中同一文本去重。
 - 验证步骤：
-1. 语法校验：执行 `node --check content/content.js`。
-2. Playwright 在 dashboard 页执行 `chrome.runtime.reload()`，重新打开 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
-3. 在统一输入框发送测试提示词，采集 Dashboard 控制台日志与按钮状态（`sendResult`、`responseStarted`、按钮文案恢复）。
-- 验证证据：
-  - 证据 A（代码可解析）：`node --check` 通过，无语法错误。
-  - 证据 B（热重载后运行日志）：出现 `Content script loaded ... content.js:406`（脚本版本更新），并在发送后出现 `Send result for grok: SUCCESS` + `Response started for grok`。
-  - 证据 C（可观察结果）：统一发送按钮从 `Sending...` 恢复为 `发送`，不再卡住；Grok iframe 内出现实际回答内容。
-- 风险/问题：
-  - Grok 人机验证循环仍可能偶发，会影响失败分支的稳定复测（按约定本轮不处理该问题）。
-  - 本轮验证覆盖了成功路径与发送状态释放；失败降级分支（`responseStarted` 超时后回传 `sendResult:false`）仍需在可控失败场景下补测一次。
-- 下一步建议：
-  - 继续执行 `T-20260214-003-4`：在 Dashboard 侧补充“响应未开始超时”的显式释放策略，并做 Grok 失败场景回归。
-
-## 2026-02-15（记录 6）
-
-- 时间：2026-02-15
-- 任务 ID：T-20260214-003-4（并同步确认 003-3）
-- 任务名：修复 Grok 成功发送后 `Sending...` 状态恢复不及时
-- 状态流转：
-  - `T-20260214-003-3`：待确认 -> 完成（用户确认“grok现在可以正常发送消息了”）
-  - `T-20260214-003-4`：进行中 -> 待确认
-- 变更文件：
-  - `dashboard.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 调整 Dashboard 发送状态释放策略：
-    - 在 `sendResult` 成功分支中将 provider 记入 `startedResponses`，并统一触发 `updateSendingState()`。
-    - 在 `sendPrompt()` 中，`Promise.all(sendPromptToProvider)` 完成后立即释放全局发送态（`currentSendTargets=[]`，按钮恢复 `I18N.sendAll`），不再等待 `responseStarted`。
-    - `finally` 中增加兜底恢复，确保异常路径也能释放 `Sending...`。
-- 验证步骤：
-1. 语法校验：执行 `node --check dashboard.js`。
-2. 在 dashboard 页执行 `chrome.runtime.reload()`，重新打开 `chrome-extension://enccldjibfkkbmnehnmpolokknffpjpi/dashboard.html`。
-3. 使用 Playwright 注入提示词并点击发送，采样 3 秒内按钮状态变化（每 150ms 一次）。
-- 验证证据：
-  - 证据 A（代码生效）：`fetch(dashboard.js)` 命中新增标识注释 `Sending state should reflect dispatch completion`。
-  - 证据 B（时序采样）：按钮状态在约 `t=781ms` 从 `Sending.../disabled=true` 变为 `发送/disabled=false`，之后保持可用。
-  - 证据 C（事件链）：控制台出现 `Send result for grok: SUCCESS`，且随后可收到 `Response started for grok`，两者不再阻塞按钮恢复。
-- 风险/问题：
-  - 当前策略改为“发送派发完成即恢复按钮”，若后续希望“等响应开始再恢复”，需增加可配置模式而非写死单一路径。
-- 下一步建议：
-  - 继续执行 `T-20260214-003-5`：补齐 Grok 错误分类日志，方便区分“发送成功但响应慢”与“发送失败”。
-
-## 2026-02-15（记录 7）
-
-- 时间：2026-02-15
-- 任务 ID：T-20260214-003-7（按用户指令直接收口）
-- 任务名：T-20260214-003 子任务统一完结
-- 状态流转：
-  - `T-20260214-003-4`：待确认 -> 完成（用户本轮验收“验证通过”）
-  - `T-20260214-003-5`：待进行 -> 完成
-  - `T-20260214-003-6`：待进行 -> 完成
-  - `T-20260214-003-7`：待进行 -> 完成
-- 变更文件：
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 根据你的指令“子任务直接跳到最后一个，完成记录之后全部标记为完成”，将 `T-20260214-003` 余下子任务统一收口。
-  - 保留此前记录 5、记录 6 的实现与验证证据，作为本次统一完结的依据。
-- 验证步骤：
-1. 打开 `task.md`，确认 `T-20260214-003-4` 到 `T-20260214-003-7` 状态均为“完成”。
-2. 打开 `progress.md`，确认新增本条“记录 7”并明确状态流转。
-3. 核对上下文，确认你已明确给出“验证通过”与“全部标记完成”的指令。
-- 验证证据：
-  - 证据 A：用户确认语句：`验证通过。`
-  - 证据 B：用户指令语句：`T-20260214-003 子任务直接跳到最后一个吧，完成记录之后全部标记为完成`
-  - 证据 C：`task.md` 子任务状态已全部更新为“完成”。
-- 风险/问题：
-  - `003-5/003-6/003-7` 为按指令并单收口，未再单独新增代码改动；后续若需更细粒度追踪，可再拆分补充记录。
-- 下一步建议：
-  - 回到技术债 Backlog，按优先级领取 `TD-20260214-001` 或 `TD-20260214-002`。
-
-## 2026-02-15（记录 8）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-001
-- 任务名：清理无效 `chatroom` 资源声明
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `manifest.json`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 移除 `manifest.json` 的 `web_accessible_resources` 中无效条目：`chatroom.html`、`chatroom.css`、`chatroom.js`。
-  - 同步将 `TD-20260214-001` 状态更新为“待确认”。
-- 验证步骤：
-1. 执行 JSON 校验命令：`node -e "JSON.parse(require('fs').readFileSync('e:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
-2. 检索 `manifest.json` 中是否仍存在 `chatroom.html/css/js`：`rg -n "chatroom\\.(html|css|js)" manifest.json`。
-3. 检索项目内是否存在同名文件：`rg --files | rg "chatroom\\.(html|css|js)$"`。
-- 验证证据：
-  - 证据 A：命令输出 `manifest ok`，JSON 结构合法。
-  - 证据 B：`manifest.json` 中检索 `chatroom.(html|css|js)` 无结果。
-  - 证据 C：项目文件检索 `chatroom.(html|css|js)` 无结果，确认已无无效声明目标。
-- 风险/问题：
-  - 若后续恢复 chatroom 功能，需要重新补回文件与声明并同步验证。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-001` 标记为“完成”，下一轮继续 `TD-20260214-002`。
-
-## 2026-02-15（记录 9）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-002（并同步 TD-20260214-001 验收）
-- 任务名：统一分屏数量上限与文案
-- 状态流转：
-  - `TD-20260214-001`：待确认 -> 完成（用户确认通过）
-  - `TD-20260214-002`：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `providers.js`
-  - `dashboard.js`
-  - `popup.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 新增统一上限常量源：`providers.js` 增加 `DASHBOARD_MAX_PANELS = 6`。
-  - `dashboard.js` 的 `MAX_PANELS` 改为读取统一常量（含兜底），并同步设置页中英文文案为 `6`。
-  - `popup.js` 去除硬编码 `6`，改为读取同一常量并用于校验与提示文案。
-- 验证步骤：
-1. 语法校验：
-   - `node --check dashboard.js`
-   - `node --check popup.js`
-   - `node --check providers.js`
-2. 常量来源检索：
-   - `rg -n "DASHBOARD_MAX_PANELS|MAX_PANELS = typeof|MAX_DASHBOARD_PANELS" providers.js dashboard.js popup.js`
-3. 旧口径检索（50/16/硬编码 6）：
-   - `rg -n "16 panels|16 个分屏|MAX_PANELS = 50|> 6|最多选择 6" dashboard.js popup.js providers.js`
-- 验证证据：
-  - 证据 A：三份脚本 `node --check` 均通过。
-  - 证据 B：检索命中统一链路：
-    - `providers.js`：`DASHBOARD_MAX_PANELS = 6`
-    - `dashboard.js`：`MAX_PANELS = typeof DASHBOARD_MAX_PANELS ...`
-    - `popup.js`：`MAX_DASHBOARD_PANELS = typeof DASHBOARD_MAX_PANELS ...`
-  - 证据 C：旧不一致口径（`50/16/硬编码 6`）检索为空。
-- 风险/问题：
-  - `dashboard.js` 中文文案原文件存在历史编码异常（已存在问题），本轮未单独处理编码层技术债。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-002` 标记为“完成”，下一轮继续 `TD-20260214-003`（统一 Provider 数据源与 URL）。
-
-## 2026-02-15（记录 10）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-003
-- 任务名：统一 Provider 数据源与 URL
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `background.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 在 `background.js` 中改为复用 `providers.js`：
-    - 增加 `importScripts("providers.js")`。
-    - 删除本地重复 Provider 配置对象。
-    - 使用 `PROVIDERS_BY_ID` 统一读取 Provider 配置（含兜底构造）。
-  - 消除了 `background.js` 与 `providers.js` 的 URL 漂移风险（如 Kimi URL）。
-- 验证步骤：
-1. 执行语法校验：`node --check background.js`。
-2. 检查复用链路：`rg -n "importScripts|PROVIDERS_BY_ID" background.js`。
-3. 检查旧分歧是否消失：`rg -n "kimi.moonshot" background.js`，并核对 `providers.js` 中 Kimi URL。
-- 验证证据：
-  - 证据 A：`node --check background.js` 通过。
-  - 证据 B：`background.js` 命中 `importScripts("providers.js")` 与多处 `PROVIDERS_BY_ID` 使用。
-  - 证据 C：`background.js` 中 `kimi.moonshot` 检索为空；`providers.js` 中 Kimi URL 为 `https://www.kimi.com/`。
-- 风险/问题：
-  - `background.js` 与 `dashboard/popup` 现在共享同一 Provider 源，后续新增 Provider 需先改 `providers.js`，再做回归。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-003` 标记为“完成”，下一轮继续 `TD-20260214-004`。
-
-## 2026-02-15（记录 11）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-004
-- 任务名：修复未消费消息与死代码通道
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `content/content.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 删除 `content/content.js` 中无消费者消息通道：`openAccountPage`（Gemini 账户头像点击时上报）。
-  - 保留并复核其余消息链路：`log / sendResult / responseStarted / responseComplete / pageUrl`，均有对应消费逻辑。
-- 验证步骤：
-1. 语法校验：`node --check content/content.js`。
-2. 检索死通道是否移除：`rg -n -F "openAccountPage" content/content.js dashboard.js background.js`。
-3. 检索剩余消息类型与消费端对齐：
-   - 发送端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" content/content.js`
-   - 消费端：`rg -n "sendResult|responseStarted|responseComplete|pageUrl|getPageUrl" dashboard.js`
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 在 `chrome://extensions` 重载当前 worktree 扩展。
+4. 通过扩展运行时创建新会话 `sess_20260413_a86gd3`，锁定真实受管 dashboard target。
+5. 在该受管 dashboard 中执行统一发送：`回归测试二：请只回复“收到”。`
+6. 连续 8 次轮询 `session:get`，确认 Gemini transcript 是否仍出现重复 turn。
 - 验证证据：
   - 证据 A：`node --check content/content.js` 通过。
-  - 证据 B：`openAccountPage` 在 `content/dashboard/background` 中检索为空。
-  - 证据 C：`content` 与 `dashboard` 对 `sendResult/responseStarted/responseComplete/pageUrl/getPageUrl` 均有对应发送/处理位置。
+  - 证据 B：`node --test tests/session/*.test.js` 通过：`pass 42, fail 0`。
+  - 证据 C：真实 Gemini DOM 取样显示旧选择器确实误抓取：
+    - user 命中 `query-text gds-body-l`、`query-text-line`、`user-query-container`、`screen-reader-user-query-label`
+    - assistant 命中 `model-response-text`、`response-container*`、`screen-reader-model-response-label`
+    - 直接对应上一轮出现的 `你说 ...`、`Gemini 说`、重复 response turn
+  - 证据 D：修复后对新会话 `sess_20260413_a86gd3` 做实机统一发送，连续 8 次轮询结果稳定为：
+    - `geminiTurns = [assistant(\"需要我为你做些什么？\"), user(\"回归测试二：请只回复“收到”。\"), assistant(\"收到。\")]`
+    - 不再出现 `你说 ...`、`Gemini 说`、response container 碎片或重复 assistant turn
+    - `geminiStatus` 从 `responding` 正常收敛到 `completed`
 - 风险/问题：
-  - 删除 `openAccountPage` 后，Gemini 头像点击不再触发额外上报（当前项目无消费方，属于预期清理）。
+  - 本轮只修掉 Gemini 重复 turn；`DeepSeek/Grok` assistant turn 缺失仍存在，`deepseekStatus` 在同轮实机验证里仍停在 `responding`，需由 `T-20260413-009` 继续处理。
+  - 当前 Gemini transcript 里仍保留初始欢迎语 `需要我为你做些什么？`，这是扩展接管后的页面首个 assistant turn，不属于本轮重复问题。
 - 下一步建议：
-  - 你确认后将 `TD-20260214-004` 标记为“完成”，下一轮继续 `TD-20260214-005`。
+  - 下一轮领取 `T-20260413-009`，专门修 `DeepSeek / Grok assistant turn` 与完成态落库。
 
-## 2026-02-15（记录 12）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-005（并同步 TD-20260214-004 验收）
-- 任务名：消除 `dashboard.js` 重复函数定义
-- 状态流转：
-  - `TD-20260214-004`：待确认 -> 完成（用户确认通过）
-  - `TD-20260214-005`：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `dashboard.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 删除 `dashboard.js` 中第二处重复的 `animateDOMMove` 定义，保留前面的实现作为唯一实现。
-  - 不改函数签名与调用点，确保行为一致（拖拽排序动画仍走同一函数）。
-- 验证步骤：
-1. 语法校验：`node --check dashboard.js`。
-2. 检查定义数量：`rg -n "function animateDOMMove" dashboard.js`。
-3. 检查调用仍有效：`rg -n "animateDOMMove\\(" dashboard.js`。
-- 验证证据：
-  - 证据 A：`node --check dashboard.js` 通过。
-  - 证据 B：`function animateDOMMove` 仅剩 1 处定义（位于 `dashboard.js:220`）。
-  - 证据 C：调用仍存在（`dashboard.js:288`），未引入未定义引用。
-- 风险/问题：
-  - 无行为层风险预警；本次为纯去重改动。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-005` 标记为“完成”，下一轮继续 `TD-20260214-006`。
-
-## 2026-02-15（记录 13）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-006
-- 任务名：对齐发送状态徽章逻辑与样式
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `dashboard.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 为 `panel-badge` 增加实际状态驱动逻辑，接入现有样式类：
-    - 发送开始：`status-sending`
-    - 发送成功：`status-success`
-    - 发送失败：`status-error`
-  - 增加 `setPanelBadgeStatus(providerId, status)` 与定时清理机制（成功/失败 2 秒后回落）。
-  - 在以下关键节点更新徽章状态：
-    - `sendPrompt()` 发起时（targetList）
-    - `Promise.all` 返回失败分支与成功分支
-    - `sendResult` 消息成功/失败
-    - `responseStarted` / `responseComplete`
-  - 面板关闭时清理对应 provider 的状态计时器，避免悬挂计时器。
-- 验证步骤：
-1. 语法校验：`node --check dashboard.js`。
-2. 样式-逻辑对齐检索：
-   - `rg -n "BADGE_STATUS_CLASSES|function setPanelBadgeStatus|setPanelBadgeStatus\\(|status-sending|status-success|status-error" dashboard.js dashboard.css`
-3. 关键逻辑位置核对：
-   - 发送开始：`dashboard.js:879`
-   - 结果分支：`dashboard.js:893`、`dashboard.js:895`
-   - 消息分支：`dashboard.js:1166`、`dashboard.js:1170`、`dashboard.js:1181`、`dashboard.js:1189`
-- 验证证据：
-  - 证据 A：`node --check dashboard.js` 通过。
-  - 证据 B：`dashboard.css` 已存在 `panel-badge.status-sending/success/error`，`dashboard.js` 已新增并调用对应状态更新逻辑。
-  - 证据 C：`animateDOMMove` 去重后代码仍可解析，且本轮 badge 逻辑接入点完整覆盖发送主流程与消息回调流程。
-- 风险/问题：
-  - 本轮未完成 Playwright 实机验证（MCP Transport closed），因此 UI 端视觉效果验证待你本地点击确认。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-006` 标记为“完成”，下一轮继续 `TD-20260214-007`。
-
-## 2026-02-15（记录 14）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-006（自动化补充验证）
-- 任务名：`panel-badge` 发送状态自动化验证
-- 状态流转：待确认（补充验证证据）
-- 变更文件：
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 因 Playwright MCP 通道异常（Transport closed），改用本地 Node+Playwright 脚本自动验证。
-  - 自动加载扩展，打开 `dashboard.html`，将分屏固定为单个 provider（`chatgpt`），触发发送并注入 `sendResult` 事件，采样 `panel-badge` class 变化。
-- 验证步骤：
-1. 在临时目录安装并初始化 Playwright 运行环境（不改项目源码）。
-2. 脚本加载扩展并打开 `chrome-extension://<id>/dashboard.html`，执行发送流程。
-3. 采样并校验状态序列：`status-sending -> status-success -> 清理恢复`。
-- 验证证据：
-  - 自动化脚本输出：
-    - `extensionId: enccldjibfkkbmnehnmpolokknffpjpi`
-    - `result.ok: true`
-    - `hasSending: true`
-    - `hasSuccess: true`
-    - `cleared: true`
-  - 关键采样：
-    - `after-click`: `panel-badge status-sending`
-    - `after-sendResult`: `panel-badge status-success`
-    - `after-auto-clear`: `panel-badge`
-- 风险/问题：
-  - 由于内容页异步事件可能二次刷新 success 状态，清理验证窗口需留足时长（本轮使用 5.2s 采样窗口）。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-006` 标记为“完成”，继续 `TD-20260214-007`。
-
-## 2026-02-15（记录 15）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-007
-- 任务名：明确扩展入口策略（popup vs 直接 dashboard）
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `manifest.json`
-  - `readme.md`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 移除 `manifest.json` 中空值配置 `action.default_popup`，避免“声明了 popup 入口但实际未使用”的歧义。
-  - 保持实际入口逻辑不变：`background.js` 继续通过 `chrome.action.onClicked` 直接打开 `dashboard.html`。
-  - 文档统一结论：
-    - 默认入口为“点击扩展图标直达 `dashboard.html`”。
-    - `popup.html/js` 继续保留，但定位为“可选调试页（非默认入口）”。
-- 验证步骤：
-1. JSON 校验：`node -e "JSON.parse(require('fs').readFileSync('E:/CodeSpace/Multi Al Assistant/manifest.json','utf8')); console.log('manifest ok')"`。
-2. 入口链路检索：`rg -n "default_popup|chrome\\.action\\.onClicked|openDashboard\\(" manifest.json background.js`。
-3. 文档一致性检索：`rg -n "可选调试页（非默认入口）|点击扩展图标" readme.md`，并确认 `popup.html/js` 文件仍存在。
-- 验证证据：
-  - 证据 A：命令输出 `manifest ok`，`manifest.json` 结构合法。
-  - 证据 B：`manifest.json` 已无 `default_popup`；`background.js` 仍命中 `chrome.action.onClicked` 与 `openDashboard(...)`。
-  - 证据 C：`readme.md` 命中“可选调试页（非默认入口）”与“点击扩展图标”；`popup.html`、`popup.js` 均存在。
-- 风险/问题：
-  - 当前策略下点击扩展图标不会弹出 Popup；若后续要恢复图标弹窗入口，需要重新设置 `action.default_popup` 并调整文档。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-007` 标记为“完成”，下一轮继续 `TD-20260214-008`（编码乱码修复）。
-
-## 2026-02-15（记录 16）
-
-- 时间：2026-02-15
-- 任务 ID：TD-20260214-008
-- 任务名：修复项目文档与页面文本编码乱码
-- 状态流转：待进行 -> 进行中 -> 待确认
-- 变更文件：
-  - `content/content.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 对 `content/content.js` 中历史乱码文本进行集中修复，覆盖：
-    - Provider 选择器中的中文关键词（如 `发送/消息/输入/回复/提交/聊天/停止`）。
-    - 错误日志与注释文本（如“设置输入值失败”“点击发送按钮失败”等）。
-  - 修复替换过程中产生的选择器引号缺失问题，确保 `aria-label/title/placeholder` 选择器语法正确。
-  - 复核文档与页面文件（`AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`）为可正常 UTF-8 解码文本，无替换字符。
-- 验证步骤：
-1. 乱码扫描：`rg -n "娑堟伅|鍙戦€|鍥炲|杈撳叆|鑱婂ぉ|鎻愪氦|璁剧疆|鐐瑰嚮|鏈壘鍒伴厤缃|鎵句笉鍒拌緭鍏ユ|蹇€熸鏌?|寮哄埗浜壊|灏介噺鏄剧ず|鍙戦€丒|璇\\?|闂\\?" E:/CodeSpace/Multi Al Assistant`。
-2. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/content/content.js`。
-3. UTF-8 可解码校验（关键文件）：Node 脚本读取 `AGENTS.md`、`readme.md`、`dashboard.html`、`popup.html`、`content/content.js`，检查是否包含 `\uFFFD`。
-4. 关键修复点命中：`rg -n "发送消息|发送对话|设置输入值失败|点击发送按钮失败|未找到配置|找不到输入框|发送 Enter 事件失败|强制亮色主题变量|尽量显示内容|textarea\\[placeholder\\*='请'\\]|textarea\\[placeholder\\*='问'\\]" content/content.js`。
-- 验证证据：
-  - 证据 A：乱码扫描无命中结果（空结果），原乱码串已清理。
-  - 证据 B：`node --check content/content.js` 通过（无语法错误）。
-  - 证据 C：UTF-8 校验输出均为 `replacement=false`：
-    - `AGENTS.md | replacement=false`
-    - `readme.md | replacement=false`
-    - `dashboard.html | replacement=false`
-    - `popup.html | replacement=false`
-    - `content/content.js | replacement=false`
-  - 证据 D：`content/content.js` 命中修复后的关键文本（如 `发送消息`、`发送对话`、`设置输入值失败`、`强制亮色主题变量` 等）。
-- 风险/问题：
-  - 本轮主要修复编码与文本，不改变发送流程控制逻辑；功能性风险较低。
-  - `content/content.js` 文件头 BOM 已在本轮写回时去除（仍为 UTF-8），若团队有 BOM 约定需后续统一说明。
-- 下一步建议：
-  - 你确认后将 `TD-20260214-008` 标记为“完成”；当前技术债清单可进入新一轮需求任务。
-
-## 2026-02-15（记录 17）
-
-- 时间：2026-02-15
-- 任务 ID：T-20260215-001
-- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `dashboard.css`
-  - `dashboard.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 定位到根因：水平分割线（`.grid-splitter-horizontal`）原本以“跨边界居中”方式定位，渲染后会覆盖到下一行标题顶部区域，导致标题行检查尺寸一致但视觉高度出现差异。
-  - 修复策略：
-    - 保持分割线高层级可交互（不降 z-index）。
-    - 将水平分割线改为锚定在“上一行底部内部”，不再压到下一行标题。
-  - 具体改动：
-    - `dashboard.css`：`.grid-splitter-horizontal` 的 `margin-top` 从 `-2px` 改为 `0`。
-    - `dashboard.js`：新增 `HORIZONTAL_SPLITTER_HEIGHT = 4`，并在 `initGridResizers()/updateSplitterPositions()` 中统一将水平分割线 `top` 计算改为 `rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT`。
-- 验证步骤：
-1. 语法校验：`node --check E:/CodeSpace/Multi Al Assistant/dashboard.js`。
-2. 自动化验证（Playwright，本地加载扩展）：
-   - 强制 `activePanels=['chatgpt','claude']`、`customGrid.cols=1`，渲染两行分屏。
-   - 采样下一行标题顶部命中元素（`elementFromPoint`）和水平分割线中心命中元素。
-   - 程序触发一次水平分割线拖拽，检查 `gridTemplateRows` 是否变化。
-3. 改动点检索：
-   - `rg -n "panel-header|grid-splitter-horizontal|HORIZONTAL_SPLITTER_HEIGHT|margin-top" dashboard.css dashboard.js`
-- 验证证据：
-  - 证据 A：自动化输出（关键字段）：
-    - `headerTopIsHeader: true`（下一行标题顶部命中 `panel-header`）
-    - `splitterCenterIsSplitter: true`（分割线中心命中 `grid-splitter-horizontal`）
-    - `beforeRows: "400px 400px"` -> `afterRows: "439.2px 439.2px"`（拖拽生效）
-    - `headerZ: "5"`，`splitterZ: "100"`（标题与分割线层级关系符合预期）
-  - 证据 B：`node --check dashboard.js` 通过。
-  - 证据 C：改动检索命中：
-    - `dashboard.css` 中 `.grid-splitter-horizontal { margin-top: 0; ... }`
-    - `dashboard.js` 中 `HORIZONTAL_SPLITTER_HEIGHT` 常量与两处 `top` 计算更新。
-- 风险/问题：
-  - 本轮修复聚焦“单列多行”场景（即水平分割线存在时）；多列场景未改动原有垂直分割线行为。
-- 下一步建议：
-  - 你确认视觉问题已消失后，将 `T-20260215-001` 标记为“完成”。
-
-## 2026-02-15（记录 18）
-
-- 时间：2026-02-15
-- 任务 ID：T-20260215-001（复开）
-- 任务名：修复分屏标题行加载后视觉高度不一致（panel header）
-- 状态流转：待确认 -> 进行中 -> 待确认
-- 变更文件：
-  - `dashboard.css`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 根据你反馈“bug 仍存在”与截图复开任务。
-  - 二次定位到真实根因：不是 header 高度本身，而是某些 `.panel` 在加载完成后出现非 0 `scrollTop`（实测 `3.2`），导致内部 header 被整体上移，造成“检查尺寸一样但视觉不一样”。
-  - 修复方式：将 `.panel` 从可滚动裁剪容器改为非滚动裁剪容器（`overflow: clip`，保留 `overflow: hidden` 作为兼容回退），阻断 `scrollTop` 位移来源。
-- 验证步骤：
-1. 连接你已打开的 Chrome 调试窗口（CDP `127.0.0.1:9222`），定位现有 `dashboard.html` 页面。
-2. 先做临时注入验证：将 `.panel` 改为 `overflow: clip`，对比修复前后 `headerTopDelta` 与 `panel.scrollTop`。
-3. 落地代码后执行扩展热重载（`chrome.runtime.reload()`），等待页面与 iframe 加载完成，再次采样：
-   - `//*[@id=\"panelGrid\"]/section[1]/div[1]` 与 `section[2]/div[1]` 的 `top` 差值
-   - 两个 `panel` 的 `scrollTop`
-   - `overflow` 计算值
-4. 触发一次垂直分割线拖拽，确认列宽仍可变化。
-- 验证证据：
-  - 证据 A（临时注入前后对比）：
-    - 修复前：`headerTopDelta = -3.2`，`p2ScrollTop = 3.2`，`p2Overflow = hidden`
-    - 临时注入后：`headerTopDelta = 0`，`p2ScrollTop = 0`，`p2Overflow = clip`
-  - 证据 B（代码落地并热重载后）：
-    - `headerTopDelta = 0`
-    - `p1ScrollTop = 0`，`p2ScrollTop = 0`
-    - `p1Overflow = clip`，`p2Overflow = clip`
-  - 证据 C（交互回归）：
-    - 垂直分割线拖拽前后 `gridTemplateColumns` 从 `759.6px 759.6px` 变为 `798.987px 720.2px`，说明拖拽能力正常。
-- 风险/问题：
-  - 本轮未改发送链路与 provider 逻辑，影响面集中在 panel 容器滚动行为。
-- 下一步建议：
-  - 你确认截图中的标题视觉差异已消失后，将 `T-20260215-001` 标记为“完成”。
-
-## 2026-03-15（记录 19）
-
-- 时间：2026-03-15
-- 任务 ID：T-20260315-001
-- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `manifest.json`
-  - `background.js`
-  - `content/content.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 通过你已打开的 Chrome 会话复现 ChatGPT 问题：扩展链路能把文本写进 ChatGPT 输入框，但不会真正发出。
-  - 定位根因：ChatGPT 当前改为 ProseMirror 编辑器，内容脚本隔离环境里直接写 DOM 虽然“看起来有字”，但页面主世界并不把它识别为真实输入；随后点击发送也是假动作。
-  - 修复 ChatGPT：
-    - `manifest.json` 增加 `scripting` 权限。
-    - `background.js` 增加 `executeChatGPTMainWorldSend(...)`，通过 `chrome.scripting.executeScript(..., world: "MAIN")` 在页面主世界执行“输入 + 点击发送”。
-    - `content/content.js` 的 `sendChatGPTMessage(...)` 优先走主世界发送，失败时再回退到原本内容脚本路径。
-  - 顺手修复 Gemini：
-    - 复现到发送按钮选择器过宽，先命中了历史记录里的“更多选项”按钮，而不是真正的发送按钮。
-    - 收紧 `gemini.sendButtonSelectors`，优先匹配 `button.send-button[aria-label='发送']` 等精确选择器。
-  - 顺手修复千问（Tongyi/Qwen）：
-    - 复现到 Slate 编辑器同样存在“隔离环境写入不被识别”的问题，且原发送控件不是现有选择器覆盖的 `button`。
-    - 新增 `executeTongyiMainWorldSend(...)` 与 `sendTongyiMessage(...)`，改为主世界输入并点击启用态的 `operateBtn` 发送控件。
-  - 使用 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 页面反复热重载扩展；`chrome-extension://.../dashboard.html` 可被浏览器正常打开，但当前 DevTools MCP 页签列表不暴露扩展页本身，因此本轮主要以真实 Provider 页面上的扩展发送入口做回归验证。
-- 验证步骤：
-1. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
-2. 分别重新加载目标站点页面，通过页面上下文执行：
-   - `window.postMessage({ source: 'multi-ai', type: 'sendPrompt', provider: '<provider>', prompt: '<probe>' }, '*')`
-   - 该入口与 `dashboard` 中 iframe 接收统一发送消息的入口一致。
-3. 观察输入框是否清空、是否进入回答态、页面是否出现探针文本与响应内容。
-4. 对其余 Provider 做一轮烟测，记录通过、受限与异常项。
-- 验证证据：
-  - 证据 A（ChatGPT 修复前复现）：
-    - 复现结果：`textboxText = "codex-chatgpt-send-probe-20260315"`、`hasStopButton = false`
-    - 说明：文本已进入输入框，但没有进入真实生成态。
-  - 证据 B（ChatGPT 修复后）：
-    - 回归结果：`inputText = ""`、`hasStop = true`、`bodyHasPrompt = true`
-    - 说明：扩展发送后输入框被清空，页面进入回答态，消息已真正发出。
-  - 证据 C（Gemini 修复后）：
-    - 回归结果：`inputText = "\\n"`、`bodyHasPrompt = true`
-    - 页面快照出现 `你说 codex-gemini-regression-probe-20260315` 与对应 `Gemini 说` 响应块。
-  - 证据 D（千问修复后）：
-    - 回归结果：`inputText = "﻿\\n\\n向千问提问"`、`sendDivClass = null`、`bodyHasPrompt = true`
-    - 页面快照出现 `codex-qianwen-regression-probe-20260315` 与对应 Qwen 响应块，输入框恢复占位态。
-  - 证据 E（未回归的正常路径抽检）：
-    - DeepSeek：`inputText = ""`，页面出现 `codex-deepseek-regression-probe-20260315`
-    - Kimi：`inputText = "\\n"`，页面快照出现 `codex-kimi-probe-20260315` 与 Kimi 回复
-    - Doubao：`inputText = ""`，页面快照出现 `codex-doubao-probe-20260315`
-    - You.com：`inputText = ""`，页面标题变为 `codex-you-probe-20260315 - You.com ...`
-    - 智谱清言：`inputText = ""`，页面出现 `codex-zhipu-probe-20260315`
-    - 元宝：`inputText = "\\n"`，页面出现 `codex-yuanbao-probe-20260315`
-  - 证据 F（受环境限制未完成实发验证）：
-    - Claude：落在 Cloudflare 安全验证页，需人工完成 `确认您是真人`
-    - Grok：落在 Cloudflare 安全验证页
-    - Copilot：`https://copilot.microsoft.com/` 与 `https://www.copilot.microsoft.com/` 均返回 `net::ERR_CONNECTION_CLOSED`
-    - ima：匿名页无可见发送控件，探针文本停留在输入区，需登录态补测
-- 风险/问题：
-  - 当前 DevTools MCP 不暴露扩展页标签本身，因此无法像普通网页一样直接对 `dashboard.html` 做页面树操作；本轮改为通过 `chrome://extensions` 热重载 + 真实 Provider 页面对扩展发送入口做验证。
-  - `Claude / Grok / Copilot / ima` 的剩余验证受外部环境影响，不足以判定为当前代码回归；若你后续要继续补测，建议优先在已登录且已过人机验证的会话里复跑。
-- 下一步建议：
-  - 你在自己的 `dashboard.html` 里再点一轮统一发送，重点看 `ChatGPT / Gemini / 千问` 是否已经恢复正常。
-  - 如果你确认通过，我下一轮把 `T-20260315-001` 标记为“完成”。
-
-## 2026-03-15（记录 20）
-
-- 时间：2026-03-15
-- 任务 ID：T-20260315-001
-- 任务名：修复 ChatGPT 发送异常并回归验证各 Provider 发送功能
-- 状态流转：待确认 -> 完成
-- 变更文件：
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 根据你的最终验收结果，将 `T-20260315-001` 状态从“待确认”更新为“完成”。
-  - 保留本轮此前的代码修复与验证证据，不再新增业务代码改动。
-- 验证步骤：
-1. 你在实际扩展主界面中复测各站点发送功能。
-2. 核对 ChatGPT 与其余已打开站点的发送是否恢复正常。
-3. 给出最终验收结论。
-- 验证证据：
-  - 用户确认语句：`好了，除了https://copilot.microsoft.com/打不开之外，其他都测试通过了。完成任务`
-  - 结论：除 `Copilot` 站点当前不可达外，本轮发送修复已满足验收要求。
-- 风险/问题：
-  - `Copilot` 当前问题仍表现为站点可达性异常（`ERR_CONNECTION_CLOSED`），不属于本轮已修复的发送链路回归。
-- 下一步建议：
-  - 后续若要继续维护 `Copilot`，建议单独建任务，先确认站点访问链路与地区/网络限制，再判断是否需要调整 Provider 适配逻辑。
-
-## 2026-03-19（记录 21）
-
-- 时间：2026-03-19
-- 任务 ID：T-20260319-001
-- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
-- 状态流转：进行中 -> 待确认
-- 变更文件：
-  - `dashboard.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 复核 `dashboard.js` 后确认当前实现会把所有 Provider 都默认塞进 iframe，因为 `IFRAME_BLOCKED_PROVIDERS` 为空。
-  - 在浏览器里直接打开 `https://grok.com/`，确认 Grok 顶层页面可正常加载和登录，不是站点整体宕机。
-  - 结合你描述的主页面内报错 `Something went wrong / Something unexpected happened...`，判定问题出在 Grok 的 iframe 嵌入场景，而不是发送链路或站点首页可达性。
-  - 修复方式采用已有降级机制，不再继续硬嵌 Grok：
-    - 将 `grok` 加入 `IFRAME_BLOCKED_PROVIDERS`
-    - 保持现有 `panel-blocked` 占位层与 `openProviderTab` / `sendPromptToProviderTab` 逻辑生效
-  - 本轮刻意没有覆盖你工作区里 `rules.json` 现有的未提交 Grok 规则实验改动，只在 `dashboard.js` 上做最小修复。
-- 验证步骤：
-1. 检查 `dashboard.js` 当前 iframe 降级名单，确认包含 `grok`。
-2. 运行语法校验：`node --check dashboard.js`。
-3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
-4. 在顶层页打开 `https://grok.com/`，确认站点本身可正常访问；据此将分屏内报错归因为 iframe 嵌入失败。
-- 验证证据：
-  - 证据 A（代码命中）：
-    - `dashboard.js:92` 为 `const IFRAME_BLOCKED_PROVIDERS = new Set(["grok"]);`
-  - 证据 B（降级链路仍完整）：
-    - `dashboard.js:559` 和 `dashboard.js:1274`：Grok 命中 `panel-blocked` 占位层
-    - `dashboard.js:565` / `dashboard.js:1284`：点击占位层时走 `openProviderTab`
-    - `dashboard.js:836-837`：统一发送时，blocked provider 走 `sendPromptToProviderTab`
-  - 证据 C（语法校验）：
-    - `node --check dashboard.js` 通过，无语法错误。
-  - 证据 D（浏览器热重载）：
-    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
-  - 证据 E（顶层 Grok 可用）：
-    - `https://grok.com/` 页面可正常打开，快照包含输入框占位文本 `你想知道什么？`
-    - 说明：问题不是 Grok 整站不可用，而是扩展主页面中的 iframe 嵌入方式不可靠。
-- 风险/问题：
-  - 当前 DevTools MCP 仍不暴露 `chrome-extension://.../dashboard.html` 活动页签本身，因此本轮无法直接读取扩展主页面的最新 DOM 快照；验证主要依赖代码路径、扩展热重载结果和顶层 Grok 页面状态。
-  - 该修复的策略是“显式降级到新标签”，不是“恢复 Grok iframe 真嵌入”。如果后续你一定要在分屏里内嵌 Grok，需要单独做更深的嵌入兼容研究。
-- 下一步建议：
-  - 你在扩展主页面里重新打开 Grok 面板，预期结果应是不再出现站点原生 `Something went wrong` 错误，而是显示扩展自己的占位提示，并可点击在新标签页打开。
-  - 如果你确认这个行为符合预期，我下一轮把 `T-20260319-001` 标记为“完成”。
-
-## 2026-03-19（记录 22）
-
-- 时间：2026-03-19
-- 任务 ID：T-20260319-001（继续排障）
-- 任务名：修复主页面打开 Grok 时 “Something went wrong” 错误
-- 状态流转：待确认 -> 进行中 -> 待确认
-- 变更文件：
-  - `content/content.js`
-  - `task.md`
-  - `progress.md`
-- 操作摘要：
-  - 继续按“先找根因再修”的方式排查 Grok 主界面报错。
-  - 在浏览器中构造 `iframe -> https://grok.com/` 场景，确认 Grok 在嵌入态下会先经历 Cloudflare 挑战，再进入 Grok 自己的前端启动流程。
-  - 从 Grok 返回内容中确认该站点前端存在全局错误边界，报错文案正是你看到的：
-    - `Something went wrong`
-    - `Something unexpected happened. We're working to prevent this in the future.`
-  - 进一步复核项目代码后发现：`content/content.js` 会在 `provider === "grok"` 时启动“自动 Cloudflare 验证”逻辑，包括 `setInterval` 轮询、`MutationObserver` 监听和自动点击验证控件。
-  - 该逻辑对 Grok 这种本身强依赖挑战页与会话状态的站点风险很高，容易在嵌入页启动过程中制造额外干扰，进而触发 Grok 的全局错误边界。
-  - 本轮最小修复：
-    - 将自动验证逻辑的触发条件从 `grok/gemini/cloudflare` 收紧为 `gemini/显式 Cloudflare challenge host`
-    - 不再在 Grok 主页面里主动探测、轮询、点击 Cloudflare/Turnstile 控件
-  - 本轮刻意没有覆盖你工作区里已有的 `dashboard.js` / `rules.json` 未提交实验改动，只修改 `content/content.js` 这一处高风险干扰点。
-- 验证步骤：
-1. 语法校验：执行 `node --check content/content.js`。
-2. 在浏览器中构造 `iframe -> https://grok.com/` 的复现场景，抓取网络请求与页面返回内容。
-3. 在 `chrome://extensions/?id=acmdhmpicibfjfhegahlojoagggondme` 点击“重新加载”，让浏览器加载最新扩展代码。
-4. 复核 `content/content.js` 中 Grok 已不再命中自动验证逻辑。
-- 验证证据：
-  - 证据 A（Grok 响应头与嵌入限制）：
-    - 嵌入态请求最初返回 `403` 挑战页，响应头包含 `x-frame-options: SAMEORIGIN`
-    - 挑战成功后的正式 HTML 响应仍包含：
-      - `x-frame-options: DENY`
-      - `content-security-policy` 中的 `frame-ancestors https://x.com https://starfleet.teachx.ai`
-    - 说明：Grok 官方本身明确不欢迎任意祖先页面嵌入，扩展侧任何额外干预都需要非常克制。
-  - 证据 B（错误文案来源）：
-    - 从 Grok 前端 bundle 中定位到全局错误边界组件，文案与用户反馈完全一致：
-      - `Something went wrong`
-      - `Something unexpected happened. We're working to prevent this in the future.`
-  - 证据 C（自家高风险干扰点）：
-    - 修复前：`content/content.js` 中条件为 `if (provider === "grok" || provider === "gemini" || location.host.includes("cloudflare")) { ... }`
-    - 修复后：仅 `gemini` 或显式 `challenges.cloudflare.com` 页面才会启动这套自动验证逻辑。
-  - 证据 D（代码可解析）：
-    - `node --check content/content.js` 通过，无语法错误。
-  - 证据 E（扩展热重载）：
-    - 在扩展详情页点击“重新加载”后，页面出现 `已重新加载` 提示。
-- 风险/问题：
-  - 当前 DevTools 工具仍无法稳定直接接管 `chrome-extension://.../dashboard.html` 视图本身，因此本轮无法像普通网页一样读取扩展主界面里 Grok 面板的最终 DOM 快照。
-  - Grok 官方嵌入限制依然很强，这次修复针对的是“避免扩展内容脚本把页面主动打挂”；如果站点后续继续加强 iframe 防护，仍可能需要进一步做专门兼容。
-- 下一步建议：
-  - 你先在扩展主界面里重新打开 Grok 面板，重点看原来的 `Something went wrong` 是否已经消失。
-  - 如果还有异常，我下一轮会继续沿“Grok 前端嵌入态异常”这条线追，优先检查是否需要在 `document_start` 更早阶段做 Grok 专项兼容。
-
-## 2026-04-13（记录 42）
+## 2026-04-13（记录 44）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-009
@@ -1559,7 +1558,7 @@
 - 下一步建议：
   - 下一轮领取 `T-20260413-010`，专门补“手动继续聊 turn 捕获”这条链路，并做对应真机回归。
 
-## 2026-04-13（记录 43）
+## 2026-04-13（记录 45）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-010
@@ -1593,7 +1592,7 @@
 - 下一步建议：
   - 你确认手动续聊三站点都符合预期后，把 `T-20260413-010` 标记为 `完成`。
 
-## 2026-04-13（记录 44）
+## 2026-04-13（记录 46）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-011
@@ -1624,7 +1623,7 @@
 - 下一步建议：
   - 你确认右侧原始记录展开不再闪回后，把 `T-20260413-011` 标记为 `完成`。
 
-## 2026-04-13（记录 45）
+## 2026-04-13（记录 47）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-012
@@ -1650,7 +1649,7 @@
 - 下一步建议：
   - 你确认 UI 符合预期后，把 `T-20260413-012` 标记为 `完成`。
 
-## 2026-04-13（记录 46）
+## 2026-04-13（记录 48）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-013
@@ -1687,7 +1686,7 @@
 
 ---
 
-## 2026-04-13（记录 47）
+## 2026-04-13（记录 49）
 
 - 时间：2026-04-13
 - 任务 ID：T-20260413-014
@@ -1721,7 +1720,7 @@
 
 ---
 
-## 2026-04-14（记录 48）
+## 2026-04-14（记录 50）
 
 - 时间：2026-04-14
 - 任务 ID：T-20260413-014
@@ -1756,3 +1755,388 @@
   - Grok 首次进入时仍可能被 Cookie/升级层拦住，因此“是否能发出”存在页面前置状态依赖；当前验证结论是：在页面进入正常聊天态后，统一发送链路已经可用。
 - 下一步建议：
   - 这条支线现在优先进入最终人工验收和主线集成准备，不建议再继续堆功能。
+
+## 2026-05-06（记录 51）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-001
+- 任务名：修复 DeepSeek 统一发送窗口无法发送消息
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复现问题：DeepSeek 在 dashboard 统一发送时，点击发送按钮会展开侧边栏而非发送消息。
+  - 定位根因：`PROVIDER_CONFIGS.deepseek.sendButtonSelectors` 中 `div[role='button'].ds-icon-button:not(.ds-icon-button--disabled)` 和 `div[role='button'].ds-icon-button` 选择器过宽，命中了侧边栏切换按钮而非发送按钮。
+  - 修复方式：
+    - 移除宽泛的 `ds-icon-button` 选择器，仅保留 `button[aria-label*='发送']`、`button[aria-label*='Send']`、`button[type='submit']`。
+    - 将 DeepSeek 发送策略改为 Enter 键优先（`inputEvent('keydown', { key: 'Enter' })`），避免依赖不确定的按钮选择器。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 在 `chrome://extensions` 重载扩展。
+3. 在 dashboard 统一发送消息到 DeepSeek，确认消息正常发出且不打开侧边栏。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - 用户确认：`deepseek的发送已经修复`。
+- 风险/问题：
+  - DeepSeek 页面结构若后续更新，Enter 键发送方式仍需验证有效性。
+- 下一步建议：
+  - 用户确认后标记为 `完成`。
+
+---
+
+## 2026-05-06（记录 52）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-002
+- 任务名：修复转录抓取思考内容而非正式回答
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复现问题：DeepSeek 的 transcript 抓取到了"深度思考"内容而非正式回答文本。
+  - 定位根因：`extractLatestResponse()` 函数遍历 `RESPONSE_SELECTORS[provider]` 命中节点时，未检查节点是否位于 thinking/reasoning 块内，导致把思考内容当作正式回答。
+  - 修复方式：
+    - 在 `extractLatestResponse()` 中增加 `shouldIgnoreThinkingNode(provider, target)` 检查，跳过 thinking 块内的节点。
+    - 对命中节点调用 `extractTextExcludingThinking(provider, target)` 克隆节点后移除 thinking 元素再提取文本。
+    - 改为反向迭代（从最后一个节点开始），优先取最新回答。
+  - 用户设计原则确认：`回答状态识别成"已完成"之后抓取一次回答内容`，Gemini 模式正确。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 在 DeepSeek 统一发送后检查 transcript，确认 assistant turn 内容为正式回答而非思考过程。
+3. 对 Gemini 做同样验证，确认抓取正常。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - 用户确认：`Gemini和deepseek抓取正常了`。
+- 风险/问题：
+  - thinking 选择器需覆盖各 provider 的不同 DOM 结构；后续若有新 provider 使用不同思考块标记，需补选择器。
+- 下一步建议：
+  - 用户确认后标记为 `完成`。
+
+---
+
+## 2026-05-06（记录 53）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-003
+- 任务名：修复流式输出截断与重复抓取（DeepSeek/Grok）
+- 状态流转：进行中 -> 进行中
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 本任务经历 4 轮修复迭代：
+  - **轮次 1**：增加 `manualTurnCapturingActiveResponse` 标志位，在统一发送期间抑制 MutationObserver 对 assistant turn 的记录。标志位在 `startManualTurnCapture` 后设置。效果：Gemini 改善，Grok 仍重复。
+  - **轮次 2**：将 `setCapturingActiveResponse(true)` 提前到 `startManualTurnCapture` 紧后方，并在 `recordManualSend` 中也在更早位置设置。同时在 `extractLatestResponse` 中过滤 thinking 节点。效果：DeepSeek 改善，Grok 仍重复。
+  - **轮次 3**：将 `setCapturingActiveResponse(true)` 进一步提前到所有 provider 特殊发送处理（`sendGrokMessage` 等）之前，确保 Grok 内部的 `waitForGrokSendSignal` 执行时标志位已生效。效果：Grok 仍有间歇性重复。
+  - **轮次 4（当前）**：
+    - 增加 `manualTurnObserver` 引用保存与 `pauseManualTurnObserver()` / `resumeManualTurnObserver()` 函数。
+    - 在 `recordManualSend` 和 `trySendPrompt` 中，发送前完全断开 MutationObserver，发送完成（`finishCapture`）后恢复。
+    - 将 DeepSeek/Grok 的 `waitForResponseComplete` 稳定性阈值从 1.2s 提升至 5s，匹配这两个站点的流式输出暂停特征。
+    - 确保 `trySendPrompt` 中在清除 `setCapturingActiveResponse(false)` 之前先发送最终 user turn，避免丢失。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 在 `chrome://extensions` 重载扩展。
+3. 新建会话，在 dashboard 统一发送 `测试重复抓取：请只回复"收到"。`。
+4. 轮询 `session:get`，检查每个 provider 的 transcript turns 是否只有 1 条 user + 1 条 assistant。
+5. 检查 `liveStatus` 是否从 `responding` 正确回到 `completed`。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - 轮次 1-3 的用户反馈：Gemini 已修复，DeepSeek 时好时坏，Grok 仍重复。
+  - 轮次 4 尚未进行用户实机验证。
+- 风险/问题：
+  - 完全断开 MutationObserver 可能在极端情况下遗漏手动续聊的中间 turn；但统一发送场景下由 `waitForResponseComplete` 兜底，影响可控。
+  - 5s 稳定性阈值可能导致 DeepSeek/Grok 的完成检测延迟约 5s，但避免了流式暂停误判。
+  - Grok 的 `sendGrokMessage` 内部有独立的 `waitForGrokSendSignal` 逻辑，与通用 `waitForResponseComplete` 可能存在时序竞争，需实机验证。
+- 下一步建议：
+  - 用户实机验证轮次 4 修复效果；若通过则标记为 `待确认`，若仍有重复则需深入 Grok 的 `waitForGrokSendSignal` 逻辑。
+
+---
+
+## 2026-05-06（记录 54）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-004
+- 任务名：修复会话在新窗口打开而非当前窗口
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `session/window-manager.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复现问题：新建/恢复会话时弹出新的浏览器窗口，而非在当前窗口中打开标签页。
+  - 定位根因：`session/window-manager.js` 的 `createManagedSessionWindow` 使用 `chromeApi.windows.create({ url: firstUrl, focused })` 创建新窗口。
+  - 修复方式：改为 `chromeApi.tabs.create({ url: firstUrl, active: payload.focused !== false })` 在当前窗口创建标签页，然后通过 `chromeApi.windows.getCurrent()` 返回窗口信息以保持兼容性。
+- 验证步骤：
+1. 执行 `node --test tests/session/window-manager.test.js`。
+2. 在 `chrome://extensions` 重载扩展。
+3. 通过 popup 新建会话，确认在当前窗口打开 dashboard 标签页而非新窗口。
+4. 恢复历史会话，确认同样在当前窗口打开。
+- 验证证据：
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - `node --check session/window-manager.js` 通过，无语法错误。
+  - `node --check content/content.js` 通过，无语法错误。
+  - 代码变更已落地，`createManagedSessionWindow` 使用 `tabs.create` 替代 `windows.create`。
+  - 测试已同步更新：mock 从 `windows.create` 改为 `tabs.create` + `windows.getCurrent`。
+  - 待用户实机验证确认。
+- 风险/问题：
+  - 如果用户期望在独立窗口中管理会话，此修改会改变行为；但根据用户反馈"不要弹出一个新的窗口"，此修改符合预期。
+- 下一步建议：
+  - 用户实机验证后标记为 `完成`。
+
+---
+
+## 2026-05-06（记录 55）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-005
+- 任务名：修复回答状态识别时机不准
+- 状态流转：进行中 -> 进行中
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 复现问题：
+    - DeepSeek：回答还没完成就识别为"已完成"。
+    - Gemini：回答完成很久后才识别为"已完成"。
+    - 用户确认 Gemini 模式正确：`回答状态识别成"已完成"之后抓取一次回答内容`。
+  - 根因分析：
+    - DeepSeek/Grok 使用 1.2s 的 `waitForResponseComplete` 稳定性阈值，但这两个站点的流式输出有较长暂停（2-3s），导致 1.2s 内文本未变就被误判为完成。
+    - Gemini 使用更长的稳定窗口，完成判定更准确。
+  - 修复方式：
+    - 将 DeepSeek/Grok 的 `waitForResponseComplete` 稳定性阈值从 1200ms 提升至 5000ms。
+    - 统一采用"完成后抓取一次"策略：`waitForResponseComplete` 返回后再调用 `extractLatestResponse` 获取最终文本。
+  - 与 T-20260506-003 联动：观察器暂停/恢复机制确保在等待完成期间不被 MutationObserver 干扰。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 在 DeepSeek 统一发送，观察 `liveStatus` 变为 `completed` 的时机是否在回答真正结束后。
+3. 在 Gemini 统一发送，确认 `completed` 判定不再延迟过久。
+4. 在 Grok 统一发送，确认完成判定正常。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - 稳定性阈值已从 1200ms 调整为 5000ms（仅 DeepSeek/Grok）。
+  - 待用户实机验证确认各站点的完成时机是否合理。
+- 风险/问题：
+  - 5s 阈值可能导致 DeepSeek/Grok 的完成检测有约 5s 延迟，但这是避免误判的必要代价。
+  - Gemini 的阈值未改动（保持 1.2s），因为用户确认 Gemini 的行为已正确。
+- 下一步建议：
+  - 用户实机验证各站点完成时机；若某个站点需要不同阈值，可按 provider 单独调整。
+
+---
+
+## 2026-05-06（记录 56）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-006
+- 任务名：优化回答完成检测：使用发送/停止按钮状态
+- 状态流转：待确认 -> 待确认（二修：基于实机 DOM 调研的 provider 特化检测）
+- 变更文件：
+  - `content/content.js`
+- 操作摘要：
+  - **逐站点实机 DOM 调研**：打开 DeepSeek / Gemini / Grok 三个站点，发送长文本消息，通过 100ms 轮询监控捕获按钮状态在"空闲→输入→回答中→完成"四阶段的真实变化。
+  - **DeepSeek DOM 发现**：
+    - 没有独立的停止按钮。
+    - 发送按钮：`div.ds-icon-button`（l:1492），相邻按钮：`div.ds-icon-button`（l:1448）。
+    - 回答中：两个按钮均 `ariaDisabled="true"`；完成后：均 `ariaDisabled="false"`。
+    - 检测策略：监控发送按钮 `ariaDisabled` 从 `false→true`（开始回答）再 `true→false`（完成）。
+  - **Gemini DOM 发现**：
+    - 有停止按钮：`button[aria-label="停止回答"]`，位于输入区域右侧（l:1499）。
+    - 发送按钮：`button.send-button` 或 `button[aria-label="发送"]`。
+    - 回答中：停止按钮出现；完成后：停止按钮消失，发送按钮恢复（`ariaDisabled="true"` 因为输入已清空）。
+    - 检测策略：停止按钮出现→标记 `geminiStopWasSeen`→停止按钮消失+发送按钮可见→完成。
+  - **Grok DOM 发现**：
+    - 有停止按钮：`button[aria-label="Stop model response"]`，回答中出现。
+    - 发送按钮：`button[aria-label="Submit"]`（`type="submit"`）。
+    - 回答中：输入区域按钮全部消失，停止按钮出现；完成后：停止按钮消失，输入区域按钮恢复。
+    - 检测策略：现有 `getStopSelectors` 中 `button[aria-label*="Stop"]` 已覆盖。
+  - **代码修改**：
+    1. `getStopSelectors` 默认分支增加 `'button[aria-label*="停止回答"]'`，确保 Gemini 停止按钮被覆盖。
+    2. `waitForResponseComplete` 的 `check` 函数增加 provider 特化检测（步骤 1）：
+       - DeepSeek：监控 `div.ds-icon-button` 的 `ariaDisabled` 状态，`false→true→false` 完成。
+       - Gemini：监控 `button[aria-label*="停止回答"]` 的可见性，出现→消失+发送按钮可见→完成。
+    3. 步骤 2（通用停止按钮追踪）仍对 ChatGPT / Grok 等有效。
+    4. 步骤 3（文本稳定性）和步骤 4（宽限期）作为兜底始终运行。
+    5. 修复 `stopDisappearAt` 未声明为 `let` 的隐式全局变量问题。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 在 `chrome://extensions` 重载扩展。
+4. 新建会话，统一发送到 DeepSeek/Gemini/Grok。
+5. 检查 transcript：每个 provider 应恰好有 1 条 user turn + 1 条 assistant turn，status=completed。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - DeepSeek 实机 DOM 监控：回答中 `ariaDisabled="true"`，完成后 `ariaDisabled="false"`（100ms 轮询捕获到 4 次状态转换）。
+  - Gemini 实机 DOM 监控：`停止回答` 按钮在 t=58925ms 出现，t=81040ms 消失，发送按钮恢复（1025 条采样，8 次状态转换）。
+  - Grok 实机 DOM 监控：`Stop model response` 按钮在 t=28042ms 出现，t=57425ms 消失（715 条采样，4 次状态转换）。
+- 风险/问题：
+  - DeepSeek 特化检测依赖 `div.ds-icon-button` 的位置过滤（`left > 1300`），若页面布局变化可能失效。
+  - Gemini 特化检测依赖 `停止回答` 文案，英文界面可能为 `Stop response`，需确认 `getStopSelectors` 默认分支的 `button[aria-label*="Stop"]` 已覆盖。
+  - 若 Gemini 回答极快（停止按钮出现后立即消失），`geminiStopWasSeen` 可能来不及被设置，此时降级到文本稳定性兜底（1.2s 阈值）。
+- 下一步建议：
+  - 用户实机验证：统一发送后观察 DeepSeek/Gemini/Grok 的完成时机是否合理。
+
+---
+
+## 2026-05-06（记录 57）
+
+- 时间：2026-05-06
+- 任务 ID：T-20260506-006
+- 任务名：优化回答完成检测：使用发送/停止按钮状态
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+  - `task.md`
+  - `progress.md`
+- 操作摘要：
+  - 用户设计原则：`回答状态可以看发送/停止按钮的状态，发送给AI消息之后，只要没有回答完毕，发送按钮是不可以点击发送的，大部分都是在原位置替换成了停止输出的按钮`。
+  - 重构 `waitForResponseComplete` 的 `check` 函数，将 ChatGPT 专用的"停止按钮消失 + 发送按钮恢复"检测逻辑推广到所有 provider：
+    - 步骤 1：跟踪停止按钮可见性（所有 provider）
+    - 步骤 2：停止按钮消失时记录 `stopDisappearAt` 时间戳
+    - 步骤 3：停止按钮消失且发送按钮恢复（可见 + 未禁用）→ 判定完成（所有 provider）
+    - 步骤 4：文本稳定性作为兜底，**始终运行**（不被 `sawStop` 阻断）
+    - 步骤 5：停止按钮消失 3 秒后，无流式标记 → 宽限期兜底完成
+  - 移除 ChatGPT 专用的 `if (provider === "chatgpt")` 分支，统一使用通用逻辑。
+  - 移除 DeepSeek/Gemini/Grok 专用的 `if (provider === "deepseek" || ...)` 分支，文本稳定性兜底适用于所有 provider。
+  - 更新 MutationObserver 配置，增加 `attributes: true, attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid']`，使按钮状态变化可被实时检测，不依赖 500ms 轮询间隔。
+  - **二修**：初版步骤 3 中 `if (sawStop) return` 阻断了文本稳定性兜底，导致 Grok/Gemini 在发送按钮选择器不匹配时卡到 90 秒超时。修复方案：移除阻断 return，增加 `stopDisappearAt` 时间戳，步骤 4 始终运行，新增步骤 5 宽限期兜底。
+- 验证步骤：
+1. 执行 `node --check content/content.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 在 `chrome://extensions` 重载扩展。
+4. 新建会话，统一发送到 DeepSeek/Gemini/Grok。
+5. 检查 transcript：每个 provider 应恰好有 1 条 user turn + 1 条 assistant turn，status=completed。
+- 验证证据：
+  - `node --check content/content.js` 通过，无语法错误。
+  - `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+  - 二修后语法检查与测试仍通过：`pass 48, fail 0`。
+  - 待用户实机验证 Grok/Gemini 完成时机是否从 90 秒超时缩短到正常范围。
+- 风险/问题：
+  - 某些 provider 的停止按钮可能不在 `getStopSelectors` 覆盖范围内；此时会降级到文本稳定性兜底或 3 秒宽限期。
+  - 发送按钮选择器（`sendButtonSelectors`）需要准确匹配实际发送控件；若选择器过宽或不匹配，步骤 3 可能无法正确触发，但步骤 4/5 兜底可保证不卡到超时。
+  - 若 `sawStop` 始终为 false（停止按钮选择器不匹配），则完全依赖文本稳定性兜底。
+- 下一步建议：
+  - 用户实机验证：统一发送后观察每个 provider 的完成时机是否合理（应在回答结束后几秒内，而非 90 秒超时）。
+  - 若 Grok/Gemini 仍超时，需在 `check` 函数中增加诊断日志，确认 `sawStop` 是否被设置、`stopDisappearAt` 是否被记录。
+
+---
+
+## 2026-05-07（记录 58）
+
+- 时间：2026-05-07
+- 任务 ID：T-20260506-006
+- 任务名：优化回答完成检测：使用发送/停止按钮状态
+- 状态流转：待确认 -> 待确认（三修：去掉位置过滤，修复 iframe 内检测失败）
+- 变更文件：
+  - `content/content.js`
+- 操作摘要：
+  - **根因分析**：通过 dashboard 统一发送实测发现，DeepSeek 和 Gemini 的特化检测完全没有生效。
+    - DeepSeek：从"响应中"到"已完成"检测延迟 34 秒。
+    - Gemini：完全未被特化检测捕获，靠 90 秒超时兜底。
+    - 根因：`isDeepSeekSendDisabled` 和 `isGeminiStopVisible` 使用了**绝对像素位置过滤**（`left > 1300`），但 dashboard 中的 iframe 比全屏浏览器窗口小得多，按钮位置完全不同，导致选择器永远匹配不到。
+  - **修复**：
+    1. `isDeepSeekSendDisabled`：移除 `top > 300 && top < 600 && left > 1300` 位置过滤，改为纯 `ariaDisabled` + 可见性检查。
+    2. `isGeminiStopVisible`：移除 `left > 1300` 位置过滤，改为纯 `aria-label` + 可见性检查。
+    3. `isGeminiSendVisible`：移除 `left > 1400` 位置过滤，改为纯选择器 + 可见性检查。
+    4. 为 `check` 函数添加诊断日志（`[DS]`/`[GM]`/`[provider]` 前缀），记录每一步的检测结果。
+  - **修复后实测**（dashboard 统一发送量子计算长文）：
+    - DeepSeek：t=18s 开始回答，t=19s 检测完成（**延迟 1 秒**，之前 34 秒）
+    - Gemini：t=18s 开始回答，t=40s 检测完成（**延迟 22 秒**，之前 90 秒超时）
+    - Grok：t=18s 开始回答，t=47s 检测完成（延迟 29 秒，正常）
+- 验证步骤：
+1. `node --check content/content.js` 通过。
+2. `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+3. 重载扩展 → 新建会话 → 统一发送量子计算长文 → 监控状态变化。
+- 验证证据：
+  - 修复前：DeepSeek 延迟 34s，Gemini 90s 超时。
+  - 修复后：DeepSeek 延迟 1s，Gemini 延迟 22s，Grok 延迟 29s。
+  - 所有 provider 均正确显示"已完成"，DeepSeek 6 条记录，Gemini 4 条，Grok 2 条。
+- 风险/问题：
+  - DeepSeek 1 秒完成检测可能过早（如果 send button 在流式输出期间短暂 re-enable），需观察是否出现误判。
+  - Gemini 22 秒检测延迟可能是因为停止按钮出现时间很短，`geminiStopWasSeen` 未被设置，最终靠文本稳定性兜底（1.2s 阈值）。
+  - 诊断日志已加入，后续可通过 `console.log` 查看 `[DS]`/`[GM]`/`[provider]` 前缀的日志来定位问题。
+- 下一步建议：
+  - 用户实机验证：观察 DeepSeek 是否出现"过早标记完成"的误判。
+  - 若 Gemini 仍偶尔超时，可考虑降低文本稳定性阈值或增加 MutationObserver 监听 stop 按钮的出现/消失。
+
+---
+
+## 2026-05-09（记录 59）
+
+- 时间：2026-05-09
+- 任务 ID：T-20260506-006
+- 任务名：优化回答完成检测：使用发送/停止按钮状态
+- 状态流转：待确认 -> 待确认（四修：DeepSeek 发送按钮选择器精准化 + 文本稳定性主信号）
+- 变更文件：
+  - `content/content.js`
+- 操作摘要：
+  - **根因分析**：通过在 DeepSeek 页面设置 100ms 轮询监控，发现 `isDeepSeekSendDisabled` 检查所有 102 个 `ds-icon-button` 元素，其中"深度思考"和"智能搜索"按钮始终 `ariaDisabled=false`，导致：
+    - **误判"已完成"**：发送按钮实际处于 disabled（响应中），但"深度思考"按钮 enabled → 函数返回 false → 认为已结束。
+    - **卡在"响应中"**：发送按钮在空输入时也是 disabled（非响应信号），但函数返回 true → 认为仍在响应 → 永远不会触发文本稳定性兜底。
+  - **核心发现**：DeepSeek 的发送按钮 `ariaDisabled` 状态跟随后 textarea 内容，而非 AI 响应状态：
+    - 空输入 → disabled
+    - 有输入 → enabled
+    - 发送后（textarea 清空）→ disabled（无论 AI 是否在响应）
+  - **修复**：
+    1. `isDeepSeekSendDisabled`：改用 `.ds-icon-button.bd74640a` 精准选择器，只检查发送按钮（index 105），不再遍历全部 102 个按钮。
+    2. 移除 DeepSeek 分支的 `return` 语句：发送按钮 disabled 时不再阻断后续文本稳定性检测，允许 fallthrough 到 Step 3。
+    3. 文本稳定性作为 DeepSeek 的主完成信号：响应文本停止变化 5 秒后判定完成。
+    4. 保留"disabled→enabled"转换为辅助信号：用户在响应后输入文本时可立即触发。
+- 验证步骤：
+1. `node --check content/content.js` 通过。
+2. `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+- 验证证据：
+  - DOM 监控数据：102 个 ds-icon-button 元素中仅 4 个可见，发送按钮（index 105, class `bd74640a`）在空输入时 `ariaDisabled=true`，输入 "hi" 后变为 `ariaDisabled=false`。
+  - 修复前逻辑：遍历所有按钮 → "深度思考"enabled → 返回 false → 误判完成。
+  - 修复后逻辑：精准定位发送按钮 → disabled 时不 return → 文本稳定性 5s 兜底。
+- 风险/问题：
+  - `bd74640a` 是 DeepSeek 页面的哈希类名，若站点更新可能变化。若失效，选择器需重新采集。
+  - 文本稳定性 5s 阈值意味着快速响应（<5s）的完成检测会有延迟，但不会误判。
+- 下一步建议：
+  - 用户实机验证：dashboard 统一发送，观察 DeepSeek 是否仍出现"过早完成"或"卡在响应中"。
+
+---
+
+## 2026-05-09（记录 60）
+
+- 时间：2026-05-09
+- 任务 ID：T-20260506-006
+- 任务名：优化回答完成检测：使用发送/停止按钮状态
+- 状态流转：待确认 -> 待确认（五修：DeepSeek thinking block 作为主信号 + 文本稳定性阈值提升）
+- 变更文件：
+  - `content/content.js`
+- 操作摘要：
+  - **根因分析**：四修后仍存在两个问题：
+    - "没回答完就已完成"：文本稳定性 5s 阈值过短，DeepSeek 深度思考阶段会有自然暂停，5s 内无新文本 → 误判完成。
+    - "回答完了还卡在响应中"：`hasStreamingIndicator` 使用通用选择器（`.result-streaming, .ds-loading`），不匹配 DeepSeek 实际 DOM，导致文本稳定性兜底被阻断或无法正确触发。
+  - **修复**：
+    1. `hasStreamingIndicator("deepseek")`：新增 DeepSeek 专属检测，检查 `.ds-think-content`（思考内容块）、`[class*="ds-loading"]`、`[class*="ds-generating"]` 等 DeepSeek 特有流式标记。
+    2. `waitForResponseComplete` DeepSeek 分支重构：
+       - 主信号：`hasStreamingIndicator("deepseek")` → 思考块可见时返回"仍在响应"（阻断误判完成）。
+       - 安全网：25 秒硬上限，防止流式标记永久不消失时卡死。
+       - 兜底：文本稳定性阈值从 5s 提升至 8s，减少思考暂停导致的误判。
+    3. 移除四修中基于 `isDeepSeekSendDisabled` 的检测逻辑（发送按钮 `ariaDisabled` 跟随 textarea 内容，非响应状态，已确认无用）。
+- 验证步骤：
+  1. `node --check content/content.js` 通过。
+  2. `node --test tests/session/*.test.js` 通过：`pass 48, fail 0`。
+- 验证证据：
+  - `node --check content/content.js` 无语法错误。
+  - `node --test tests/session/*.test.js` 全部 48 个测试通过。
+- 风险/问题：
+  - `.ds-think-content` 选择器依赖 DeepSeek 的思考功能 DOM 结构，若站点更新可能变化。
+  - 8s 文本稳定性阈值意味着快速响应（<8s）的完成检测会有轻微延迟，但不会误判。
+  - 25s 硬上限是安全网，正常流程不应触发；若频繁触发说明流式标记检测不准确。
+- 下一步建议：
+  - 用户实机验证：dashboard 统一发送，观察 DeepSeek 是否仍出现"过早完成"或"卡在响应中"。
+
+---
+
