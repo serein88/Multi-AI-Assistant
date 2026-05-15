@@ -68,6 +68,32 @@
 
 ---
 
+
+
+## 9. 任务数据源（2026-05 迁移）
+
+- 任务数据源已从 `task.md` 迁移至 `tasks.json`（JSON 格式）。
+- 任务看板 UI：`task-board.html`，通过浏览器打开后可查看、编辑、新增任务。
+- Agent 通过标准文件操作读写 `tasks.json`，与人类操作同一个文件。
+- `task.md` 保留为只读参考，不再作为主数据源。
+
+### Agent 读写 tasks.json 示例
+
+**读取任务：**
+```bash
+node -e "const d=JSON.parse(require('fs').readFileSync('tasks.json','utf8'));console.log(d.tasks.filter(t=>!t.archived).map(t=>t.id+' '+t.status+' '+t.name).join('\n'))"
+```
+
+**修改任务状态：**
+```bash
+node -e "const f='tasks.json';const d=JSON.parse(require('fs').readFileSync(f,'utf8'));d.tasks.find(t=>t.id==='T-xxx').status='完成';require('fs').writeFileSync(f,JSON.stringify(d,null,2))"
+```
+
+**新增任务：**
+```bash
+node -e "const f='tasks.json';const d=JSON.parse(require('fs').readFileSync(f,'utf8'));d.tasks.push({id:'T-20260515-XXX',name:'任务名',category:'feat',priority:'P1',status:'待进行',criteria:'',notes:'',createdAt:'2026-05-15',archived:false});require('fs').writeFileSync(f,JSON.stringify(d,null,2))"
+```
+
 ## 5. 任务状态定义
 
 `task.md` 中仅允许以下 5 种状态：
