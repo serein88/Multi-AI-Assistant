@@ -12,6 +12,7 @@
 
 | ID | 任务名 | 优先级 | 状态 | 验收标准 | 阻塞/备注 |
 |---|---|---:|---|---|---|
+| T-20260515-004 | 新建 Task Board：HTML 看板 + JSON 数据源 | P1 | 进行中 | 1. task-board.html 可加载 tasks.json 查看所有任务；2. 下拉框切换状态；3. 新增/编辑任务；4. 保存写回文件；5. 归档默认隐藏；6. 按状态/分类/优先级筛选 | 设计文档已确认：docs/superpowers/specs/2026-05-15-task-board-design.md |
 | T-20260402-001 | 设计并规划 CLI Runtime MVP（agent-first/browser-first） | P0 | 进行中 | 输出正式设计文档与可执行实施计划；明确命令面、JSON 协议、错误模型、浏览器运行模型、首批 Provider 范围与实施步骤 | 本轮仅产出 spec/plan，不改业务实现代码 |
 | T-20260412-006 | 设计并拆解历史子会话适配 Phase 1（DeepSeek 样板） | P0 | 待进行 | 明确扩展如何浏览/绑定/继续 provider 原生历史对话；先打通 1 个样板 provider 的设计与任务拆分 | 推荐先做 `DeepSeek`，暂不优先 `Gemini`，以降低 iframe/内部路由适配风险 |
 | T-20260319-001 | 修复主页面打开 Grok 时 "Something went wrong" 错误 | P0 | 待确认 | 在扩展主界面打开 Grok 不再直接落入错误页；Grok 面板可正常显示并保留统一发送能力 | 2026-03-19 二次修复：移除 Grok 页面内的自动 Cloudflare 验证干预，避免内容脚本触发 Grok 全局错误边界 |
