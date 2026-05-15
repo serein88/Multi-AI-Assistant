@@ -1902,7 +1902,7 @@ function initGridResizers() {
   }
 
   // Initialize Rows (Pixel based)
-  if (rowCount > 1) {
+  if (rowCount >= 1) {
     if (rowSizes.length !== rowCount) {
       const heights = [];
       for (let r = 0; r < rowCount; r++) {
@@ -1934,8 +1934,19 @@ function initGridResizers() {
         grid.appendChild(splitter);
       }
     }
-  } else {
-    grid.style.gridTemplateRows = "";
+    // Single-row mode: add bottom-edge splitter so row height is adjustable
+    if (rowCount === 1) {
+      const lastPanel = panels[panels.length - 1];
+      if (lastPanel) {
+        const rect = lastPanel.getBoundingClientRect();
+        const splitter = document.createElement("div");
+        splitter.className = "grid-splitter grid-splitter-horizontal";
+        splitter.dataset.index = "0";
+        splitter.style.top = `${rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT}px`;
+        splitter.addEventListener("mousedown", onHorizontalSplitterMouseDown);
+        grid.appendChild(splitter);
+      }
+    }
   }
 }
 
