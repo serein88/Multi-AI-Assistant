@@ -2194,3 +2194,34 @@
 - 下一步建议：用户实机验证
 
 ---
+---
+
+## 2026-05-15（记录 63）
+
+- 时间：2026-05-15
+- 任务 ID：T-20260515-003
+- 任务名：修复管理页恢复会话后按钮永久禁用
+- 状态流转：待确认
+- 变更文件：
+  - manage.js
+- 操作摘要：
+  - 根因：estoreSession() 成功路径调用 chrome.tabs.update({ url: dashUrl }) 替换当前标签页，从未调用 setPendingState(false)。若用户通过浏览器返回/缓存回到 manage 页，pendingAction 仍为 	rue，所有按钮保持禁用。createSession() 存在相同问题。
+  - 修复策略：
+    1. estoreSession() / createSession() 成功后改用 chrome.tabs.create({ url }) 在新标签页打开 dashboard，管理页保持可用。
+    2. 成功后立即 setPendingState(false) 重置按钮状态。
+    3. 成功后 loadSessions({ preserveStatus: true }) 刷新会话列表。
+- 验证步骤：
+1. 执行 
+ode --check manage.js。
+2. 在 chrome://extensions 重载扩展。
+3. 点击扩展图标打开 manage.html，选择会话 A 点击"恢复会话"。
+4. 确认 dashboard 在新标签页打开，manage.html 保持原位。
+5. 在 manage 页切换到会话 B，确认"恢复会话"按钮可点击。
+- 验证证据：
+  - 
+ode --check manage.js 通过，无语法错误。
+  - 代码 diff：chrome.tabs.update → chrome.tabs.create + setPendingState(false) + loadSessions。
+- 风险/问题：
+  - 新标签页打开后浏览器标签增多，用户可能需要手动关闭 manage 页面。
+- 下一步建议：
+  - 用户实机验证：恢复/新建会话后 manage 页是否仍可操作。

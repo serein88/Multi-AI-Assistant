@@ -31,6 +31,7 @@
 | T-20260506-005 | 修复回答状态识别时机不准 | P0 | 待确认 | DeepSeek 不再过早识别"已完成"；Gemini 不再延迟过久才识别"已完成"；DeepSeek/Grok 稳定性阈值从 1.2s 提升至 5s | 2026-05-09 已通过 T-20260506-006 五修统一解决：DeepSeek thinking block 主信号 + 8s 文本稳定性 + 25s 硬上限 |
 | T-20260506-006 | 优化回答完成检测：使用发送/停止按钮状态 | P0 | 待确认 | `waitForResponseComplete` 对所有 provider 使用"停止按钮消失 + 发送按钮恢复"作为主信号；文本稳定性降为兜底 | 2026-05-09 五修：`hasStreamingIndicator("deepseek")` 改用 `.ds-think-content` 作为主信号，文本稳定性阈值提升至 8s，新增 25s 硬上限安全网；待用户实机验证 |
 
+| T-20260515-003 | 修复管理页恢复会话后按钮永久禁用 | P1 | 待确认 | 恢复会话后管理页保持可用；可连续恢复多个会话；恢复/新建会话均在新标签页打开 dashboard | 2026-05-15 修复：`restoreSession`/`createSession` 成功后用 `chrome.tabs.create` 替代 `chrome.tabs.update`，重置 pending 状态并刷新列表 |
 ## 已归档任务
 
 | ID | 任务名 | 状态 | 完成日期 |
