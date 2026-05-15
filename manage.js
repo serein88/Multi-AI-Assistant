@@ -204,11 +204,8 @@ async function createSession() {
     const result = await sendRuntimeMessage({ type: "session:create", mode });
     const sid = result.session?.sessionId || "";
     const name = result.session?.name || sid || "unknown";
-    setStatus(`会话已创建：${name}，正在新标签页打开...`);
-    const dashUrl = chrome.runtime.getURL("dashboard.html") + (sid ? "?sessionId=" + encodeURIComponent(sid) : "");
-    chrome.tabs.create({ url: dashUrl });
+    setStatus(`会话已创建：${name}。`);
     setPendingState(false);
-    setStatus(`会话已创建：${name}，已在新标签页打开。`);
     loadSessions({ preserveStatus: true }).catch(() => {});
   } catch (error) {
     setStatus(`创建失败：${error.message}`);
@@ -230,12 +227,8 @@ async function restoreSession() {
       sessionId: selectedSessionId
     });
     const restoredCount = Array.isArray(result.restored) ? result.restored.length : 0;
-    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话，正在跳转...` : "该会话没有可恢复的子会话，正在跳转...");
-    const dashUrl = chrome.runtime.getURL("dashboard.html") + "?sessionId=" + encodeURIComponent(selectedSessionId);
-    // Open dashboard in a new tab so manage page stays open for further restores
-    chrome.tabs.create({ url: dashUrl });
+    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话。` : "该会话没有可恢复的子会话。");
     setPendingState(false);
-    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话，已在新标签页打开。` : "该会话没有可恢复的子会话，已在新标签页打开。");
     loadSessions({ preserveStatus: true }).catch(() => {});
   } catch (error) {
     setStatus(`恢复失败：${error.message}`);

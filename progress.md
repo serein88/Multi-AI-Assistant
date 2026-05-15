@@ -2225,3 +2225,29 @@ ode --check manage.js 通过，无语法错误。
   - 新标签页打开后浏览器标签增多，用户可能需要手动关闭 manage 页面。
 - 下一步建议：
   - 用户实机验证：恢复/新建会话后 manage 页是否仍可操作。
+
+---
+
+## 2026-05-15（记录 64）
+
+- 时间：2026-05-15
+- 任务 ID：T-20260515-003
+- 任务名：修复管理页恢复/新建会话后按钮永久禁用及重复打开窗口
+- 状态流转：待确认 -> 完成
+- 变更文件：
+  - manage.js
+- 操作摘要：
+  - 用户首次验证发现：点击"恢复会话"会打开两个一样的 dashboard 窗口。
+  - 根因：background.js 的 handleSessionRestore 已通过 sessionWindowManager.createManagedSessionWindow() 打开 dashboard 标签页，manage.js 又调用 chrome.tabs.create 打开了第二个。
+  - 修复：移除 manage.js 中 createSession 和 estoreSession 里的 chrome.tabs.create 调用，让 background.js 统一管理标签页打开。成功后保留 setPendingState(false) + loadSessions() 刷新列表。
+- 验证步骤：
+1. 执行 
+ode --check manage.js。
+2. 在 manage 页点击"恢复会话"，确认只打开一个 dashboard 标签页。
+3. 回到 manage 页，切换到其他会话，确认"恢复会话"按钮可点击。
+- 验证证据：
+  - 
+ode --check manage.js 通过，无语法错误。
+  - 用户确认：修复点击"恢复对话"打开两个一样的窗口。成功。
+- 风险/问题：无。
+- 下一步建议：用户确认标记为完成。
