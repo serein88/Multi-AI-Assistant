@@ -4,3 +4,6 @@
 /.agent
 /_metadata
 /.worktrees
+/.claude
+.mcp.json
+.opencode.json

@@ -2140,3 +2140,57 @@
 
 ---
 
+
+## 2026-05-14（记录 61）
+
+- 时间：2026-05-14
+- 任务 ID：T-20260514-001
+- 任务名：替代 popup：新建 manage.html 全屏管理页
+- 状态流转：待确认
+- 变更文件：
+  - manage.html（新建）
+  - manage.css（新建）
+  - manage.js（新建）
+  - manifest.json（移除 default_popup，添加资源声明）
+  - background.js（action.onClicked 改为打开 manage.html）
+- 操作摘要：
+  - 移除 manifest default_popup，使 action.onClicked 可触发
+  - 新建 manage.html：满宽左右分栏（左侧历史会话列表 + 右侧详情区）
+  - 新建 manage.css：响应式布局（>=1024px 左右分栏、<768px 上下堆叠）
+  - 新建 manage.js：从 popup.js 移植会话管理逻辑，新增选中态、跳转 dashboard
+  - background.js action.onClicked 改为 chrome.tabs.create manage.html
+- 验证步骤：
+  1. node --check manage.js 通过
+  2. node --check background.js 通过
+  3. node --test tests/session/*.test.js 全部通过（pass 48, fail 0）
+- 验证证据：语法检查和单元测试均通过
+- 风险/问题：
+  - popup.html / popup.css / popup.js 保留未删除，后续清理
+  - e2e 测试 t-20260413-014-cdp-regress.mjs 中仍引用 popup.html，暂不影响功能
+- 下一步建议：
+  - 用户实机验证：点击扩展图标 -> 新标签打开 manage.html -> 新建/恢复会话 -> 跳转 dashboard
+
+---
+## 2026-05-15（记录 62）
+
+- 时间：2026-05-15
+- 任务 ID：T-20260515-001
+- 任务名：会话记录面板折叠交互统一
+- 状态流转：待确认
+- 变更文件：
+  - dashboard.html（移除 header 内 toggle 按钮）
+  - dashboard.js（dock 按钮改为双向切换，移除 transcriptToggleBtn 逻辑）
+  - dashboard.css（dock 按钮常驻显示，移除 toggle-btn 样式）
+- 操作摘要：
+  - 移除面板 header 内的折叠按钮
+  - dock 按钮常驻屏幕右侧中间，点击双向切换（展开态显示收起图标，折叠态显示展开+标题）
+  - 修复之前 CSS 未关闭大括号导致设置面板样式被吞的 bug
+- 验证步骤：
+  1. node --check dashboard.js 通过
+  2. CDP 验证：dock 按钮存在且可见，toggle 按钮已移除，设置面板 display: none 正常
+  3. CDP 点击 dock 双向切换验证通过
+- 验证证据：CDP 实机检查全部通过
+- 风险/问题：无
+- 下一步建议：用户实机验证
+
+---
