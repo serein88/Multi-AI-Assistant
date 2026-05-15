@@ -2300,11 +2300,13 @@ function hasStreamingIndicator(provider) {
     return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming, .result-streaming, .markdown.result-streaming`);
   }
   if (provider === "deepseek") {
-    // DeepSeek-specific: thinking content block is a strong streaming signal.
-    // Also check for loading/generating classes that may appear during streaming.
-    return !!document.querySelector(
-      '.ds-think-content, [class*="ds-loading"], [class*="ds-generating"], [class*="result-streaming"]'
-    );
+    // DeepSeek retains .ds-think-content in DOM permanently for ALL messages —
+    // it cannot be used as a streaming indicator at all (always returns true).
+    // Also, DeepSeek has no stop button. The ONLY reliable completion signal
+    // is text stability: when the response text stops changing for N seconds.
+    // So hasStreamingIndicator must return false for DeepSeek to let the
+    // waitForResponseComplete code fall through to text stability (Step 3).
+    return false;
   }
   return !!document.querySelector(base);
 }
@@ -2485,7 +2487,6 @@ async function waitForResponseComplete(provider) {
     // DeepSeek: no stop button. Primary signal: hasStreamingIndicator (thinking block / loading).
     // Text stability (8s) as fallback. Hard max 25s to prevent permanent hangs.
     // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
-    const deepseekRespondingStartedAt = { current: 0 };
 
     // Gemini: "停止回答" (Stop response) button appears during response.
     // On completion: stop button disappears, send button returns (ariaDisabled=true because input cleared).
@@ -2512,26 +2513,11 @@ async function waitForResponseComplete(provider) {
       // === Step 1: Provider-specific detection (based on real DOM) ===
 
       if (provider === "deepseek") {
-        // Track when we first detect responding state
-        if (deepseekRespondingStartedAt.current === 0) {
-          deepseekRespondingStartedAt.current = Date.now();
-        }
-
-        // Primary: streaming indicator (thinking block, loading class)
-        if (hasStreamingIndicator("deepseek")) {
-          log(`[DS] streaming indicator present → still responding`);
-          return;
-        }
-
-        // Hard max: if we've been tracking for 25s without streaming indicator, force complete
-        const dsElapsed = Date.now() - deepseekRespondingStartedAt.current;
-        if (dsElapsed >= 25000) {
-          log(`[DS] hard max ${dsElapsed}ms → COMPLETED`);
-          cleanup();
-          resolve(true);
-          return;
-        }
-        // Fall through to text stability (Step 3) below
+        // DeepSeek: no stop button, .ds-think-content lingers permanently in DOM
+        // for ALL historical messages (not usable as streaming indicator).
+        // Primary signal: text stability (Step 3, 8s threshold).
+        // Outer 90s timeout serves as the absolute safety net.
+        // No provider-specific logic needed here — fall through to Step 3.
       }
 
       if (provider === "gemini") {
