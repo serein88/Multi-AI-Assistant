@@ -167,6 +167,7 @@ let transcriptPollIntervalId = null;
 let transcriptRequestSeq = 0;
 let transcriptProviderExpanded = new Set();
 let transcriptViewMode = localStorage.getItem("multi-ai-transcript-view") || "messages";
+let transcriptCollapsed = localStorage.getItem("multi-ai-transcript-collapsed") === "true";
 
 const DEBUG = true; // Set to false in production
 
@@ -2220,6 +2221,25 @@ if (transcriptRefreshBtn) {
     refreshSessionTranscript().catch(() => undefined);
   });
 }
+
+const transcriptDockBtn = document.getElementById("transcriptDock");
+function applyTranscriptCollapsed(collapsed) {
+  transcriptCollapsed = collapsed;
+  localStorage.setItem("multi-ai-transcript-collapsed", collapsed ? "true" : "false");
+  const workspace = document.getElementById("workspaceLayout");
+  if (workspace) {
+    workspace.classList.toggle("transcript-collapsed", collapsed);
+  }
+  if (transcriptDockBtn) {
+    transcriptDockBtn.innerHTML = collapsed ? "会话记录 &#9664;" : "&#9654;";
+  }
+}
+if (transcriptDockBtn) {
+  transcriptDockBtn.addEventListener("click", () => {
+    applyTranscriptCollapsed(!transcriptCollapsed);
+  });
+}
+applyTranscriptCollapsed(transcriptCollapsed);
 
 transcriptViewMode = normalizeTranscriptViewMode(transcriptViewMode);
 updateTranscriptViewModeButton();
