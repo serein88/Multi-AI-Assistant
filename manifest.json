@@ -4,7 +4,6 @@
   "version": "0.3.2",
   "description": "Open multiple AI chat sites and send the same prompt.",
   "action": {
-    "default_popup": "popup.html",
     "default_title": "Multi AI"
   },
   "background": {
@@ -108,7 +107,10 @@
         "dashboard.html",
         "dashboard.css",
         "dashboard.js",
-        "providers.js"
+        "providers.js",
+        "manage.html",
+        "manage.css",
+        "manage.js"
       ],
       "matches": [
         "<all_urls>"

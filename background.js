@@ -930,7 +930,7 @@ async function openDashboard(panels) {
 }
 
 chrome.action.onClicked.addListener(() => {
-  openDashboard([]).catch(() => undefined);
+  chrome.tabs.create({ url: chrome.runtime.getURL("manage.html"), active: true });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
