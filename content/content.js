@@ -1,4 +1,4 @@
-const RESPONSE_SELECTORS = {
+﻿const RESPONSE_SELECTORS = {
   chatgpt: [
     "[data-message-author-role='assistant'] .markdown",
     "[data-message-author-role='assistant']",
@@ -1963,10 +1963,6 @@ async function sendGrokMessage(input, prompt, config) {
           return true;
         }
 
-        if (hasStreamingIndicator("grok")) {
-          return true;
-        }
-
         const currentCount = countResponseNodes("grok");
         if (currentCount > baselineCount) {
           return true;
@@ -2254,6 +2250,30 @@ function getStopSelectors(provider) {
     ];
   }
 
+  if (provider === "deepseek") {
+    // DeepSeek: has a stop button during streaming.
+    // Avoid generic SVG selectors to reduce false positives on sidebar icons.
+    return [
+      'button[aria-label*="停止"]',
+      'button[aria-label*="Stop"]',
+      'button[title*="停止"]',
+      'button[title*="Stop"]',
+      '[data-testid*="stop"]',
+      '[class*="stop-generating"]'
+    ];
+  }
+
+  if (provider === "gemini") {
+    // Gemini: stop button uses "停止回答" (zh) or "Stop response" (en) as aria-label.
+    return [
+      'button[aria-label*="停止回答"]',
+      'button[aria-label*="Stop response"]',
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="停止"]',
+      'button[data-testid*="stop"]'
+    ];
+  }
+
   return [
     'button[aria-label*="Stop"]',
     'button[aria-label*="停止"]',
@@ -2302,7 +2322,7 @@ function hasStreamingIndicator(provider) {
   if (provider === "deepseek") {
     // DeepSeek retains .ds-think-content in DOM permanently for ALL messages —
     // it cannot be used as a streaming indicator at all (always returns true).
-    // Also, DeepSeek has no stop button. The ONLY reliable completion signal
+    // DeepSeek does have a stop button, but it is not useful as a streaming indicator
     // is text stability: when the response text stops changing for N seconds.
     // So hasStreamingIndicator must return false for DeepSeek to let the
     // waitForResponseComplete code fall through to text stability (Step 3).
@@ -2452,6 +2472,7 @@ async function waitForResponseComplete(provider) {
   const stopSelectors = getStopSelectors(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
+  let grokStopWasSeen = false;
   let stopDisappearAt = 0;
   let lastStableResponse = "";
   let lastStableResponseAt = 0;
@@ -2484,7 +2505,7 @@ async function waitForResponseComplete(provider) {
 
     // --- Provider-specific helpers (based on real DOM investigation 2026-05-06) ---
 
-    // DeepSeek: no stop button. Primary signal: hasStreamingIndicator (thinking block / loading).
+    // DeepSeek: stop button detection via getStopSelectors. Primary signal: text stability.
     // Text stability (8s) as fallback. Hard max 25s to prevent permanent hangs.
     // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
 
@@ -2493,7 +2514,7 @@ async function waitForResponseComplete(provider) {
     // NOTE: No position filter — must work inside dashboard iframe (smaller viewport).
     const geminiStopWasSeen = { current: false };
     const isGeminiStopVisible = () => {
-      const stopBtns = document.querySelectorAll('button[aria-label*="停止回答"]');
+      const stopBtns = document.querySelectorAll('button[aria-label*="停止回答"], button[aria-label*="Stop response"]');
       for (const b of stopBtns) {
         const r = b.getBoundingClientRect();
         if (r.width > 0 && r.height > 0) return true;
@@ -2501,7 +2522,7 @@ async function waitForResponseComplete(provider) {
       return false;
     };
     const isGeminiSendVisible = () => {
-      const sendBtn = document.querySelector('button.send-button, button[aria-label="发送"], button[aria-label="Send"]');
+      const sendBtn = document.querySelector('button.send-button, button[aria-label*="发送"], button[aria-label*="Send"]');
       if (!sendBtn) return false;
       const r = sendBtn.getBoundingClientRect();
       return r.width > 0 && r.height > 0;
@@ -2513,7 +2534,7 @@ async function waitForResponseComplete(provider) {
       // === Step 1: Provider-specific detection (based on real DOM) ===
 
       if (provider === "deepseek") {
-        // DeepSeek: no stop button, .ds-think-content lingers permanently in DOM
+        // DeepSeek: has a stop button (detected via getStopSelectors), .ds-think-content lingers permanently in DOM
         // for ALL historical messages (not usable as streaming indicator).
         // Primary signal: text stability (Step 3, 8s threshold).
         // Outer 90s timeout serves as the absolute safety net.
@@ -2540,7 +2561,33 @@ async function waitForResponseComplete(provider) {
         }
       }
 
-      // === Step 2: Universal stop button tracking (ChatGPT, Grok, etc.) ===
+      if (provider === "grok") {
+        // Grok: stop button appears during streaming, send button recovers after completion.
+        // Track stop button lifecycle similar to Gemini.
+        const grokStopVisible = hasElementDeep(stopSelectors);
+        if (grokStopVisible) {
+          grokStopWasSeen = true;
+          log(`[Grok] stop visible → still responding`);
+          return; // Still responding
+        }
+        // Stop button gone — if it was seen before, check send button is back
+        if (grokStopWasSeen && sendSelectors.length > 0) {
+          for (const sel of sendSelectors) {
+            const el = document.querySelector(sel);
+            if (el && isElementVisible(el)) {
+              const btn = el.closest('button, [role="button"], input') || el;
+              if (!isElementDisabled(btn)) {
+                log(`[Grok] stop gone + send enabled → COMPLETED`);
+                cleanup();
+                resolve(true);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // === Step 2: Universal stop button tracking (ChatGPT, etc.) ===
       const stopVisible = hasElementDeep(stopSelectors);
       if (stopVisible) {
         sawStop = true;

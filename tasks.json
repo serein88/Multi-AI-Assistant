@@ -10,7 +10,7 @@
       "criteria": "1. task-board.html 可加载 tasks.json 查看所有任务；2. 下拉框切换状态；3. 新增/编辑任务；4. 保存写回文件；5. 归档默认隐藏；6. 按状态/分类/优先级筛选",
       "notes": "2026-05-17 用户确认完成：看板功能正常，删除任务已实现",
       "createdAt": "2026-05-15",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260402-001",
@@ -21,17 +21,6 @@
       "criteria": "输出正式设计文档与可执行实施计划；明确命令面、JSON 协议、错误模型、浏览器运行模型、首批 Provider 范围与实施步骤",
       "notes": "spec 与 plan 均已产出（docs/superpowers/specs/2026-04-02-cli-runtime-design.md + plans/2026-04-02-cli-runtime-implementation-plan.md），CLI Runtime 业务代码未进入主分支",
       "createdAt": "2026-04-02",
-      "archived": false
-    },
-    {
-      "id": "T-20260412-006",
-      "name": "设计并拆解历史子会话适配 Phase 1（DeepSeek 样板）",
-      "category": "design",
-      "priority": "P0",
-      "status": "待进行",
-      "criteria": "明确扩展如何浏览/绑定/继续 provider 原生历史对话；先打通 1 个样板 provider 的设计与任务拆分",
-      "notes": "推荐先做 DeepSeek，暂不优先 Gemini，以降低 iframe/内部路由适配风险",
-      "createdAt": "2026-04-12",
       "archived": false
     },
     {
@@ -54,7 +43,7 @@
       "criteria": "新建/旧会话均具备 transcript 壳结构；转录基础逻辑独立成模块；相关 session 测试通过",
       "notes": "仅完成数据结构基础，不含实时状态消息与 UI",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-002",
@@ -65,7 +54,7 @@
       "criteria": "content/content.js -> background.js 可同步 responding/completed/failed/interrupted 等实时状态；相关 transcript 测试通过",
       "notes": "本轮只做实时状态，不记录 user/assistant 正文",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-003",
@@ -76,7 +65,7 @@
       "criteria": "dashboard 统一发送后可把 user turn 写入受管会话 transcript；相关 transcript 测试通过",
       "notes": "本轮只记录统一发送 user turn，不记录 assistant 正文和手动继续聊",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-004",
@@ -87,7 +76,7 @@
       "criteria": "provider 页面手动继续聊产生的 user / assistant turn 能写入 transcript；具备最小去重与 turn 归并；相关 transcript 测试通过",
       "notes": "本轮只做扩展接管后的新增轮次，不回填旧历史",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-005",
@@ -98,7 +87,7 @@
       "criteria": "各 provider 原始记录写入时会同步聚合到会话级 timeline；相关 transcript 测试通过",
       "notes": "本轮只做 background 侧 timeline 维护，不做 dashboard 展示",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-006",
@@ -109,7 +98,7 @@
       "criteria": "dashboard 可查看会话总时间线、provider 原始记录和 live status；UI 可读；相关检查通过",
       "notes": "本轮只做 dashboard 展示，不做额外搜索/筛选能力",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-007",
@@ -120,7 +109,7 @@
       "criteria": "新建会话、统一发送、手动继续聊、恢复后查看记录四条链路完成实机验证；task.md/progress.md 收口；提交最终回归记录",
       "notes": "2026-04-13 实机回归发现转录链路仍有阻塞缺陷：Gemini 重复记账、DeepSeek/Grok assistant turn 缺失、手动继续聊未入账",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-008",
@@ -131,7 +120,7 @@
       "criteria": "统一发送一轮后，每个命中 provider 只新增 1 条 user turn 与 1 条 assistant turn；Gemini 不再把欢迎语、你说回显或中间碎片重复写入 transcript/timeline",
       "notes": "2026-04-13 实机复测通过：Gemini 重复 turn 已消失；DeepSeek/Grok assistant turn 仍留待 T-20260413-009 处理",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-009",
@@ -142,7 +131,7 @@
       "criteria": "DeepSeek、Grok 在统一发送后都能写入 assistant turn，liveStatus 能从 responding 正确回到 completed，不再长期卡住",
       "notes": "2026-04-13 实机复测通过：DeepSeek/Grok 统一发送后均只保留 1 条 user turn 与 1 条 assistant turn，状态均回到 completed",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-010",
@@ -153,7 +142,7 @@
       "criteria": "在 provider 页面手动继续聊后，新增 user / assistant turn 会进入 transcript 与 timeline；不依赖统一发送入口",
       "notes": "2026-04-13 实机复测通过：DeepSeek/Gemini/Grok 在 iframe 内手动发送后均新增 user/assistant turn，liveStatus 可回到 completed",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-011",
@@ -164,7 +153,7 @@
       "criteria": "在 Dashboard 右侧 Provider 原始记录展开任意 provider 后，经历轮询刷新仍保持展开；用户点击展开/折叠不闪回",
       "notes": "2026-04-13 实机验证通过：展开后跨轮询刷新保持展开，不再闪回折叠",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-014",
@@ -219,7 +208,7 @@
       "criteria": "恢复/新建会话后管理页保持可用且不重复打开窗口",
       "notes": "2026-05-15 用户确认修复成功",
       "createdAt": "2026-05-15",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260214-001",
@@ -495,6 +484,39 @@
       "notes": "",
       "createdAt": "2026-05-15",
       "archived": true
+    },
+    {
+      "createdAt": "2026-05-17",
+      "category": "fix",
+      "archived": false,
+      "criteria": "1. getStopSelectors('deepseek') 返回 DeepSeek 专属选择器；2. waitForResponseStart 和 waitForResponseComplete 的停止按钮信号对 DeepSeek 生效；3. 文本稳定性阈值可从 8s 缩短",
+      "priority": "P0",
+      "status": "进行中",
+      "id": "T-20260517-001",
+      "name": "回答状态检测优化 #1：DeepSeek 补充 stop selectors",
+      "notes": "2026-05-17 已实现：getStopSelectors('deepseek') 返回 6 个专属选择器；waitForResponseComplete/hasStreamingIndicator 中 'no stop button' 注释已纠正；待用户实机验证"
+    },
+    {
+      "createdAt": "2026-05-17",
+      "category": "fix",
+      "archived": false,
+      "criteria": "1. isGeminiStopVisible 匹配中英文停止按钮；2. isGeminiSendVisible 用 *= 包含匹配；3. getStopSelectors('gemini') 返回 Gemini 专属选择器",
+      "priority": "P0",
+      "status": "进行中",
+      "id": "T-20260517-002",
+      "name": "回答状态检测优化 #2：Gemini stop 双语 + send 包含匹配 + getStopSelectors 专属分支",
+      "notes": "2026-05-17 已实现：1. getStopSelectors('gemini') 返回 5 个专属选择器；2. isGeminiStopVisible 匹配中/英双语停止按钮；3. isGeminiSendVisible 改为 *= 包含匹配；待用户实机验证"
+    },
+    {
+      "createdAt": "2026-05-17",
+      "category": "fix",
+      "archived": false,
+      "criteria": "1. waitForResponseComplete Step 1 有 Grok 专属停止按钮+发送按钮检测逻辑；2. sendGrokMessage 内 waitForGrokSendSignal 去掉无效 hasStreamingIndicator 调用",
+      "priority": "P1",
+      "status": "进行中",
+      "id": "T-20260517-003",
+      "name": "回答状态检测优化 #3：Grok 专属完成路径 + 清理无效 hasStreamingIndicator 调用",
+      "notes": "2026-05-17 已实现：1. waitForResponseComplete Step 1 新增 Grok 专属分支（stop 跟踪 + send 恢复检测）；2. sendGrokMessage 内 waitForGrokSendSignal 已移除无效 hasStreamingIndicator 调用；待用户实机验证"
     }
   ]
 }
