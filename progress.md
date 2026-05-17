@@ -2251,3 +2251,38 @@ ode --check manage.js 通过，无语法错误。
   - 用户确认：修复点击"恢复对话"打开两个一样的窗口。成功。
 - 风险/问题：无。
 - 下一步建议：用户确认标记为完成。
+
+---
+
+## 2026-05-17（记录 65）
+
+- 时间：2026-05-17
+- 任务 ID：T-20260515-004
+- 任务名：新建 Task Board：HTML 看板 + JSON 数据源
+- 状态流转：进行中 -> 完成
+- 变更文件：
+  - tasks.json（新建，44 条任务从 task.md 解析）
+  - task-board.html（新建，790+ 行看板 UI）
+  - AGENTS.md（新增任务数据源迁移说明）
+  - task.md（添加迁移提示）
+  - docs/superpowers/specs/2026-05-15-task-board-design.md（设计文档）
+  - docs/superpowers/plans/2026-05-15-task-board-implementation-plan.md（实施计划）
+- 操作摘要：
+  - 头脑风暴阶段：确认 JSON 数据源 + 表格下拉 + File System Access API 方案
+  - Task 1：从 task.md 解析生成 tasks.json（44 条，20 活跃 + 24 归档）
+  - Task 2：创建 task-board.html（表格视图、筛选、排序、新增/编辑/删除、归档折叠、保存写回）
+  - Task 3：更新 AGENTS.md 和 task.md 迁移说明
+  - 用户反馈追加：状态列改为 inline select 下拉、表头点击排序、刷新按钮、编辑模态框删除任务
+- 验证步骤：
+1. 浏览器打开 task-board.html
+2. 点击"打开文件"加载 tasks.json
+3. 切换状态/优先级下拉 → 保存 → node -e 验证 JSON 写入
+4. 新增任务、编辑任务、删除任务
+5. 筛选、排序、刷新
+- 验证证据：
+  - 用户确认：任务列表正常显示、可以，这个任务完成
+  - git log：5 个提交覆盖设计、计划、数据、UI、文档
+- 风险/问题：
+  - task.md 保留为只读参考，但未删除，避免历史引用断裂
+- 下一步建议：
+  - 后续 Agent 任务操作改用 tasks.json，不再编辑 task.md
