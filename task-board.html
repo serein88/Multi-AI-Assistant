@@ -317,6 +317,12 @@ body {
   justify-content: flex-end;
   margin-top: 20px;
 }
+.form-actions .btn-delete {
+  margin-right: auto;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.form-actions .btn-delete:hover { background: #fef2f2; }
 /* ─── Empty State ─── */
 .empty-state {
   text-align: center;
@@ -378,6 +384,7 @@ body {
     <span class="save-status" id="saveStatus">请先打开文件</span>
     <button class="btn" id="btnOpen" onclick="openFile()">打开文件</button>
     <button class="btn" id="btnSave" onclick="saveFile()" disabled>保存</button>
+    <button class="btn" id="btnRefresh" onclick="refreshFile()" disabled>刷新</button>
     <button class="btn btn-primary" id="btnAdd" onclick="showAddModal()">+ 新增任务</button>
   </div>
 </div>
@@ -390,11 +397,11 @@ body {
   <table class="task-table" id="taskTable" style="display:none">
     <thead>
       <tr>
-        <th class="col-id">ID</th>
-        <th class="col-name">任务名</th>
-        <th class="col-category">分类</th>
-        <th class="col-priority">优先级</th>
-        <th class="col-status">状态</th>
+        <th class="col-id" style="cursor:pointer" onclick="sortBy('id')">ID <span id="sort-id"></span></th>
+        <th class="col-name" style="cursor:pointer" onclick="sortBy('name')">任务名 <span id="sort-name"></span></th>
+        <th class="col-category" style="cursor:pointer" onclick="sortBy('category')">分类 <span id="sort-category"></span></th>
+        <th class="col-priority" style="cursor:pointer" onclick="sortBy('priority')">优先级 <span id="sort-priority"></span></th>
+        <th class="col-status" style="cursor:pointer" onclick="sortBy('status')">状态 <span id="sort-status"></span></th>
         <th class="col-actions">操作</th>
       </tr>
     </thead>
@@ -405,16 +412,16 @@ body {
     <details>
       <summary>归档任务 (<span id="archiveCount">0</span>)</summary>
       <table class="task-table" style="margin-top: 10px;">
-        <thead>
-          <tr>
-            <th class="col-id">ID</th>
-            <th class="col-name">任务名</th>
-            <th class="col-category">分类</th>
-            <th class="col-priority">优先级</th>
-            <th class="col-status">状态</th>
-            <th class="col-actions">操作</th>
-          </tr>
-        </thead>
+    <thead>
+      <tr>
+        <th class="col-id" style="cursor:pointer" onclick="sortBy('id')">ID <span id="sort-id-a"></span></th>
+        <th class="col-name" style="cursor:pointer" onclick="sortBy('name')">任务名 <span id="sort-name-a"></span></th>
+        <th class="col-category" style="cursor:pointer" onclick="sortBy('category')">分类 <span id="sort-category-a"></span></th>
+        <th class="col-priority" style="cursor:pointer" onclick="sortBy('priority')">优先级 <span id="sort-priority-a"></span></th>
+        <th class="col-status" style="cursor:pointer" onclick="sortBy('status')">状态 <span id="sort-status-a"></span></th>
+        <th class="col-actions">操作</th>
+      </tr>
+    </thead>
         <tbody id="archiveBody"></tbody>
       </table>
     </details>
@@ -457,6 +464,7 @@ body {
       <textarea id="fNotes" placeholder="备注信息"></textarea>
     </div>
     <div class="form-actions">
+      <button class="btn btn-delete" id="btnDeleteTask" onclick="deleteTask()" style="display:none">删除任务</button>
       <button class="btn" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="modalSubmit" onclick="submitModal()">创建</button>
     </div>
@@ -472,6 +480,8 @@ let fileData = null;
 let dirty = false;
 let expandedRows = new Set();
 let editingTaskId = null;
+let sortKey = 'id';
+let sortDir = 'asc';
 // ─── Constants ───
 const STATUSES = ['待进行', '进行中', '待确认', '完成', '失败'];
 const CATEGORIES = ['feat', 'fix', 'design', 'test', 'refactor', 'docs'];
@@ -502,7 +512,8 @@ async function openFile() {
     expandedRows.clear();
     render();
     updateStatus('已加载');
-    btnSave.disabled = false;
+  btnSave.disabled = false;
+  $('#btnRefresh').disabled = false;
   } catch (err) {
     if (err.name !== 'AbortError') {
       alert('打开文件失败：' + err.message);
@@ -519,6 +530,23 @@ async function saveFile() {
     updateStatus('已保存');
   } catch (err) {
     alert('保存失败：' + err.message);
+  }
+}
+async function refreshFile() {
+  if (!fileHandle) return;
+  try {
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    fileData = JSON.parse(text);
+    if (!fileData.tasks || !Array.isArray(fileData.tasks)) {
+      fileData = { version: 1, tasks: [] };
+    }
+    dirty = false;
+    expandedRows.clear();
+    render();
+    updateStatus('已刷新');
+  } catch (err) {
+    alert('刷新失败：' + err.message);
   }
 }
 function markDirty() {
@@ -559,6 +587,41 @@ function todayStr() {
   return y + '-' + m + '-' + d;
 }
 // ─── Filtering ───
+// ─── Sorting ───
+function sortBy(key) {
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = 'asc';
+  }
+  render();
+}
+function sortTasks(tasks) {
+  const priorityOrder = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const statusOrder = { '待进行': 0, '进行中': 1, '待确认': 2, '完成': 3, '失败': 4 };
+  return [...tasks].sort((a, b) => {
+    let va = a[sortKey] || '';
+    let vb = b[sortKey] || '';
+    if (sortKey === 'priority') { va = priorityOrder[va] ?? 99; vb = priorityOrder[vb] ?? 99; }
+    if (sortKey === 'status') { va = statusOrder[va] ?? 99; vb = statusOrder[vb] ?? 99; }
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+function updateSortIndicators() {
+  const keys = ['id', 'name', 'category', 'priority', 'status'];
+  for (const k of keys) {
+    // Update both main table and archive table indicators
+    for (const suffix of ['', '-a']) {
+      const el = document.getElementById('sort-' + k + suffix);
+      if (el) el.textContent = sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    }
+  }
+}
+// ─── Filtering ───
 function getFilters() {
   return {
     status: $('#filterStatus').value,
@@ -596,19 +659,22 @@ function render() {
   const f = getFilters();
   const filtered = filterTasks(fileData.tasks);
   const { active, archived } = partitionActiveArchived(filtered);
-  if (active.length === 0 && archived.length === 0) {
+  const sortedActive = sortTasks(active);
+  const sortedArchived = sortTasks(archived);
+  updateSortIndicators();
+  if (sortedActive.length === 0 && sortedArchived.length === 0) {
     emptyState.style.display = '';
     emptyState.querySelector('p').textContent = '暂无匹配的任务';
     taskTable.style.display = 'none';
   } else {
     emptyState.style.display = 'none';
     taskTable.style.display = '';
-    taskBody.innerHTML = active.map(t => renderRow(t)).join('');
+    taskBody.innerHTML = sortedActive.map(t => renderRow(t)).join('');
   }
-  if (f.showArchived && archived.length > 0) {
+  if (f.showArchived && sortedArchived.length > 0) {
     archiveSection.style.display = '';
-    archiveCount.textContent = archived.length;
-    archiveBody.innerHTML = archived.map(t => renderRow(t)).join('');
+    archiveCount.textContent = sortedArchived.length;
+    archiveBody.innerHTML = sortedArchived.map(t => renderRow(t)).join('');
   } else {
     archiveSection.style.display = 'none';
   }
@@ -637,7 +703,11 @@ function renderRow(t) {
         priorityOpts +
       '</select>' +
     '</td>' +
-    '<td class="col-status">' + statusDot + '</td>' +
+    '<td class="col-status">' +
+      '<select class="inline-select" onchange="changeStatus(\'' + t.id + '\', this.value)">' +
+        statusOpts +
+      '</select>' +
+    '</td>' +
     '<td class="col-actions">' +
       '<div class="action-group">' +
         '<button class="btn-icon" title="编辑" onclick="editTask(\'' + t.id + '\')">&#9998;</button>' +
@@ -676,6 +746,13 @@ function changePriority(id, value) {
     markDirty();
   }
 }
+function changeStatus(id, value) {
+  const task = findTask(id);
+  if (task && task.status !== value) {
+    task.status = value;
+    markDirty();
+  }
+}
 function toggleArchive(id) {
   const task = findTask(id);
   if (task) {
@@ -690,12 +767,23 @@ function editTask(id) {
   editingTaskId = id;
   $('#modalTitle').textContent = '编辑任务';
   $('#modalSubmit').textContent = '保存';
+  $('#btnDeleteTask').style.display = '';
   $('#fName').value = task.name || '';
   $('#fCategory').value = task.category || 'feat';
   $('#fPriority').value = task.priority || 'P1';
   $('#fCriteria').value = task.criteria || '';
   $('#fNotes').value = task.notes || '';
   modalOverlay.classList.add('open');
+}
+function deleteTask() {
+  if (!editingTaskId) return;
+  const task = findTask(editingTaskId);
+  if (!task) return;
+  if (!confirm('确定要删除任务 ' + task.id + '：' + task.name + ' 吗？')) return;
+  fileData.tasks = fileData.tasks.filter(t => t.id !== editingTaskId);
+  markDirty();
+  closeModal();
+  render();
 }
 function findTask(id) {
   if (!fileData) return null;
@@ -710,6 +798,7 @@ function showAddModal() {
   editingTaskId = null;
   $('#modalTitle').textContent = '新增任务';
   $('#modalSubmit').textContent = '创建';
+  $('#btnDeleteTask').style.display = 'none';
   $('#fName').value = '';
   $('#fCategory').value = 'feat';
   $('#fPriority').value = 'P1';

@@ -5,10 +5,10 @@
       "id": "T-20260515-004",
       "name": "新建 Task Board：HTML 看板 + JSON 数据源",
       "category": "feat",
-      "priority": "P1",
-      "status": "进行中",
+      "priority": "P2",
+      "status": "完成",
       "criteria": "1. task-board.html 可加载 tasks.json 查看所有任务；2. 下拉框切换状态；3. 新增/编辑任务；4. 保存写回文件；5. 归档默认隐藏；6. 按状态/分类/优先级筛选",
-      "notes": "设计文档已确认：docs/superpowers/specs/2026-05-15-task-board-design.md",
+      "notes": "2026-05-17 用户确认完成：看板功能正常，删除任务已实现",
       "createdAt": "2026-05-15",
       "archived": false
     },
@@ -39,11 +39,11 @@
       "name": "修复主页面打开 Grok 时 \"Something went wrong\" 错误",
       "category": "fix",
       "priority": "P0",
-      "status": "待确认",
+      "status": "完成",
       "criteria": "在扩展主界面打开 Grok 不再直接落入错误页；Grok 面板可正常显示并保留统一发送能力",
       "notes": "2026-03-19 二次修复：移除 Grok 页面内的自动 Cloudflare 验证干预，避免内容脚本触发 Grok 全局错误边界",
       "createdAt": "2026-03-19",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260413-001",
@@ -171,11 +171,11 @@
       "name": "回归：Task7 二次收口",
       "category": "test",
       "priority": "P0",
-      "status": "待确认",
+      "status": "失败",
       "criteria": "新建会话 -> 统一发送 -> 手动续聊 -> 恢复会话 -> 核对 transcript/timeline 四链路跑通并留证据",
       "notes": "2026-04-14 补充实测：Grok 在真实浏览器统一发送链路可成功发出、返回收到，并写入 user+assistant turn，状态回到 completed",
       "createdAt": "2026-04-13",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260506-003",
@@ -483,6 +483,17 @@
       "criteria": "",
       "notes": "",
       "createdAt": "2026-02-15",
+      "archived": true
+    },
+    {
+      "id": "T-20260515-005",
+      "name": "test",
+      "category": "fix",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "",
+      "notes": "",
+      "createdAt": "2026-05-15",
       "archived": true
     }
   ]
