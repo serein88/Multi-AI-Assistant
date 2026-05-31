@@ -2251,16 +2251,10 @@ function getStopSelectors(provider) {
   }
 
   if (provider === "deepseek") {
-    // DeepSeek: has a stop button during streaming.
-    // Avoid generic SVG selectors to reduce false positives on sidebar icons.
-    return [
-      'button[aria-label*="停止"]',
-      'button[aria-label*="Stop"]',
-      'button[title*="停止"]',
-      'button[title*="Stop"]',
-      '[data-testid*="stop"]',
-      '[class*="stop-generating"]'
-    ];
+    // DeepSeek: NO stop button during normal streaming (verified 2026-05-31 via CDP).
+    // Stop button only appears in "continue generation" (interrupted response) scenario.
+    // Return empty array — completion detection relies on text stability (8s) only.
+    return [];
   }
 
   if (provider === "gemini") {
