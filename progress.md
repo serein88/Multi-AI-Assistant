@@ -2286,3 +2286,75 @@ ode --check manage.js 通过，无语法错误。
   - task.md 保留为只读参考，但未删除，避免历史引用断裂
 - 下一步建议：
   - 后续 Agent 任务操作改用 tasks.json，不再编辑 task.md
+
+---
+
+## 2026-05-31（记录 66）
+
+- 时间：2026-05-31
+- 任务 ID：T-20260517-001
+- 任务名：回答状态检测优化 #1：DeepSeek 补充 stop selectors（续修：回答状态误判）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/response-state.js`
+  - `content/content.js`
+  - `manifest.json`
+  - `tests/session/response-state.test.js`
+  - `tasks.json`
+- 操作摘要：
+  - 根因：DeepSeek 已确认正常流式输出没有可靠停止按钮，但 `waitForResponseStart` 仍使用通用“输入框清空 / 发送按钮禁用”信号，导致发送后过早进入 responding。
+  - 二级问题：过早进入 completion 后，旧的 `.ds-markdown` assistant 文本会被当成最新回答，稳定 8 秒后误判 completed。
+  - 修复：
+    1. 新增 `content/response-state.js`，集中维护响应状态小状态机。
+    2. DeepSeek/Grok 禁用通用 start 信号；DeepSeek start 仅接受新 response 节点数量增加或最新回答文本变化。
+    3. 统一发送与手动发送在发送前采集 response baseline，并传给 start/complete 检测。
+    4. completion 文本稳定性基于 baseline 判断，DeepSeek 不再把上一轮回答当成本轮完成依据。
+- 验证步骤：
+1. 执行 `node --test tests/session/response-state.test.js`。
+2. 执行 `node --check content/content.js`。
+3. 执行 `node --check content/response-state.js`。
+4. 执行 `node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); console.log('manifest ok')"`。
+5. 执行 `node --test tests/session/*.test.js`。
+- 验证证据：
+  - `tests/session/response-state.test.js`：2 pass, 0 fail。
+  - `content/content.js` 语法检查通过。
+  - `content/response-state.js` 语法检查通过。
+  - `manifest.json` JSON 校验输出 `manifest ok`。
+  - `node --test tests/session/*.test.js`：50 pass, 0 fail。
+- 风险/问题：
+  - 本轮未做真实 DeepSeek 页面实机验证；需要用户在扩展中重载后确认 DeepSeek 是否仍提前 completed 或长期 responding。
+  - 如果 DeepSeek 新回答文本与上一轮完全一致且 DOM 节点极快创建，仍需继续观察是否需要更强的消息容器级 baseline。
+- 下一步建议：
+  - 用户实机验证：统一发送到 DeepSeek，观察状态应在实际出现新回答后进入 responding，并在回答停止约 8 秒后 completed。
+
+---
+
+## 2026-05-31（记录 67）
+
+- 时间：2026-05-31
+- 任务 ID：T-20260517-001
+- 任务名：回答状态检测优化 #1：DeepSeek completion 阈值调整
+- 状态流转：待确认 -> 待确认
+- 变更文件：
+  - `content/response-state.js`
+  - `content/content.js`
+  - `tests/session/response-state.test.js`
+  - `tasks.json`
+- 操作摘要：
+  - 用户实机验证确认：DeepSeek 当前能在回答完成约 8 秒后显示“已完成”，说明 baseline 修复方向正确，但延迟偏长。
+  - 将 DeepSeek 文本稳定 completion 阈值从 8s 调整为 1s。
+  - 新增 `getProviderStabilityMs("deepseek") === 1000` 回归测试，避免阈值回退。
+- 验证步骤：
+1. 执行 `node --test tests/session/response-state.test.js`。
+2. 执行 `node --check content/content.js`。
+3. 执行 `node --check content/response-state.js`。
+4. 执行 `node --test tests/session/*.test.js`。
+- 验证证据：
+  - 阈值测试先失败：`TypeError: getProviderStabilityMs is not a function`。
+  - 实现后 `tests/session/response-state.test.js`：3 pass, 0 fail。
+  - `content/content.js` 与 `content/response-state.js` 语法检查通过。
+  - `node --test tests/session/*.test.js`：51 pass, 0 fail。
+- 风险/问题：
+  - 1s 阈值依赖“已进入新回答文本追踪”这个前置修复；若 DeepSeek 回答中存在超过 1s 的自然停顿，仍可能提前完成，需要实机观察。
+- 下一步建议：
+  - 用户实机验证：DeepSeek 回答停止后约 1 秒显示“已完成”；若出现长回答中途提前完成，再把阈值微调到 1.5s 或 2s。

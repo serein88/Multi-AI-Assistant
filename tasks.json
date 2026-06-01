@@ -491,10 +491,10 @@
       "archived": false,
       "criteria": "1. getStopSelectors('deepseek') 返回 DeepSeek 专属选择器；2. waitForResponseStart 和 waitForResponseComplete 的停止按钮信号对 DeepSeek 生效；3. 文本稳定性阈值可从 8s 缩短",
       "priority": "P0",
-      "status": "进行中",
+      "status": "待确认",
       "id": "T-20260517-001",
       "name": "回答状态检测优化 #1：DeepSeek 补充 stop selectors",
-      "notes": "2026-05-17 已实现：getStopSelectors('deepseek') 返回 6 个专属选择器；waitForResponseComplete/hasStreamingIndicator 中 'no stop button' 注释已纠正；待用户实机验证"
+      "notes": "2026-05-31 续修：实测结论更新为 DeepSeek 正常流式无可靠 stop button，getStopSelectors('deepseek') 保持空数组；修复 waitForResponseStart 不再用输入清空/发送按钮禁用误判开始；completion 使用发送前 baseline，避免旧 .ds-markdown 被误判完成；用户实机确认 8s 完成判定准确但延迟偏长，已将 DeepSeek 文本稳定阈值改为 1s；node --test tests/session/*.test.js 通过（51 pass, 0 fail）；待用户实机验证"
     },
     {
       "createdAt": "2026-05-17",
@@ -517,6 +517,17 @@
       "id": "T-20260517-003",
       "name": "回答状态检测优化 #3：Grok 专属完成路径 + 清理无效 hasStreamingIndicator 调用",
       "notes": "2026-05-17 已实现：1. waitForResponseComplete Step 1 新增 Grok 专属分支（stop 跟踪 + send 恢复检测）；2. sendGrokMessage 内 waitForGrokSendSignal 已移除无效 hasStreamingIndicator 调用；待用户实机验证"
+    },
+    {
+      "id": "T-20260517-004",
+      "name": "恢复对话时，保持上次打开的布局",
+      "category": "fix",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "恢复对话时，保持上一次进行该对话的布局。对话与对话之前要隔离。也就是不同对话之间不一样。",
+      "notes": "",
+      "createdAt": "2026-05-17",
+      "archived": false
     }
   ]
 }

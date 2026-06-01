@@ -206,6 +206,55 @@ function extractLatestResponse(provider) {
   return latest;
 }
 
+function getResponseStateApi() {
+  return globalThis.MultiAIResponseState || {
+    shouldUseGenericResponseStartSignals(provider) {
+      return provider !== "deepseek" && provider !== "grok";
+    },
+    getProviderStabilityMs(provider) {
+      if (provider === "deepseek") return 1000;
+      if (provider === "grok") return 5000;
+      return 1200;
+    },
+    createResponseStabilityTracker(options = {}) {
+      let lastStableResponse = "";
+      let lastStableResponseAt = 0;
+      return {
+        check(sample = {}) {
+          const text = typeof sample.text === "string" ? sample.text.trim() : "";
+          if (!text) return { complete: false, reason: "empty" };
+          if (text !== lastStableResponse) {
+            lastStableResponse = text;
+            lastStableResponseAt = sample.now || Date.now();
+            return { complete: false, reason: "changed" };
+          }
+          const now = sample.now || Date.now();
+          const stabilityMs = options.stabilityMs || 1200;
+          if (!sample.streaming && now - lastStableResponseAt >= stabilityMs) {
+            return { complete: true, reason: "stable", elapsed: now - lastStableResponseAt };
+          }
+          return { complete: false, reason: "waiting" };
+        }
+      };
+    }
+  };
+}
+
+function getProviderStabilityMs(provider) {
+  return getResponseStateApi().getProviderStabilityMs(provider);
+}
+
+function shouldUseGenericResponseStartSignals(provider) {
+  return getResponseStateApi().shouldUseGenericResponseStartSignals(provider);
+}
+
+function captureResponseBaseline(provider) {
+  return {
+    text: extractLatestResponse(provider),
+    responseCount: countResponseNodes(provider)
+  };
+}
+
 const PROVIDER_CONFIGS = {
   chatgpt: {
     inputSelectors: [
@@ -1020,6 +1069,7 @@ function recordManualSend(provider, prompt) {
   // Only the waitForResponseComplete path will send the final turn.
   setCapturingActiveResponse(true);
   pauseManualTurnObserver();
+  const responseBaseline = captureResponseBaseline(provider);
 
   const inputEl = arguments.length >= 3 ? arguments[2] : null;
   const occurredAt = new Date().toISOString();
@@ -1032,7 +1082,7 @@ function recordManualSend(provider, prompt) {
   const startResponseFlow = (assumeStarted = false) => {
     sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
 
-    const startedPromise = assumeStarted ? Promise.resolve(true) : waitForResponseStart(provider);
+    const startedPromise = assumeStarted ? Promise.resolve(true) : waitForResponseStart(provider, responseBaseline);
 
     // Best-effort: detect answering state and capture the final assistant text for manual sends too.
     startedPromise.then((started) => {
@@ -1044,7 +1094,7 @@ function recordManualSend(provider, prompt) {
 
       sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
 
-      waitForResponseComplete(provider).then(() => {
+      waitForResponseComplete(provider, responseBaseline).then(() => {
         const latest = extractLatestResponse(provider);
         if (latest) {
           sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
@@ -1062,7 +1112,7 @@ function recordManualSend(provider, prompt) {
   setTimeout(() => {
     if (inputEl && !isEditableCleared(inputEl)) {
       // Fallback: input did not clear, so confirm by observing response start.
-      waitForResponseStart(provider).then((started) => {
+      waitForResponseStart(provider, responseBaseline).then((started) => {
         if (!started) {
           finishCapture();
           return;
@@ -2253,7 +2303,7 @@ function getStopSelectors(provider) {
   if (provider === "deepseek") {
     // DeepSeek: NO stop button during normal streaming (verified 2026-05-31 via CDP).
     // Stop button only appears in "continue generation" (interrupted response) scenario.
-    // Return empty array — completion detection relies on text stability (8s) only.
+    // Return empty array — completion detection relies on text stability only.
     return [];
   }
 
@@ -2325,10 +2375,11 @@ function hasStreamingIndicator(provider) {
   return !!document.querySelector(base);
 }
 
-async function waitForResponseStart(provider) {
+async function waitForResponseStart(provider, responseBaseline = null) {
   const timeout = 12000;
   const stopSelectors = getStopSelectors(provider);
-  const baselineCount = countResponseNodes(provider);
+  const baselineCount = Number(responseBaseline?.responseCount) || countResponseNodes(provider);
+  const baselineText = typeof responseBaseline?.text === "string" ? responseBaseline.text.trim() : extractLatestResponse(provider).trim();
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   
   log(`Waiting for response start: ${provider}, baseline=${baselineCount}`);
@@ -2395,10 +2446,17 @@ async function waitForResponseStart(provider) {
         return;
       }
 
+      const latest = extractLatestResponse(provider).trim();
+      if (latest && latest !== baselineText) {
+        log("Response started: Latest response text changed");
+        cleanup();
+        resolve(true);
+        return;
+      }
+
       // 4. Check Send Button Disappearance or Disabled (Generic)
       // Only if we have valid send selectors
-      // FIX: Skip for Grok because selectors might be unstable/heuristic-based, leading to false positives if selectors match nothing.
-      if (sendSelectors.length > 0 && provider !== 'grok') {
+      if (sendSelectors.length > 0 && shouldUseGenericResponseStartSignals(provider)) {
         // If send button is GONE or DISABLED, we assume started.
         let sendBtnActive = false;
         
@@ -2434,7 +2492,7 @@ async function waitForResponseStart(provider) {
       // 5. Check Input Clearance (Generic but powerful)
       // If input was non-empty and now is empty, response likely started
       const inputEl = findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []);
-      if (inputEl) {
+      if (shouldUseGenericResponseStartSignals(provider) && inputEl) {
         const val = getEditableText(inputEl).trim();
         // We don't have the original prompt here easily, but if it's empty, it's a good sign.
         // But we must be careful not to trigger if it was ALREADY empty (unlikely during sending).
@@ -2461,15 +2519,22 @@ async function waitForResponseStart(provider) {
   });
 }
 
-async function waitForResponseComplete(provider) {
+async function waitForResponseComplete(provider, responseBaseline = null) {
   const timeout = 90000;
   const stopSelectors = getStopSelectors(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
   let grokStopWasSeen = false;
   let stopDisappearAt = 0;
-  let lastStableResponse = "";
-  let lastStableResponseAt = 0;
+  const baseline = responseBaseline || captureResponseBaseline(provider);
+  const stabilityMs = getProviderStabilityMs(provider);
+  const stabilityTracker = getResponseStateApi().createResponseStabilityTracker({
+    provider,
+    baselineText: baseline.text || "",
+    baselineResponseCount: Number(baseline.responseCount) || 0,
+    stabilityMs,
+    now: Date.now()
+  });
 
   // Helper for deep check
   const hasElementDeep = (selectors) => {
@@ -2499,8 +2564,8 @@ async function waitForResponseComplete(provider) {
 
     // --- Provider-specific helpers (based on real DOM investigation 2026-05-06) ---
 
-    // DeepSeek: stop button detection via getStopSelectors. Primary signal: text stability.
-    // Text stability (8s) as fallback. Hard max 25s to prevent permanent hangs.
+    // DeepSeek: no reliable stop button during normal streaming.
+    // Primary signal: new assistant response text becoming stable.
     // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
 
     // Gemini: "停止回答" (Stop response) button appears during response.
@@ -2530,7 +2595,7 @@ async function waitForResponseComplete(provider) {
       if (provider === "deepseek") {
         // DeepSeek: has a stop button (detected via getStopSelectors), .ds-think-content lingers permanently in DOM
         // for ALL historical messages (not usable as streaming indicator).
-        // Primary signal: text stability (Step 3, 8s threshold).
+        // Primary signal: text stability (Step 3).
         // Outer 90s timeout serves as the absolute safety net.
         // No provider-specific logic needed here — fall through to Step 3.
       }
@@ -2616,21 +2681,17 @@ async function waitForResponseComplete(provider) {
       const latest = extractLatestResponse(provider);
       const normalized = typeof latest === "string" ? latest.trim() : "";
       if (normalized) {
-        if (normalized !== lastStableResponse) {
-          lastStableResponse = normalized;
-          lastStableResponseAt = Date.now();
-        } else if (
-          lastStableResponseAt > 0 &&
-          !hasStreamingIndicator(provider)
-        ) {
-          const stabilityMs = provider === "deepseek" ? 8000 : provider === "grok" ? 5000 : 1200;
-          const elapsed = Date.now() - lastStableResponseAt;
-          if (elapsed >= stabilityMs) {
-            log(`[${provider}] text stable ${elapsed}ms → COMPLETED (fallback)`);
-            cleanup();
-            resolve(true);
-            return;
-          }
+        const sample = stabilityTracker.check({
+          text: normalized,
+          responseCount: countResponseNodes(provider),
+          streaming: hasStreamingIndicator(provider),
+          now: Date.now()
+        });
+        if (sample.complete) {
+          log(`[${provider}] text stable ${sample.elapsed}ms → COMPLETED (fallback)`);
+          cleanup();
+          resolve(true);
+          return;
         }
       }
 
@@ -2759,6 +2820,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   // process (especially important for Grok which has its own response detection).
   setCapturingActiveResponse(true);
   pauseManualTurnObserver();
+  const responseBaseline = captureResponseBaseline(provider);
 
   // Special handlers for complex editors
   if (provider === "chatgpt") {
@@ -2872,7 +2934,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       sendTranscriptLiveStatus(provider, "failed");
     }
 
-    const responseStarted = sendOk ? await waitForResponseStart(provider) : false;
+    const responseStarted = sendOk ? await waitForResponseStart(provider, responseBaseline) : false;
     log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
     if (provider === "grok" && sendOk && !responseStarted) {
@@ -2893,7 +2955,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         provider: provider
       });
 
-      waitForResponseComplete(provider).then(() => {
+      waitForResponseComplete(provider, responseBaseline).then(() => {
         // Send final turn BEFORE resuming observer to prevent duplicates
         const latest = extractLatestResponse(provider);
         if (latest) {
