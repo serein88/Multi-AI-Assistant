@@ -502,10 +502,10 @@
       "archived": false,
       "criteria": "1. isGeminiStopVisible 匹配中英文停止按钮；2. isGeminiSendVisible 用 *= 包含匹配；3. getStopSelectors('gemini') 返回 Gemini 专属选择器",
       "priority": "P0",
-      "status": "进行中",
+      "status": "完成",
       "id": "T-20260517-002",
       "name": "回答状态检测优化 #2：Gemini stop 双语 + send 包含匹配 + getStopSelectors 专属分支",
-      "notes": "2026-05-17 已实现：1. getStopSelectors('gemini') 返回 5 个专属选择器；2. isGeminiStopVisible 匹配中/英双语停止按钮；3. isGeminiSendVisible 改为 *= 包含匹配；待用户实机验证"
+      "notes": "2026-06-03 用户实机验收通过：Gemini 回答状态检测准确"
     },
     {
       "createdAt": "2026-05-17",
@@ -513,10 +513,10 @@
       "archived": false,
       "criteria": "1. waitForResponseComplete Step 1 有 Grok 专属停止按钮+发送按钮检测逻辑；2. sendGrokMessage 内 waitForGrokSendSignal 去掉无效 hasStreamingIndicator 调用",
       "priority": "P1",
-      "status": "进行中",
+      "status": "完成",
       "id": "T-20260517-003",
       "name": "回答状态检测优化 #3：Grok 专属完成路径 + 清理无效 hasStreamingIndicator 调用",
-      "notes": "2026-05-17 已实现：1. waitForResponseComplete Step 1 新增 Grok 专属分支（stop 跟踪 + send 恢复检测）；2. sendGrokMessage 内 waitForGrokSendSignal 已移除无效 hasStreamingIndicator 调用；待用户实机验证"
+      "notes": "2026-06-03 用户实机验收通过：Grok 无停止按钮，改用文本稳定性检测，阈值 5s→1.5s"
     },
     {
       "id": "T-20260517-004",

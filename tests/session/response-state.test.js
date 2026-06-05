@@ -15,7 +15,7 @@ test("deepseek does not use generic input-cleared or send-disabled start signals
 
 test("deepseek completion stability threshold is 1.5 seconds", () => {
   assert.equal(getProviderStabilityMs("deepseek"), 1500);
-  assert.equal(getProviderStabilityMs("grok"), 5000);
+  assert.equal(getProviderStabilityMs("grok"), 1500);
   assert.equal(getProviderStabilityMs("gemini"), 1200);
 });
 

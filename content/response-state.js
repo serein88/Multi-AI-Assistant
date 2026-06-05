@@ -10,7 +10,7 @@
 
   function getProviderStabilityMs(provider) {
     if (provider === "deepseek") return 1500;
-    if (provider === "grok") return 5000;
+    if (provider === "grok") return 1500;
     return 1200;
   }
 

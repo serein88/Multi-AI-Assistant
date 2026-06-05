@@ -2391,3 +2391,34 @@ ode --check manage.js 通过，无语法错误。
   - 用户实机验证通过：DeepSeek 回答完成后约 1.5s 显示”已完成”。
 - 风险/问题：
   - 1.5s 阈值若遇到 DeepSeek 长回答中自然停顿可能提前完成，需继续观察。
+
+---
+
+## 2026-06-03（记录 69）
+
+- 时间：2026-06-03
+- 任务 ID：T-20260517-002
+- 任务名：回答状态检测优化 #2：Gemini stop 双语 + send 包含匹配
+- 状态流转：完成
+- 验证结果：用户实机验收通过，Gemini 回答状态检测准确。
+
+---
+
+## 2026-06-03（记录 70）
+
+- 时间：2026-06-03
+- 任务 ID：T-20260517-003
+- 任务名：回答状态检测优化 #3：Grok 完成检测修复
+- 状态流转：进行中 -> 完成
+- 变更文件：
+  - `content/content.js`
+  - `content/response-state.js`
+  - `tests/session/response-state.test.js`
+  - `tasks.json`
+- 操作摘要：
+  - 实机调查发现 Grok 没有停止按钮（与之前假设不符），Submit 按钮始终可见。
+  - Grok 稳定性阈值从 5s 调整为 1.5s，与 DeepSeek 一致。
+  - 用户实机验收通过。
+- 验证证据：
+  - `node --test tests/session/*.test.js`：52 pass, 0 fail。
+  - 用户实机验证：Grok 回答完成后约 1.5s 显示"已完成"。

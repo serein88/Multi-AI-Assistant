@@ -216,7 +216,7 @@ const _inlineResponseState = (function() {
   }
   function getProviderStabilityMs(provider) {
     if (provider === "deepseek") return 1500;
-    if (provider === "grok") return 5000;
+    if (provider === "grok") return 1500;
     return 1200;
   }
   function createResponseStabilityTracker(options = {}) {
@@ -282,7 +282,7 @@ function getResponseStateApi() {
     },
     getProviderStabilityMs(provider) {
       if (provider === "deepseek") return 1500;
-      if (provider === "grok") return 5000;
+      if (provider === "grok") return 1500;
       return 1200;
     },
     createResponseStabilityTracker(options = {}) {
