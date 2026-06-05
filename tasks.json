@@ -17,7 +17,7 @@
       "name": "设计并规划 CLI Runtime MVP（agent-first/browser-first）",
       "category": "design",
       "priority": "P0",
-      "status": "待确认",
+      "status": "待进行",
       "criteria": "输出正式设计文档与可执行实施计划；明确命令面、JSON 协议、错误模型、浏览器运行模型、首批 Provider 范围与实施步骤",
       "notes": "spec 与 plan 均已产出（docs/superpowers/specs/2026-04-02-cli-runtime-design.md + plans/2026-04-02-cli-runtime-implementation-plan.md），CLI Runtime 业务代码未进入主分支",
       "createdAt": "2026-04-02",
@@ -527,6 +527,94 @@
       "criteria": "恢复对话时，保持上一次进行该对话的布局。对话与对话之前要隔离。也就是不同对话之间不一样。",
       "notes": "",
       "createdAt": "2026-05-17",
+      "archived": false
+    },
+    {
+      "id": "T-20260604-001",
+      "name": "修改主界面和会话管理界面的入口url",
+      "category": "refactor",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "点击拓展图标，打开的会话管理界面和多AI助手聊天界面不再是 chrome-extension://xxx/manage.html，而是http样式的或者www开头的。这样方便调试。",
+      "notes": "",
+      "createdAt": "2026-06-04",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-001",
+      "name": "waitForTabComplete 添加超时保护",
+      "category": "fix",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "1. waitForTabComplete 增加可配置超时（默认 30s）；2. 超时后 reject 并附带明确错误信息；3. 调用方 sendPromptToProviderTab 和 openProviders 能正确处理超时；4. 现有正常流程不受影响",
+      "notes": "来源：代码质量扫描。background.js 第 637-651 行，Promise 无超时可能导致永久挂起。Chrome 标签页导航到错误页、崩溃或 status 永远不报 complete 时会卡死",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-002",
+      "name": "消除 response-state.js 三重复制",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. content.js 中只保留一份 response-state 逻辑（通过内联或可靠注入）；2. 删除 _inlineResponseState 或 getResponseStateApi 中的重复 fallback；3. response-state.test.js 仍全部通过；4. 实机验证回答完成检测功能不变",
+      "notes": "来源：代码质量扫描。response-state.js 完整模块在 content.js 中被内联了 3 份（第 210-271 行、第 278-333 行），同步维护风险高。原始原因是 Chrome 扩展缓存 bug 导致脚本注入不可靠",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-003",
+      "name": "background.js：提取 main-world send 工厂函数",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. executeChatGPTMainWorldSend 和 executeTongyiMainWorldSend 合并为一个工厂函数，参数化 inputSelector 和 sendButtonSelector；2. 两个 provider 的发送行为与重构前一致；3. 内联 sleep / enterInit 等重复代码只保留一份；4. 实机验证 ChatGPT 和通义千问均可正常发送",
+      "notes": "来源：代码质量扫描。background.js 第 653-779 行和第 781-890 行结构几乎完全一致，仅选择器不同",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-004",
+      "name": "background.js：提取 session-lookup 公共函数",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 将「按 windowId 查找 → 按 sessionId 查找」的重复逻辑提取为 findSessionForSender(sender) 公共函数；2. handleSessionSyncChild / handleSessionTranscriptLiveStatus / handleSessionTranscriptProviderTurn 三个 handler 改用该函数；3. 同时提取 normalizeOccurredAt 工具函数消除 4 处时间戳标准化重复；4. 现有 session 测试全部通过",
+      "notes": "来源：代码质量扫描。session-lookup 模式在 3 个 handler 中重复；timestamp normalization 在 4 处重复",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-005",
+      "name": "减少静默吞错：关键路径补充日志",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. content.js 中至少 12 处空 catch 块补充 console.warn 日志（包含上下文信息如 provider 名、函数名）；2. background.js 中 sendPromptToProviderTab 的 catch 补充日志；3. dashboard.js 中 loadState 的 JSON parse catch 补充日志；4. 不改变现有错误处理语义（不把吞错改为抛出）",
+      "notes": "来源：代码质量扫描。20+ 处 catch 块完全吞掉错误，排查问题时无法定位。优先处理 content.js 和 background.js 中的关键路径",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-006",
+      "name": "DEBUG 标志改为生产默认关闭",
+      "category": "fix",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. background.js / dashboard.js / content.js 三处 DEBUG 常量默认值改为 false；2. 或改为从 storage 动态读取，支持开发者手动开启；3. 不影响现有日志输出结构",
+      "notes": "来源：代码质量扫描。background.js 第 2 行、dashboard.js 第 172 行、content.js 第 678 行均有 const DEBUG = true 且注释写着「Set to false in production」但从未关闭",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-007",
+      "name": "content.js 补充核心链路单元测试",
+      "category": "test",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 为 getProviderFromHost / getStopSelectors / shouldIgnoreThinkingNode / extractTextExcludingThinking 等纯函数编写测试；2. 测试文件放在 tests/content/ 目录下；3. node --test 通过且不破坏现有测试；4. 覆盖至少 5 个可独立测试的纯函数",
+      "notes": "来源：测试覆盖分析。content.js 是最大文件（3,250 行）但零测试覆盖。优先测试可独立抽出的纯函数，不依赖 DOM 环境",
+      "createdAt": "2026-06-05",
       "archived": false
     }
   ]

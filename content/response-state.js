@@ -1,4 +1,5 @@
 (function initResponseState(root) {
+  console.log('[response-state.js] initResponseState called, root type:', typeof root);
   function normalizeText(value) {
     return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   }
@@ -8,7 +9,7 @@
   }
 
   function getProviderStabilityMs(provider) {
-    if (provider === "deepseek") return 1000;
+    if (provider === "deepseek") return 1500;
     if (provider === "grok") return 5000;
     return 1200;
   }
@@ -35,9 +36,20 @@
         }
 
         if (!observedNewResponse) {
-          if (text === baselineText && responseCount <= baselineResponseCount) {
-            return { complete: false, reason: "baseline" };
+          // DeepSeek: only check text change, NOT response count.
+          // countResponseNodes() includes .ds-message which appears during the
+          // thinking phase (before .ds-markdown is created), causing the gate to
+          // open prematurely while the text still reads the previous response.
+          if (provider === "deepseek") {
+            if (text === baselineText) {
+              return { complete: false, reason: "baseline" };
+            }
+          } else {
+            if (text === baselineText && responseCount <= baselineResponseCount) {
+              return { complete: false, reason: "baseline" };
+            }
           }
+          console.log(`[DS-gate] opened: text="${text.substring(0, 50)}" baseline="${baselineText.substring(0, 50)}" count=${responseCount} baseline=${baselineResponseCount}`);
           observedNewResponse = true;
         }
 
@@ -66,6 +78,7 @@
   };
 
   root.MultiAIResponseState = api;
+  console.log('[response-state.js] MultiAIResponseState set, deepseekMs:', api.getProviderStabilityMs('deepseek'));
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = api;

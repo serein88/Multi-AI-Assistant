@@ -96,7 +96,6 @@
         "https://challenges.cloudflare.com/*"
       ],
       "js": [
-        "content/response-state.js",
         "content/content.js"
       ],
       "all_frames": true
