@@ -147,6 +147,21 @@ const transcriptTimeline = document.getElementById("transcriptTimeline");
 const transcriptTimelineCount = document.getElementById("transcriptTimelineCount");
 const transcriptProviderList = document.getElementById("transcriptProviderList");
 const transcriptViewModeBtn = document.getElementById("transcriptViewMode");
+const dashboardFocusApi = globalThis.MultiAIDashboardFocus || {};
+const promptFocusGuard = dashboardFocusApi.createPromptFocusGuard
+  ? dashboardFocusApi.createPromptFocusGuard({ promptEl, documentRef: document, windowRef: window })
+  : null;
+const setFrameFocusShielded = dashboardFocusApi.setFrameFocusShielded || (() => false);
+const PANEL_FOCUS_STEAL_GRACE_MS = 5000;
+const PROMPT_FRAME_SHIELD_MS = 3000;
+const PROMPT_COMPOSITION_SHIELD_MS = 5000;
+const loadingPanelFrames = new Set();
+const panelFrameLoadTokens = new WeakMap();
+let panelFrameLoadSeq = 0;
+let promptCompositionActive = false;
+let promptFrameShieldUntil = 0;
+let promptFrameShieldTimerId = null;
+let promptProgrammaticFocusUnblockTimerId = null;
 
 let activePanels = [];
 let pendingPickTarget = null;
@@ -1422,7 +1437,124 @@ function applyPanelI18n(panelRoot) {
   });
 }
 
+function attachPromptFocusRestore(iframe) {
+  if (!iframe || !promptFocusGuard) {
+    return;
+  }
+  iframe.addEventListener("focus", () => {
+    restorePromptIfLoadingFrameFocused(iframe);
+  });
+  iframe.addEventListener("load", () => {
+    promptFocusGuard.scheduleRestore({ allowedActiveElements: [iframe] });
+    keepPanelFrameInFocusStealWindow(iframe);
+  });
+}
+
+function markPanelFrameLoading(iframe) {
+  if (!iframe) {
+    return;
+  }
+  const token = ++panelFrameLoadSeq;
+  loadingPanelFrames.add(iframe);
+  panelFrameLoadTokens.set(iframe, token);
+  applyFrameFocusShield(iframe);
+  // Start focus guard to prevent iframe from stealing focus during loading
+  if (typeof startFocusGuard === "function" && loadingPanelFrames.size > 0) {
+    startFocusGuard();
+  }
+}
+
+function keepPanelFrameInFocusStealWindow(iframe) {
+  if (!iframe) {
+    return;
+  }
+  markPanelFrameLoading(iframe);
+  const token = panelFrameLoadTokens.get(iframe);
+  window.setTimeout(() => {
+    if (panelFrameLoadTokens.get(iframe) !== token) {
+      return;
+    }
+    loadingPanelFrames.delete(iframe);
+    panelFrameLoadTokens.delete(iframe);
+    setFrameFocusShielded(iframe, false);
+  }, PANEL_FOCUS_STEAL_GRACE_MS);
+}
+
+function restorePromptIfLoadingFrameFocused(iframe) {
+  if (!iframe || !promptFocusGuard || !loadingPanelFrames.has(iframe)) {
+    return;
+  }
+  promptFocusGuard.restoreIfFocusMovedToIframe({ allowedActiveElements: [iframe] });
+}
+
+function isPromptFrameShieldActive() {
+  return promptCompositionActive || Date.now() < promptFrameShieldUntil;
+}
+
+function cleanupDetachedLoadingPanelFrames() {
+  for (const iframe of Array.from(loadingPanelFrames)) {
+    if (!document.contains(iframe)) {
+      loadingPanelFrames.delete(iframe);
+      panelFrameLoadTokens.delete(iframe);
+      setFrameFocusShielded(iframe, false);
+    }
+  }
+}
+
+function applyFrameFocusShield(iframe) {
+  if (!iframe || !loadingPanelFrames.has(iframe)) {
+    return;
+  }
+  // Always shield loading iframes - they should never steal focus while loading
+  setFrameFocusShielded(iframe, true);
+}
+
+function applyFrameFocusShields() {
+  cleanupDetachedLoadingPanelFrames();
+  loadingPanelFrames.forEach((iframe) => {
+    applyFrameFocusShield(iframe);
+  });
+}
+
+function scheduleFrameShieldRelease() {
+  if (promptFrameShieldTimerId) {
+    clearTimeout(promptFrameShieldTimerId);
+    promptFrameShieldTimerId = null;
+  }
+  if (promptCompositionActive) {
+    return;
+  }
+  const remainingMs = promptFrameShieldUntil - Date.now();
+  if (remainingMs <= 0) {
+    applyFrameFocusShields();
+    return;
+  }
+  promptFrameShieldTimerId = setTimeout(() => {
+    promptFrameShieldTimerId = null;
+    applyFrameFocusShields();
+  }, remainingMs + 20);
+}
+
+function refreshPromptFrameShield(durationMs = PROMPT_FRAME_SHIELD_MS) {
+  promptFrameShieldUntil = Math.max(promptFrameShieldUntil, Date.now() + durationMs);
+  applyFrameFocusShields();
+  scheduleFrameShieldRelease();
+}
+
+function setPromptProgrammaticFocusBlocked(blocked) {
+  if (promptProgrammaticFocusUnblockTimerId) {
+    clearTimeout(promptProgrammaticFocusUnblockTimerId);
+    promptProgrammaticFocusUnblockTimerId = null;
+  }
+  if (promptFocusGuard && promptFocusGuard.setProgrammaticFocusBlocked) {
+    promptFocusGuard.setProgrammaticFocusBlocked(blocked);
+  }
+}
+
 function renderPanels() {
+  if (promptFocusGuard) {
+    promptFocusGuard.captureIfPromptFocused();
+  }
   grid.innerHTML = "";
 
   activePanels.forEach((panel, index) => {
@@ -1470,6 +1602,8 @@ function renderPanels() {
       });
       panelBody.appendChild(blocked);
     } else {
+      attachPromptFocusRestore(iframe);
+      markPanelFrameLoading(iframe);
       iframe.src = sessionChildUrls[provider.id] || provider.url;
     }
 
@@ -1494,9 +1628,14 @@ function renderPanels() {
         btn.className = "header-action-btn";
         btn.title = title;
         btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${svgPath}</svg>`;
+        btn.addEventListener("pointerdown", () => {
+            if (promptFocusGuard) {
+                promptFocusGuard.captureIfPromptFocused({ allowedActiveElements: [btn] });
+            }
+        });
         btn.addEventListener("click", (e) => {
             e.stopPropagation();
-            handlePanelAction(panelEl, provider, actionName);
+            handlePanelAction(panelEl, provider, actionName, btn);
         });
         return btn;
     };
@@ -1543,12 +1682,16 @@ document.addEventListener("click", (event) => {
     }
 });
 
-function handlePanelAction(panelEl, provider, action) {
+function handlePanelAction(panelEl, provider, action, actionButton = null) {
   const index = Number(panelEl.dataset.index);
   if (Number.isNaN(index)) return;
 
   if (action === "refresh") {
     const iframe = panelEl.querySelector("iframe");
+    if (promptFocusGuard) {
+      promptFocusGuard.scheduleRestore({ allowedActiveElements: [actionButton, iframe] });
+    }
+    markPanelFrameLoading(iframe);
     if (iframe && iframe.contentWindow) {
       try {
         iframe.contentWindow.location.reload();
@@ -2156,6 +2299,79 @@ function enforceMaxPanels(list) {
 }
 
 applyI18n();
+
+function notePromptInteraction() {
+  if (promptFocusGuard) {
+    promptFocusGuard.notePromptInteraction();
+  }
+  refreshPromptFrameShield();
+}
+
+promptEl.addEventListener("focus", notePromptInteraction);
+promptEl.addEventListener("pointerdown", notePromptInteraction);
+promptEl.addEventListener("keydown", notePromptInteraction);
+promptEl.addEventListener("input", notePromptInteraction);
+promptEl.addEventListener("compositionstart", () => {
+  promptCompositionActive = true;
+  setPromptProgrammaticFocusBlocked(true);
+  notePromptInteraction();
+});
+promptEl.addEventListener("compositionend", () => {
+  promptCompositionActive = false;
+  notePromptInteraction();
+  refreshPromptFrameShield(PROMPT_COMPOSITION_SHIELD_MS);
+  promptProgrammaticFocusUnblockTimerId = setTimeout(() => {
+    promptProgrammaticFocusUnblockTimerId = null;
+    setPromptProgrammaticFocusBlocked(false);
+  }, 80);
+});
+
+// Aggressive focus guard: use requestAnimationFrame (~16ms) to prevent iframe focus stealing.
+// Cross-origin iframes can steal focus via JS (window.focus), which breaks IME composition.
+// inert/tabindex only blocks user-initiated focus, not programmatic focus from iframe content.
+// rAF is fast enough that IME composition state is preserved.
+// Auto-stops after 30s to avoid unnecessary resource usage.
+let focusGuardRafId = null;
+let focusGuardActive = false;
+let focusGuardTimeoutId = null;
+const FOCUS_GUARD_MAX_MS = 30000;
+
+function startFocusGuard() {
+  if (focusGuardActive) return;
+  focusGuardActive = true;
+  const startedAt = Date.now();
+  const tick = () => {
+    if (!focusGuardActive || loadingPanelFrames.size === 0) {
+      stopFocusGuard();
+      return;
+    }
+    // Auto-stop after 30s
+    if (Date.now() - startedAt > FOCUS_GUARD_MAX_MS) {
+      stopFocusGuard();
+      return;
+    }
+    const active = document.activeElement;
+    if (active && active.tagName === "IFRAME" && loadingPanelFrames.has(active)) {
+      if (promptEl && typeof promptEl.focus === "function") {
+        promptEl.focus({ preventScroll: true });
+      }
+    }
+    focusGuardRafId = window.requestAnimationFrame(tick);
+  };
+  focusGuardRafId = window.requestAnimationFrame(tick);
+}
+
+function stopFocusGuard() {
+  focusGuardActive = false;
+  if (focusGuardRafId) {
+    window.cancelAnimationFrame(focusGuardRafId);
+    focusGuardRafId = null;
+  }
+  if (focusGuardTimeoutId) {
+    window.clearTimeout(focusGuardTimeoutId);
+    focusGuardTimeoutId = null;
+  }
+}
   
   // Auto-resize textarea
   promptEl.addEventListener("input", () => {
@@ -2218,11 +2434,18 @@ pickerConfirm.addEventListener("click", () => {
 });
 
 window.addEventListener("beforeunload", () => {
+  stopFocusGuard();
   if (transcriptPollIntervalId) {
     clearInterval(transcriptPollIntervalId);
   }
   if (transcriptRefreshTimeoutId) {
     clearTimeout(transcriptRefreshTimeoutId);
+  }
+  if (promptFrameShieldTimerId) {
+    clearTimeout(promptFrameShieldTimerId);
+  }
+  if (promptProgrammaticFocusUnblockTimerId) {
+    clearTimeout(promptProgrammaticFocusUnblockTimerId);
   }
   saveState();
 });
@@ -2275,6 +2498,10 @@ loadPanelsFromStorage()
   .finally(() => {
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);
+    if (promptFocusGuard) {
+      promptFocusGuard.focusPrompt();
+      promptFocusGuard.captureIfPromptFocused();
+    }
     renderPanels();
     startTranscriptPolling();
   });

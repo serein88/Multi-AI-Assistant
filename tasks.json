@@ -611,9 +611,9 @@
       "name": "加载网页时，输入光标不应该聚焦到分屏的AI处",
       "category": "fix",
       "priority": "P2",
-      "status": "待进行",
+      "status": "待确认",
       "criteria": "点击刷新或者新建对话，光标一直保持在同一发送输入栏。",
-      "notes": "",
+      "notes": "2026-06-05 五修：1) 简化 setFrameFocusShielded 只用 inert+tabindex；2) 加载期间始终屏蔽 iframe；3) rAF 轮询（~16ms）检测焦点被抢并立即恢复，30s 超时自动停止；4) 用户确认光标不再乱跳，但 IME 拼音仍可能被打断（跨域 iframe 内部 focus 调用无法拦截）。",
       "createdAt": "2026-06-05",
       "archived": false
     }

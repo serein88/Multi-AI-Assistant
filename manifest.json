@@ -106,6 +106,7 @@
       "resources": [
         "dashboard.html",
         "dashboard.css",
+        "dashboard-focus.js",
         "dashboard.js",
         "providers.js",
         "manage.html",

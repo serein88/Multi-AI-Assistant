@@ -2458,3 +2458,54 @@ ode --check manage.js 通过，无语法错误。
   - 工作区存在 `.gitignore` 的未提交改动（新增 `/tests`），本轮提交不会包含该文件，避免影响新增测试文件追踪。
 - 下一步建议：
   - 用户确认后将 `T-20260605-001` 标记为完成。
+
+---
+
+## 2026-06-05（记录 72）
+
+- 时间：2026-06-05
+- 任务 ID：T-20260605-008
+- 任务名：加载网页时，输入光标不应该聚焦到分屏的AI处
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `dashboard-focus.js`
+  - `dashboard.html`
+  - `dashboard.js`
+  - `manifest.json`
+  - `tests/dashboard-focus.test.js`
+  - `tasks.json`
+  - `progress.md`
+- 操作摘要：
+  - 新增 `dashboard-focus.js`，封装 dashboard 主输入框焦点守卫。
+  - `dashboard.html` 和 `manifest.json` 接入新脚本。
+  - `dashboard.js` 在面板按钮 `pointerdown` 时捕获主输入框原焦点，并在 iframe `load` / 刷新后按安全条件恢复到主发送输入栏。
+  - 新建会话 dashboard 首屏初始化时主动聚焦主发送输入栏，后续 iframe 加载不应抢走焦点。
+  - 守卫只在主输入框原本有焦点时恢复，避免用户已切到其它 dashboard 控件时被强行抢焦点。
+  - 二修：用户实机发现“AI iframe 未加载完时开始打字，后续 iframe 仍会抢焦点”。补充主输入框输入保护期，`focus/input/keydown/pointerdown` 会刷新保护信号。
+  - 二修：panel iframe 从开始加载到 `load` 后 5 秒内处于焦点抢占保护窗口；期间如果 iframe focus 或顶层 window blur 指向该 iframe，会恢复到 dashboard 主发送输入栏。
+  - 三修：用户实机发现拼音组合态仍会被打断，说明事后恢复焦点过晚。新增 iframe 焦点屏蔽：主输入框输入/拼音组合期间，对加载中或刚加载完成的 panel iframe 临时设置 `inert`、`tabindex="-1"` 和 `pointer-events: none`。
+  - 三修：`compositionstart` 开始强保护，`compositionend` 后继续保留 5 秒缓冲；普通输入/按键/聚焦保留 3 秒缓冲。iframe 完成加载后也只在 5 秒焦点抢占窗口内参与屏蔽。
+  - 四修：用户实机发现光标不明显跳走但拼音仍被打断，判定可能存在程序化 refocus 或浏览器 focus recalculation 打断 IME。组合态期间禁用 `prompt.focus()` 类程序化恢复，`compositionend` 后 80ms 再恢复。
+  - 四修：iframe 焦点屏蔽增强为同时设置 `visibility: hidden`，让加载中/刚加载完成的 iframe 在主输入框输入保护期内暂时退出可见/可聚焦路径；解除屏蔽时恢复原始 `visibility`、`tabindex` 和 `pointer-events`。
+- 验证步骤：
+1. 先执行 `node --test tests/dashboard-focus.test.js`，确认新增测试在缺少模块时失败。
+2. 实现后执行 `node --test tests/dashboard-focus.test.js`。
+3. 执行 `node --check dashboard-focus.js`。
+4. 执行 `node --check dashboard.js`。
+5. 执行 `node -e "JSON.parse(require('fs').readFileSync('manifest.json','utf8')); JSON.parse(require('fs').readFileSync('tasks.json','utf8')); console.log('json ok')"`。
+6. 执行 `node --test tests/session/*.test.js`。
+- 验证证据：
+  - 新增测试先失败：`Cannot find module '../dashboard-focus'`。
+  - 二修新增测试先失败：`guard.notePromptInteraction is not a function`。
+  - 三修新增测试先失败：`setFrameFocusShielded is not a function`。
+  - 四修新增测试先失败：`guard.setProgrammaticFocusBlocked is not a function`，以及 frame shield 尚未设置 `visibility: hidden`。
+  - 实现后 `tests/dashboard-focus.test.js`：8 pass, 0 fail。
+  - `node --check dashboard-focus.js` 通过。
+  - `node --check dashboard.js` 通过。
+  - JSON 校验输出 `json ok`。
+  - `node --test tests/session/*.test.js`：55 pass, 0 fail。
+- 风险/问题：
+  - 本轮未做真实 Chrome 扩展页面实机验证，仍需用户确认：点击刷新、新建会话后光标保持在 dashboard 底部发送输入栏。
+  - 工作区已有 `.gitignore` 未提交改动，其中 `/tests` 会导致新增 `tests/dashboard-focus.test.js` 被 Git 忽略；提交时需先处理该忽略规则或使用 `git add -f tests/dashboard-focus.test.js`。
+- 下一步建议：
+  - 用户实机确认通过后，把 `T-20260605-008` 标记为完成。
