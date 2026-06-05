@@ -30,6 +30,7 @@ const SESSION_WINDOW_MANAGER = globalThis.MultiAISessionWindowManager || {};
 const buildManagedDashboardUrl = SESSION_WINDOW_MANAGER.buildManagedDashboardUrl;
 const normalizeRestorePlan = SESSION_WINDOW_MANAGER.normalizeRestorePlan;
 const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
+const DEFAULT_TAB_COMPLETE_TIMEOUT_MS = 30000;
 const ensureSessionTranscript = SESSION_TRANSCRIPT_STORE.ensureSessionTranscript;
 const applyProviderLiveStatus = SESSION_TRANSCRIPT_STORE.applyProviderLiveStatus;
 const appendUserTurn = SESSION_TRANSCRIPT_STORE.appendUserTurn;
@@ -614,14 +615,23 @@ async function findOrCreateProviderTab(providerId) {
   return tab;
 }
 
-async function sendPromptToProviderTab(providerId, prompt) {
+async function sendPromptToProviderTab(providerId, prompt, options = {}) {
   const tab = await findOrCreateProviderTab(providerId);
   if (!tab || !tab.id) {
     return false;
   }
 
   if (tab.status !== "complete") {
-    await waitForTabComplete(tab.id);
+    try {
+      await waitForTabComplete(tab.id, { timeoutMs: options.tabCompleteTimeoutMs });
+    } catch (error) {
+      console.warn("[MultiAI Background] waitForTabComplete failed before send", {
+        providerId,
+        tabId: tab.id,
+        error: String(error?.message || error)
+      });
+      return false;
+    }
   }
 
   return new Promise((resolve) => {
@@ -634,19 +644,41 @@ async function sendPromptToProviderTab(providerId, prompt) {
   });
 }
 
-function waitForTabComplete(tabId) {
-  return new Promise((resolve) => {
+function waitForTabComplete(tabId, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0
+    ? options.timeoutMs
+    : DEFAULT_TAB_COMPLETE_TIMEOUT_MS;
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    let timer = null;
+
+    const cleanup = () => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      chrome.tabs.onUpdated.removeListener(listener);
+    };
+
     const listener = (updatedTabId, info) => {
       if (updatedTabId !== tabId) {
         return;
       }
       if (info.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener);
+        cleanup();
         resolve();
       }
     };
 
     chrome.tabs.onUpdated.addListener(listener);
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(`tab-complete-timeout:${tabId}:${timeoutMs}`));
+    }, timeoutMs);
   });
 }
 
@@ -889,7 +921,7 @@ async function executeTongyiMainWorldSend(sender, prompt) {
   return results?.[0]?.result || { ok: false, error: "no-result" };
 }
 
-async function openProviders(providers, prompt, autoSend) {
+async function openProviders(providers, prompt, autoSend, options = {}) {
   const openResults = [];
 
   for (const provider of providers) {
@@ -902,11 +934,17 @@ async function openProviders(providers, prompt, autoSend) {
     openResults.push({ provider, tabId: tab.id });
 
     if (autoSend) {
-      waitForTabComplete(tab.id).then(() => {
+      waitForTabComplete(tab.id, { timeoutMs: options.tabCompleteTimeoutMs }).then(() => {
         chrome.tabs.sendMessage(tab.id, {
           type: "sendPrompt",
           provider,
           prompt
+        });
+      }).catch((error) => {
+        console.warn("[MultiAI Background] waitForTabComplete failed before autoSend", {
+          provider,
+          tabId: tab.id,
+          error: String(error?.message || error)
         });
       });
     }
@@ -1069,6 +1107,9 @@ if (typeof module !== "undefined" && module.exports) {
     handleSessionTranscriptUserTurn,
     handleSessionTranscriptProviderTurn,
     handleTranscriptStatus,
+    waitForTabComplete,
+    sendPromptToProviderTab,
+    openProviders,
     ensureSessionTranscript,
     createTranscriptStore: SESSION_TRANSCRIPT_STORE.createTranscriptStore,
     createEmptyTranscriptProvider: SESSION_TRANSCRIPT_STORE.createEmptyTranscriptProvider,

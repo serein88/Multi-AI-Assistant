@@ -2422,3 +2422,39 @@ ode --check manage.js 通过，无语法错误。
 - 验证证据：
   - `node --test tests/session/*.test.js`：52 pass, 0 fail。
   - 用户实机验证：Grok 回答完成后约 1.5s 显示"已完成"。
+
+---
+
+## 2026-06-05（记录 71）
+
+- 时间：2026-06-05
+- 任务 ID：T-20260605-001
+- 任务名：waitForTabComplete 添加超时保护
+- 状态流转：待进行 -> 进行中 -> 待确认
+- 变更文件：
+  - `background.js`
+  - `tests/session/background-tab-complete.test.js`
+  - `tasks.json`
+  - `progress.md`
+- 操作摘要：
+  - 为 `waitForTabComplete(tabId, options)` 增加 `timeoutMs` 参数，默认 30000ms。
+  - 超时后 reject `tab-complete-timeout:<tabId>:<timeoutMs>`，并清理 `chrome.tabs.onUpdated` listener。
+  - `sendPromptToProviderTab` 捕获 tab complete 超时并返回 `false`，不继续 `sendMessage`。
+  - `openProviders` 的 autoSend 分支捕获超时并记录 warning，避免 Promise 永久挂起。
+  - 新增 background tab complete 单测覆盖正常 complete、超时清理 listener、发送链路超时返回 false。
+- 验证步骤：
+1. 执行 `node --test tests/session/background-tab-complete.test.js`。
+2. 执行 `node --test tests/session/*.test.js`。
+3. 执行 `node --check background.js`。
+4. 执行 `node -e "JSON.parse(require('fs').readFileSync('tasks.json','utf8')); console.log('tasks ok')"`。
+- 验证证据：
+  - 新增测试先失败：`background.waitForTabComplete is not a function` / `background.sendPromptToProviderTab is not a function`。
+  - 实现后 `tests/session/background-tab-complete.test.js`：3 pass, 0 fail。
+  - `node --test tests/session/*.test.js`：55 pass, 0 fail。
+  - `node --check background.js` 通过。
+  - `tasks.json` JSON 校验输出 `tasks ok`。
+- 风险/问题：
+  - 本轮只做后台逻辑与单元测试，未做真实 Chrome 错误页/崩溃页实机复现。
+  - 工作区存在 `.gitignore` 的未提交改动（新增 `/tests`），本轮提交不会包含该文件，避免影响新增测试文件追踪。
+- 下一步建议：
+  - 用户确认后将 `T-20260605-001` 标记为完成。

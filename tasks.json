@@ -167,22 +167,11 @@
       "archived": true
     },
     {
-      "id": "T-20260506-003",
-      "name": "修复流式输出截断与重复抓取（DeepSeek/Grok）",
-      "category": "fix",
-      "priority": "P0",
-      "status": "进行中",
-      "criteria": "统一发送后每个 provider 只新增 1 条 user turn + 1 条 assistant turn；不抓取流式中间碎片；回答完成后再抓取最终内容",
-      "notes": "2026-05-06 已通过 observer 暂停/恢复 + 按钮状态检测统一解决；待用户实机验证",
-      "createdAt": "2026-05-06",
-      "archived": false
-    },
-    {
       "id": "T-20260506-005",
       "name": "修复回答状态识别时机不准",
       "category": "fix",
       "priority": "P0",
-      "status": "进行中",
+      "status": "完成",
       "criteria": "DeepSeek 不再过早识别\"已完成\"；Gemini 不再延迟过久才识别\"已完成\"；DeepSeek/Grok 稳定性阈值从 1.2s 提升至 5s",
       "notes": "2026-05 已实现：DeepSeek hasStreamingIndicator 返回 false（.ds-think-content 常驻 DOM 不可用），依赖文本稳定性 8s 作为唯一完成信号；Grok 5s；其他 1200ms。全局超时 90s（非 25s）",
       "createdAt": "2026-05-06",
@@ -193,7 +182,7 @@
       "name": "优化回答完成检测：使用发送/停止按钮状态",
       "category": "feat",
       "priority": "P0",
-      "status": "进行中",
+      "status": "完成",
       "criteria": "waitForResponseComplete 对所有 provider 使用\"停止按钮消失 + 发送按钮恢复\"作为主信号；文本稳定性降为兜底",
       "notes": "2026-05-09 五修：hasStreamingIndicator(\"deepseek\") 改用 .ds-think-content 作为主信号，文本稳定性阈值提升至 8s，新增 25s 硬上限安全网；待用户实机验证",
       "createdAt": "2026-05-06",
@@ -545,9 +534,9 @@
       "name": "waitForTabComplete 添加超时保护",
       "category": "fix",
       "priority": "P1",
-      "status": "待进行",
+      "status": "待确认",
       "criteria": "1. waitForTabComplete 增加可配置超时（默认 30s）；2. 超时后 reject 并附带明确错误信息；3. 调用方 sendPromptToProviderTab 和 openProviders 能正确处理超时；4. 现有正常流程不受影响",
-      "notes": "来源：代码质量扫描。background.js 第 637-651 行，Promise 无超时可能导致永久挂起。Chrome 标签页导航到错误页、崩溃或 status 永远不报 complete 时会卡死",
+      "notes": "2026-06-05 已实现：waitForTabComplete 支持可配置超时，默认 30s；超时 reject 并清理 onUpdated listener；sendPromptToProviderTab 超时返回 false；openProviders autoSend 超时记录 warning 不再产生未处理挂起；node --test tests/session/*.test.js 通过（55 pass, 0 fail）。待用户确认。",
       "createdAt": "2026-06-05",
       "archived": false
     },
@@ -614,6 +603,17 @@
       "status": "待进行",
       "criteria": "1. 为 getProviderFromHost / getStopSelectors / shouldIgnoreThinkingNode / extractTextExcludingThinking 等纯函数编写测试；2. 测试文件放在 tests/content/ 目录下；3. node --test 通过且不破坏现有测试；4. 覆盖至少 5 个可独立测试的纯函数",
       "notes": "来源：测试覆盖分析。content.js 是最大文件（3,250 行）但零测试覆盖。优先测试可独立抽出的纯函数，不依赖 DOM 环境",
+      "createdAt": "2026-06-05",
+      "archived": false
+    },
+    {
+      "id": "T-20260605-008",
+      "name": "加载网页时，输入光标不应该聚焦到分屏的AI处",
+      "category": "fix",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "点击刷新或者新建对话，光标一直保持在同一发送输入栏。",
+      "notes": "",
       "createdAt": "2026-06-05",
       "archived": false
     }
