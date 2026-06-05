@@ -2357,4 +2357,37 @@ ode --check manage.js 通过，无语法错误。
 - 风险/问题：
   - 1s 阈值依赖“已进入新回答文本追踪”这个前置修复；若 DeepSeek 回答中存在超过 1s 的自然停顿，仍可能提前完成，需要实机观察。
 - 下一步建议：
-  - 用户实机验证：DeepSeek 回答停止后约 1 秒显示“已完成”；若出现长回答中途提前完成，再把阈值微调到 1.5s 或 2s。
+  - 用户实机验证：DeepSeek 回答停止后约 1 秒显示”已完成”；若出现长回答中途提前完成，再把阈值微调到 1.5s 或 2s。
+
+---
+
+## 2026-06-03（记录 68）
+
+- 时间：2026-06-03
+- 任务 ID：T-20260517-001
+- 任务名：回答状态检测优化 #1：DeepSeek 完成检测修复
+- 状态流转：待确认 -> 完成
+- 变更文件：
+  - `content/content.js`
+  - `content/response-state.js`
+  - `manifest.json`
+  - `tests/session/response-state.test.js`
+  - `tasks.json`
+- 操作摘要：
+  - 修复 Chrome 缓存问题：从 manifest.json 移除 response-state.js 引用，将逻辑内联到 content.js，确保代码一定被执行。
+  - 修复 DeepSeek 误判完成：门控仅检查文本变化，忽略 responseCount。原因：thinking 阶段 .ds-message 会提前出现，导致门控过早打开。
+  - 稳定性阈值从 3s 调整为 1.5s，加快完成检测响应。
+  - 新增 thinking 阶段门控测试，验证不会因 responseCount 增加而误判完成。
+- 验证步骤：
+1. 执行 `node --test tests/session/response-state.test.js`。
+2. 执行 `node --check content/content.js`。
+3. 执行 `node --check content/response-state.js`。
+4. 执行 `node --test tests/session/*.test.js`。
+- 验证证据：
+  - `tests/session/response-state.test.js`：4 pass, 0 fail。
+  - `content/content.js` 语法检查通过。
+  - `content/response-state.js` 语法检查通过。
+  - `node --test tests/session/*.test.js`：52 pass, 0 fail。
+  - 用户实机验证通过：DeepSeek 回答完成后约 1.5s 显示”已完成”。
+- 风险/问题：
+  - 1.5s 阈值若遇到 DeepSeek 长回答中自然停顿可能提前完成，需继续观察。
