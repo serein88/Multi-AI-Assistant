@@ -2509,3 +2509,56 @@ ode --check manage.js 通过，无语法错误。
   - 工作区已有 `.gitignore` 未提交改动，其中 `/tests` 会导致新增 `tests/dashboard-focus.test.js` 被 Git 忽略；提交时需先处理该忽略规则或使用 `git add -f tests/dashboard-focus.test.js`。
 - 下一步建议：
   - 用户实机确认通过后，把 `T-20260605-008` 标记为完成。
+
+---
+
+## 2026-06-05（记录 73）
+
+- 时间：2026-06-05
+- 任务 ID：T-20260604-001
+- 任务名：修改主界面和会话管理界面的入口url
+- 状态流转：进行中 -> 待确认 -> 失败
+- 变更文件：
+  - `tasks.json`
+  - `progress.md`
+- 操作摘要：
+  - 曾尝试 HTTP 调试壳方案：用 `http://127.0.0.1:33440/*.html?target=chrome-extension://...` 包裹真实扩展页，方便 `chrome-devtools-mcp` 连接。
+  - 用户实机发现该方案改变 AI iframe 的登录态/账号上下文：DeepSeek 需要重新登录，Grok 账号不对。
+  - 根因判断：HTTP 壳把 dashboard 顶层站点从 `chrome-extension://...` 改成 `http://127.0.0.1:33440`，触发第三方 cookie、分区 cookie、storage access 或账号选择上下文变化。
+  - 按用户要求放弃该任务，已用 git 丢弃 HTTP 壳实现相关 tracked 改动，并删除新增壳文件和新增测试文件。
+  - 当前仅保留 `tasks.json` / `progress.md` 的失败记录。
+- 验证步骤：
+1. 执行 `git restore -- background.js manage.html manage.js manifest.json` 丢弃 HTTP 壳入口实现。
+2. 删除新增文件：`debug-shell/`、`debug-shell-url.js`、`debug-shell-settings.js`、`tests/session/background-debug-shell.test.js`、`tests/session/debug-shell-assets.test.js`、`tests/session/debug-shell-settings.test.js`、`tests/session/debug-shell-url.test.js`。
+3. 执行 JSON 校验确认 `tasks.json` / `manifest.json` 可解析。
+- 验证证据：
+  - `git status --short --ignored` 显示 HTTP 壳实现文件已不再作为 tracked/untracked 改动出现。
+  - `tasks.json` 中 `T-20260604-001` 已标记为 `失败`。
+- 风险/问题：
+  - 不建议继续用 HTTP 外壳包 `dashboard.html` 或 provider iframe 链路；登录态分区风险大于调试收益。
+  - 如果后续仍要提升 MCP 调试能力，应优先研究 DevTools 连接扩展页本身、CDP target/frame 选择，或只对不嵌 provider 的管理页做有限调试入口。
+- 下一步建议：
+  - 暂停该方向，不再推进 `T-20260604-001`。
+
+## 2026-06-05（记录 74）
+
+- 时间：2026-06-05
+- 任务 ID：T-20260517-004
+- 任务名：恢复对话时，保持上次打开的布局
+- 状态流转：待进行 -> 进行中 -> 待确认 -> 完成（用户确认）
+- 变更文件：
+  - `dashboard.js`
+  - `tasks.json`
+  - `progress.md`
+- 操作摘要：
+  - 根因：`loadPanelsFromStorage()` 从 `chrome.storage.local` 读取 panels 列表并覆盖 `activePanels`，但该存储仅在会话创建/恢复时更新，不含用户在 dashboard 中修改后的最新布局。而 `saveState()` 只写 `localStorage`（session-scoped key），不更新 `chrome.storage.local`。
+  - 修复：`loadPanelsFromStorage()` 不再用 `chrome.storage.local` 的 panels 覆盖 `activePanels`。布局（activePanels、grid、colSizes、rowSizes）以 `localStorage` 为唯一数据源，`chrome.storage.local` 仅用于读取 `childSessionUrls`（iframe 恢复 URL）。
+- 验证证据（chrome-devtools MCP 实机调试）：
+  - 证据 A：新建会话 sess_20260605_lyax6v，添加 4 面板后 saveState 写入 localStorage：`panels=["chatgpt","claude","grok","deepseek"], colSizes=[50,50], rowSizes=[320,320]`
+  - 证据 B：导航离开再返回同一 sessionId，控制台日志 `loadState found: true`
+  - 证据 C：`init after load` 日志确认 `activePanels=["chatgpt","claude","grok","deepseek"], rowSizes=[320,320], colSizes=[50,50]`
+  - 证据 D：`applyGridLayout` 日志确认 `resetSizes=false, colCount=2, rowCount=2, colSizes=[50,50], rowSizes=[320,320]`，尺寸正确应用
+- 风险/问题：
+  - 若用户清除 localStorage 但保留 chrome.storage.local，会话恢复后将使用默认面板（chatgpt, claude），不影响功能。
+- 下一步建议：
+  - 无，任务完成。

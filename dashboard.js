@@ -578,11 +578,11 @@ function loadState() {
     if (Array.isArray(state.rowSizes)) {
       rowSizes = state.rowSizes;
     }
-    
+
     if (Array.isArray(state.colSizes)) {
       colSizes = state.colSizes;
     }
-    
+
     if (Array.isArray(state.sortedProviderIds)) {
       // Merge stored sort order with any new providers that might have appeared
       const storedSet = new Set(state.sortedProviderIds);
@@ -610,9 +610,10 @@ async function loadPanelsFromStorage() {
   const value = stored[dashboardPanelsKey];
 
   if (currentSessionId && value && typeof value === "object" && !Array.isArray(value)) {
-    if (Array.isArray(value.panels) && value.panels.length > 0) {
-      activePanels = value.panels;
-    }
+    // Layout (activePanels) is managed by localStorage via loadState().
+    // Only read childSessionUrls from chrome.storage.local for iframe URL restoration.
+    // Do NOT overwrite activePanels here — chrome.storage.local may be stale
+    // because panel changes are only saved to localStorage via saveState().
     if (value.childSessionUrls && typeof value.childSessionUrls === "object") {
       sessionChildUrls = { ...value.childSessionUrls };
     }
@@ -1283,8 +1284,13 @@ function applyGridLayout(resetSizes = false) {
     : "";
 
   if (rowCount <= 1) {
-    rowSizes = [];
-    grid.style.gridTemplateRows = "";
+    // Preserve user-adjusted single-row height (e.g. from bottom-edge splitter)
+    if (resetSizes) {
+      rowSizes = [];
+    }
+    grid.style.gridTemplateRows = rowSizes.length > 0
+      ? rowSizes.map((px) => `${px}px`).join(" ")
+      : "";
   } else {
     if (resetSizes || rowSizes.length !== rowCount) {
       const oldSizes = rowSizes || [];
