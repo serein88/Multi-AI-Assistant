@@ -1,5 +1,39 @@
 # Progress.md
 
+## 2026-06-22（记录 6）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-003
+- 任务名：background.js：提取 main-world send 工厂函数
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `background.js`（新增工厂函数，重构 2 个 provider 发送函数）
+- 操作摘要：
+  - **新增工厂函数**：`executeMainWorldSend(sender, prompt, config)` - 统一 main-world 脚本执行逻辑
+  - **配置参数**：
+    - `inputSelectors` - 输入框选择器数组
+    - `sendButtonSelectors` - 发送按钮选择器数组
+    - `contentEditableOnly` - 是否只处理 contenteditable（通义千问需要）
+    - `sleepMs` - 输入后等待时间（ChatGPT 80ms，通义千问 120ms）
+    - `retryButton` - 是否循环重试按钮点击（ChatGPT 需要）
+  - **重构 ChatGPT 函数**：从 127 行减少到 17 行配置
+  - **重构通义千问函数**：从 110 行减少到 17 行配置
+  - **代码统计**：删除 128 行，新增 80 行，净减少 48 行
+- 验证步骤：
+  1. 运行 `node -c background.js` 检查语法
+  2. ⚠️ **需要实机验证**：在 ChatGPT 和通义千问网站测试发送功能
+- 验证证据：
+  - 语法检查通过：✓ Syntax OK
+  - ⚠️ **实机测试待完成**：需要加载扩展后在两个网站测试
+- 风险/问题：
+  - 通义千问的 `findSendControl()` 逻辑简化为选择器匹配，可能不完全等价（原逻辑遍历所有 div/button 查找包含 "operateBtn" 的 className）
+  - 建议实机测试后确认发送功能正常
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - **必须**：实机验证 ChatGPT 和通义千问发送功能
+
+---
+
 ## 2026-06-22（记录 5）
 
 - 时间：2026-06-22

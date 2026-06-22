@@ -556,9 +556,9 @@
       "name": "background.js：提取 main-world send 工厂函数",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. executeChatGPTMainWorldSend 和 executeTongyiMainWorldSend 合并为一个工厂函数，参数化 inputSelector 和 sendButtonSelector；2. 两个 provider 的发送行为与重构前一致；3. 内联 sleep / enterInit 等重复代码只保留一份；4. 实机验证 ChatGPT 和通义千问均可正常发送",
-      "notes": "来源：代码质量扫描。background.js 第 653-779 行和第 781-890 行结构几乎完全一致，仅选择器不同",
+      "notes": "2026-06-22 已完成：新增 executeMainWorldSend 工厂函数（148 行），重构 executeChatGPTMainWorldSend 和 executeTongyiMainWorldSend 为配置驱动（各 17 行）；删除 128 行重复代码，新增 80 行，净减少 48 行；语法检查通过。⚠️ 需要实机验证 ChatGPT 和通义千问发送功能",
       "createdAt": "2026-06-05",
       "archived": false
     },

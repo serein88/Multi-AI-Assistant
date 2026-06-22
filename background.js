@@ -693,7 +693,13 @@ function waitForTabComplete(tabId, options = {}) {
   });
 }
 
-async function executeChatGPTMainWorldSend(sender, prompt) {
+/**
+ * Execute main-world send (generic factory for ChatGPT/Tongyi)
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {string} prompt
+ * @param {Object} config - { inputSelectors, sendButtonSelectors, contentEditableOnly, sleepMs, retryButton }
+ */
+async function executeMainWorldSend(sender, prompt, config) {
   const tabId = sender?.tab?.id;
   if (typeof tabId !== "number") {
     return { ok: false, error: "missing-tab-id" };
@@ -707,26 +713,23 @@ async function executeChatGPTMainWorldSend(sender, prompt) {
   const results = await chrome.scripting.executeScript({
     target,
     world: "MAIN",
-    args: [prompt],
-    func: async (messageText) => {
+    args: [prompt, config],
+    func: async (messageText, cfg) => {
       const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const findInput = () =>
-        document.querySelector("#prompt-textarea") ||
-        document.querySelector("div[contenteditable='true'][role='textbox']") ||
-        document.querySelector("textarea");
-      const findSendButton = () =>
-        document.querySelector("button[data-testid='send-button']") ||
-        document.querySelector("button[aria-label*='Send']") ||
-        document.querySelector("button[aria-label*='发送']") ||
-        document.querySelector("button[aria-label*='发送提示']");
 
-      const input = findInput();
+      // Find input
+      let input = null;
+      for (const sel of cfg.inputSelectors) {
+        input = document.querySelector(sel);
+        if (input) break;
+      }
       if (!input) {
         return { ok: false, error: "input-not-found" };
       }
 
       input.focus({ preventScroll: true });
 
+      // Handle contenteditable
       if (input.isContentEditable) {
         const selection = window.getSelection();
         const range = document.createRange();
@@ -776,7 +779,8 @@ async function executeChatGPTMainWorldSend(sender, prompt) {
           input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
         }
         input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
-      } else {
+      } else if (!cfg.contentEditableOnly) {
+        // Handle regular input/textarea
         const proto =
           input.tagName === "TEXTAREA" ? window.HTMLTextAreaElement?.prototype : window.HTMLInputElement?.prototype;
         const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
@@ -786,17 +790,38 @@ async function executeChatGPTMainWorldSend(sender, prompt) {
         input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
       }
 
-      await sleep(80);
+      await sleep(cfg.sleepMs || 80);
 
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        const button = findSendButton();
-        if (button && !button.disabled) {
+      // Try to click send button
+      if (cfg.retryButton) {
+        for (let attempt = 0; attempt < 20; attempt += 1) {
+          let button = null;
+          for (const sel of cfg.sendButtonSelectors) {
+            button = document.querySelector(sel);
+            if (button && !button.disabled) break;
+          }
+          if (button && !button.disabled) {
+            button.click();
+            return { ok: true, method: "button" };
+          }
+          await sleep(50);
+        }
+      } else {
+        let button = null;
+        for (const sel of cfg.sendButtonSelectors) {
+          const el = document.querySelector(sel);
+          if (el) {
+            button = el;
+            break;
+          }
+        }
+        if (button) {
           button.click();
           return { ok: true, method: "button" };
         }
-        await sleep(50);
       }
 
+      // Fallback to Enter key
       const enterInit = {
         key: "Enter",
         code: "Enter",
@@ -821,115 +846,42 @@ async function executeChatGPTMainWorldSend(sender, prompt) {
   return results?.[0]?.result || { ok: false, error: "no-result" };
 }
 
-async function executeTongyiMainWorldSend(sender, prompt) {
-  const tabId = sender?.tab?.id;
-  if (typeof tabId !== "number") {
-    return { ok: false, error: "missing-tab-id" };
-  }
-
-  const target = { tabId };
-  if (typeof sender.frameId === "number") {
-    target.frameIds = [sender.frameId];
-  }
-
-  const results = await chrome.scripting.executeScript({
-    target,
-    world: "MAIN",
-    args: [prompt],
-    func: async (messageText) => {
-      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-      const input =
-        document.querySelector("div[data-slate-editor='true'][contenteditable='true']") ||
-        document.querySelector("div[role='textbox'][data-placeholder][contenteditable='true']") ||
-        document.querySelector("div[role='textbox'][contenteditable='true']");
-      if (!input) {
-        return { ok: false, error: "input-not-found" };
-      }
-
-      input.focus({ preventScroll: true });
-
-      try {
-        document.execCommand("selectAll", false, null);
-        document.execCommand("delete", false, null);
-      } catch (error) {
-        input.textContent = "";
-      }
-
-      try {
-        input.dispatchEvent(new InputEvent("beforeinput", {
-          bubbles: true,
-          composed: true,
-          cancelable: true,
-          inputType: "insertText",
-          data: messageText
-        }));
-      } catch (error) {
-        // ignore
-      }
-
-      let inserted = false;
-      try {
-        inserted = document.execCommand("insertText", false, messageText);
-      } catch (error) {
-        inserted = false;
-      }
-      if (!inserted) {
-        input.textContent = messageText;
-      }
-
-      try {
-        input.dispatchEvent(new InputEvent("input", {
-          bubbles: true,
-          composed: true,
-          inputType: "insertText",
-          data: messageText
-        }));
-      } catch (error) {
-        input.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
-      }
-      input.dispatchEvent(new Event("change", { bubbles: true, composed: true }));
-
-      await sleep(120);
-
-      const findSendControl = () => {
-        const candidates = Array.from(document.querySelectorAll("div, button"));
-        return (
-          candidates.find((el) => {
-            const className = typeof el.className === "string" ? el.className : "";
-            return className.includes("operateBtn") && !className.toLowerCase().includes("disabled");
-          }) ||
-          null
-        );
-      };
-
-      const control = findSendControl();
-      if (control) {
-        control.click();
-        return { ok: true, method: "button" };
-      }
-
-      const enterInit = {
-        key: "Enter",
-        code: "Enter",
-        keyCode: 13,
-        which: 13,
-        bubbles: true,
-        composed: true,
-        cancelable: true
-      };
-      ["keydown", "keypress", "keyup"].forEach((type) => {
-        try {
-          input.dispatchEvent(new KeyboardEvent(type, enterInit));
-        } catch (error) {
-          // ignore
-        }
-      });
-
-      return { ok: true, method: "enter" };
-    }
+async function executeChatGPTMainWorldSend(sender, prompt) {
+  return executeMainWorldSend(sender, prompt, {
+    inputSelectors: [
+      "#prompt-textarea",
+      "div[contenteditable='true'][role='textbox']",
+      "textarea"
+    ],
+    sendButtonSelectors: [
+      "button[data-testid='send-button']",
+      "button[aria-label*='Send']",
+      "button[aria-label*='发送']",
+      "button[aria-label*='发送提示']"
+    ],
+    contentEditableOnly: false,
+    sleepMs: 80,
+    retryButton: true
   });
+}
 
-  return results?.[0]?.result || { ok: false, error: "no-result" };
+async function executeTongyiMainWorldSend(sender, prompt) {
+  return executeMainWorldSend(sender, prompt, {
+    inputSelectors: [
+      "div[data-slate-editor='true'][contenteditable='true']",
+      "div[role='textbox'][data-placeholder][contenteditable='true']",
+      "div[role='textbox'][contenteditable='true']"
+    ],
+    sendButtonSelectors: [
+      "div.operateBtn-ehxNOr:not([class*='disabled'])",
+      "button[type='submit']",
+      "button[aria-label*='发送']",
+      "button[aria-label*='Send']"
+    ],
+    contentEditableOnly: true,
+    sleepMs: 120,
+    retryButton: false
+  });
 }
 
 async function openProviders(providers, prompt, autoSend, options = {}) {
