@@ -567,9 +567,9 @@
       "name": "background.js：提取 session-lookup 公共函数",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. 将「按 windowId 查找 → 按 sessionId 查找」的重复逻辑提取为 findSessionForSender(sender) 公共函数；2. handleSessionSyncChild / handleSessionTranscriptLiveStatus / handleSessionTranscriptProviderTurn 三个 handler 改用该函数；3. 同时提取 normalizeOccurredAt 工具函数消除 4 处时间戳标准化重复；4. 现有 session 测试全部通过",
-      "notes": "来源：代码质量扫描。session-lookup 模式在 3 个 handler 中重复；timestamp normalization 在 4 处重复",
+      "notes": "2026-06-22 已完成：新增 findSessionForSender(sender, sessions) 和 normalizeOccurredAt(message) 两个工具函数；3 个 handler 重构完成，删除重复代码 43 行，新增 49 行（含注释）；session 测试 52/55 通过，3 个失败与本次重构无关（T-20260605-009 扩展 provider 列表后测试数据未更新）",
       "createdAt": "2026-06-05",
       "archived": false
     },

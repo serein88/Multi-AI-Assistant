@@ -297,6 +297,50 @@ async function handleSessionRestore(sessionId) {
   return { session: updated, windowId, restored: recoverableChildren };
 }
 
+/**
+ * Find session by sender context (windowId first, then sessionId from URL)
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {Array} sessions - List of session records
+ * @returns {Object|null} - Session record or null
+ */
+function findSessionForSender(sender, sessions) {
+  const windowId = sender?.tab?.windowId;
+  if (typeof windowId !== "number") {
+    return null;
+  }
+
+  // First try to find by windowId
+  let session = sessions.find((record) => record.windowId === windowId);
+  if (session) {
+    return session;
+  }
+
+  // Fall back to finding by sessionId from sender URL
+  const senderUrl = sender?.tab?.url || "";
+  const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
+  if (sessionIdMatch) {
+    const sessionId = decodeURIComponent(sessionIdMatch[1]);
+    session = sessions.find((record) => record.sessionId === sessionId);
+  }
+
+  return session || null;
+}
+
+/**
+ * Normalize timestamp from message (occurredAt -> timestamp -> now)
+ * @param {Object} message
+ * @returns {string} - ISO timestamp
+ */
+function normalizeOccurredAt(message) {
+  if (typeof message?.occurredAt === "string" && message.occurredAt) {
+    return message.occurredAt;
+  }
+  if (typeof message?.timestamp === "string" && message.timestamp) {
+    return message.timestamp;
+  }
+  return new Date().toISOString();
+}
+
 async function handleSessionSyncChild(message, sender) {
   log("Received session:sync-child payload", message);
 
@@ -320,16 +364,7 @@ async function handleSessionSyncChild(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  // First try to find by windowId, then fall back to finding by sessionId from sender URL
-  let session = sessions.find((record) => record.windowId === windowId);
-  if (!session) {
-    const senderUrl = sender?.tab?.url || "";
-    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
-    if (sessionIdMatch) {
-      const sessionId = decodeURIComponent(sessionIdMatch[1]);
-      session = sessions.find((record) => record.sessionId === sessionId);
-    }
-  }
+  const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -384,16 +419,7 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  // First try to find by windowId, then fall back to finding by sessionId from sender URL
-  let session = sessions.find((record) => record.windowId === windowId);
-  if (!session) {
-    const senderUrl = sender?.tab?.url || "";
-    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
-    if (sessionIdMatch) {
-      const sessionId = decodeURIComponent(sessionIdMatch[1]);
-      session = sessions.find((record) => record.sessionId === sessionId);
-    }
-  }
+  const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -402,12 +428,7 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
     return { ok: false, reason: "provider-not-in-session" };
   }
 
-  const occurredAt =
-    typeof message?.occurredAt === "string" && message.occurredAt
-      ? message.occurredAt
-      : (typeof message?.timestamp === "string" && message.timestamp
-        ? message.timestamp
-        : new Date().toISOString());
+  const occurredAt = normalizeOccurredAt(message);
   const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
     applyProviderLiveStatus(record, {
       provider,
@@ -541,17 +562,7 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
   }
 
   const sessions = await sessionRegistry.listSessions();
-  // First try to find by windowId, then fall back to finding by sessionId from sender URL
-  let session = sessions.find((record) => record.windowId === windowId);
-  if (!session) {
-    // Try to extract sessionId from the sender's tab URL (dashboard URL)
-    const senderUrl = sender?.tab?.url || "";
-    const sessionIdMatch = senderUrl.match(/[?&]sessionId=([^&]+)/);
-    if (sessionIdMatch) {
-      const sessionId = decodeURIComponent(sessionIdMatch[1]);
-      session = sessions.find((record) => record.sessionId === sessionId);
-    }
-  }
+  const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -560,12 +571,7 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
     return { ok: false, reason: "provider-not-in-session" };
   }
 
-  const occurredAt =
-    typeof message?.occurredAt === "string" && message.occurredAt
-      ? message.occurredAt
-      : (typeof message?.timestamp === "string" && message.timestamp
-        ? message.timestamp
-        : new Date().toISOString());
+  const occurredAt = normalizeOccurredAt(message);
   const terminalStatus =
     role === "assistant" &&
     (message?.status === "completed" || message?.status === "failed" || message?.status === "interrupted")

@@ -1,5 +1,37 @@
 # Progress.md
 
+## 2026-06-22（记录 5）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-004
+- 任务名：background.js：提取 session-lookup 公共函数
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `background.js`（新增 2 个工具函数，重构 3 个 handler）
+- 操作摘要：
+  - **新增工具函数**：
+    1. `findSessionForSender(sender, sessions)` - 按 windowId 查找会话，失败则从 URL 提取 sessionId 查找
+    2. `normalizeOccurredAt(message)` - 标准化时间戳（优先级：occurredAt > timestamp > now）
+  - **重构 3 个 handler**：
+    1. `handleSessionSyncChild` - 使用 findSessionForSender 替代重复的查找逻辑（删除 14 行）
+    2. `handleSessionTranscriptLiveStatus` - 使用 findSessionForSender + normalizeOccurredAt（删除 18 行）
+    3. `handleSessionTranscriptProviderTurn` - 使用 findSessionForSender + normalizeOccurredAt（删除 18 行）
+  - **代码统计**：删除 43 行重复代码，新增 49 行（含 JSDoc 注释和工具函数）
+- 验证步骤：
+  1. 运行 `node --test tests/session/*.test.js`
+  2. 检查 3 个 handler 是否正确调用新工具函数
+  3. 确认逻辑等价（查找顺序、时间戳优先级不变）
+- 验证证据：
+  - 测试结果：52/55 通过
+  - 3 个失败与本次重构无关（T-20260605-009 扩展 provider 列表后测试数据未更新）
+  - 代码差异：3 处调用 `findSessionForSender`，2 处调用 `normalizeOccurredAt`
+- 风险/问题：无
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - 可选：修复 3 个失败的测试用例（更新测试数据以匹配新的 13 个 provider）
+
+---
+
 ## 2026-06-22（记录 4）
 
 - 时间：2026-06-22
