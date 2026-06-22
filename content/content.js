@@ -276,61 +276,7 @@ if (typeof globalThis !== "undefined" && !globalThis.MultiAIResponseState) {
 }
 
 function getResponseStateApi() {
-  return globalThis.MultiAIResponseState || _inlineResponseState || {
-    shouldUseGenericResponseStartSignals(provider) {
-      return provider !== "deepseek" && provider !== "grok";
-    },
-    getProviderStabilityMs(provider) {
-      if (provider === "deepseek") return 1500;
-      if (provider === "grok") return 1500;
-      return 1200;
-    },
-    createResponseStabilityTracker(options = {}) {
-      const provider = options.provider || "";
-      let lastStableResponse = "";
-      let lastStableResponseAt = 0;
-      let newResponseDetected = false;
-      const baselineCount = Number(options.baselineResponseCount) || 0;
-      const baselineText = typeof options.baselineText === "string" ? options.baselineText.trim() : "";
-      return {
-        check(sample = {}) {
-          const text = typeof sample.text === "string" ? sample.text.trim() : "";
-          if (!text) return { complete: false, reason: "empty" };
-
-          // Gate: must detect a NEW response before starting stability timer.
-          // For DeepSeek: only check text change (not response count) because
-          // countResponseNodes() includes .ds-message which appears during thinking.
-          if (!newResponseDetected) {
-            if (provider === "deepseek") {
-              if (text === baselineText) {
-                return { complete: false, reason: "baseline" };
-              }
-            } else {
-              const currentCount = Number(sample.responseCount) || 0;
-              if (currentCount > baselineCount) {
-                newResponseDetected = true;
-              } else {
-                return { complete: false, reason: "waiting-for-new-response" };
-              }
-            }
-            newResponseDetected = true;
-          }
-
-          if (text !== lastStableResponse) {
-            lastStableResponse = text;
-            lastStableResponseAt = sample.now || Date.now();
-            return { complete: false, reason: "changed" };
-          }
-          const now = sample.now || Date.now();
-          const stabilityMs = options.stabilityMs || 1200;
-          if (!sample.streaming && now - lastStableResponseAt >= stabilityMs) {
-            return { complete: true, reason: "stable", elapsed: now - lastStableResponseAt };
-          }
-          return { complete: false, reason: "waiting" };
-        }
-      };
-    }
-  };
+  return globalThis.MultiAIResponseState || _inlineResponseState;
 }
 
 function getProviderStabilityMs(provider) {

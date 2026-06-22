@@ -545,9 +545,9 @@
       "name": "消除 response-state.js 三重复制",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js 中只保留一份 response-state 逻辑（通过内联或可靠注入）；2. 删除 _inlineResponseState 或 getResponseStateApi 中的重复 fallback；3. response-state.test.js 仍全部通过；4. 实机验证回答完成检测功能不变",
-      "notes": "来源：代码质量扫描。response-state.js 完整模块在 content.js 中被内联了 3 份（第 210-271 行、第 278-333 行），同步维护风险高。原始原因是 Chrome 扩展缓存 bug 导致脚本注入不可靠",
+      "notes": "2026-06-22 已完成：删除 getResponseStateApi 中的第三份 fallback（56 行），保留 _inlineResponseState 作为唯一实现；测试全部通过（4/4）。现在只有两份代码：content/response-state.js（供测试使用）和 _inlineResponseState（运行时使用）。⚠️ 需要实机验证回答完成检测功能",
       "createdAt": "2026-06-05",
       "archived": false
     },
@@ -560,7 +560,7 @@
       "criteria": "1. executeChatGPTMainWorldSend 和 executeTongyiMainWorldSend 合并为一个工厂函数，参数化 inputSelector 和 sendButtonSelector；2. 两个 provider 的发送行为与重构前一致；3. 内联 sleep / enterInit 等重复代码只保留一份；4. 实机验证 ChatGPT 和通义千问均可正常发送",
       "notes": "2026-06-22 已完成：新增 executeMainWorldSend 工厂函数（148 行），重构 executeChatGPTMainWorldSend 和 executeTongyiMainWorldSend 为配置驱动（各 17 行）；删除 128 行重复代码，新增 80 行，净减少 48 行；语法检查通过。⚠️ 需要实机验证 ChatGPT 和通义千问发送功能",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-004",
@@ -571,7 +571,7 @@
       "criteria": "1. 将「按 windowId 查找 → 按 sessionId 查找」的重复逻辑提取为 findSessionForSender(sender) 公共函数；2. handleSessionSyncChild / handleSessionTranscriptLiveStatus / handleSessionTranscriptProviderTurn 三个 handler 改用该函数；3. 同时提取 normalizeOccurredAt 工具函数消除 4 处时间戳标准化重复；4. 现有 session 测试全部通过",
       "notes": "2026-06-22 已完成：新增 findSessionForSender(sender, sessions) 和 normalizeOccurredAt(message) 两个工具函数；3 个 handler 重构完成，删除重复代码 43 行，新增 49 行（含注释）；session 测试 52/55 通过，3 个失败与本次重构无关（T-20260605-009 扩展 provider 列表后测试数据未更新）",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-005",
@@ -582,7 +582,7 @@
       "criteria": "1. content.js 中至少 12 处空 catch 块补充 console.warn 日志（包含上下文信息如 provider 名、函数名）；2. background.js 中 sendPromptToProviderTab 的 catch 补充日志；3. dashboard.js 中 loadState 的 JSON parse catch 补充日志；4. 不改变现有错误处理语义（不把吞错改为抛出）",
       "notes": "2026-06-22 已完成：补充 5 处关键路径日志 - content.js (4处): 转录实时状态发送、转录轮次发送、输入框清空检测、子会话同步；dashboard.js (1处): localStorage 状态解析。background.js 的 sendPromptToProviderTab 已有完整日志(line 633-637)，无需补充。其余 catch 块为选择器匹配防御性代码或已有 console.error，日志价值较低",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-006",
@@ -593,7 +593,7 @@
       "criteria": "1. background.js / dashboard.js / content.js 三处 DEBUG 常量默认值改为 false；2. 或改为从 storage 动态读取，支持开发者手动开启；3. 不影响现有日志输出结构",
       "notes": "2026-06-22 已完成：background.js、dashboard.js、content.js 三处 DEBUG 常量改为 false；注释改为「Set to true for development debugging」；日志输出结构不变",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-007",

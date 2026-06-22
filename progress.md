@@ -1,5 +1,43 @@
 # Progress.md
 
+## 2026-06-22（记录 7）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-002
+- 任务名：消除 response-state.js 三重复制
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `content/content.js`（删除 getResponseStateApi 的 fallback 实现）
+- 操作摘要：
+  - **问题分析**：response-state 逻辑原本有 3 份：
+    1. `content/response-state.js` - 独立文件（87 行），从未被注入
+    2. `_inlineResponseState` - content.js 内联版本（62 行）
+    3. `getResponseStateApi` fallback - content.js 第三份实现（56 行）
+  - **解决方案**：删除第三份 fallback，简化 getResponseStateApi 为：
+    ```javascript
+    function getResponseStateApi() {
+      return globalThis.MultiAIResponseState || _inlineResponseState;
+    }
+    ```
+  - **原因**：_inlineResponseState 始终在 content.js 中定义，可靠性高；第三份 fallback 是冗余的
+  - **保留**：content/response-state.js 文件供测试使用（tests 中导入）
+  - **代码统计**：删除 55 行，新增 1 行，净减少 54 行
+- 验证步骤：
+  1. 运行 `node --test tests/session/response-state.test.js`
+  2. ⚠️ **需要实机验证**：测试所有 provider 的回答完成检测
+- 验证证据：
+  - 测试结果：4/4 通过 ✅
+  - DeepSeek gate 逻辑正常工作
+  - 稳定性阈值配置正确（DeepSeek 1.5s，其他 1.2s）
+- 风险/问题：
+  - ⚠️ 需要实机验证所有 provider 的回答完成检测功能
+  - 特别关注 DeepSeek 和 Grok（使用特殊逻辑）
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - **必须**：实机验证回答完成检测功能
+
+---
+
 ## 2026-06-22（记录 6）
 
 - 时间：2026-06-22
