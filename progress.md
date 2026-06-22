@@ -2562,3 +2562,86 @@ ode --check manage.js 通过，无语法错误。
   - 若用户清除 localStorage 但保留 chrome.storage.local，会话恢复后将使用默认面板（chatgpt, claude），不影响功能。
 - 下一步建议：
   - 无，任务完成。
+
+## 2026-06-05（记录 75）
+
+- 时间：2026-06-05
+- 任务 ID：T-20260605-009（子任务 3：favicon-cache.js 统一图标定义 + 本地缓存）
+- 任务名：favicon-cache.js 统一图标定义 + 本地缓存
+- 状态流转：进行中 -> 进行中（子任务完成，主任务待后续子任务）
+- 变更文件：
+  - `favicon-cache.js`（新建）
+  - `manage.js`（替换硬编码 PROVIDER_FAVICON，移除 buildProviderFaviconUrl/getProviderHostname）
+  - `manage.html`（引入 favicon-cache.js）
+  - `dashboard.js`（renderPanels 中 favicon 改用 FaviconCache，init 中调用 preloadFavicons）
+  - `dashboard.html`（引入 favicon-cache.js）
+  - `tasks.json`（更新 T-20260605-009 notes）
+  - `progress.md`
+- 操作摘要：
+  - 新建 `favicon-cache.js`，导出 `globalThis.FaviconCache`，提供 `getFaviconUrl`、`getFaviconSrc`（同步）、`preloadFavicons`（异步批量）三个方法。
+  - 内部维护 `PROVIDER_HOSTS` 映射表（13 个 provider ID -> hostname），统一 favicon URL 来源。
+  - 缓存策略：内存缓存优先 -> chrome.storage.local 持久化 -> Google Favicon API 兜底。
+  - `getFaviconSrc` 同步返回：内存有 dataUrl 则返回 dataUrl，否则返回 API URL 并后台异步 fetch 缓存。
+  - `manage.js`：`formatSessionSummary` 中删除硬编码 `PROVIDER_FAVICON` map（13 行），改用 `FaviconCache.getFaviconSrc(p)`；`buildProviderPicker` 中 favicon src 改用 `FaviconCache.getFaviconSrc(p.id)`；删除无用的 `buildProviderFaviconUrl` 和 `getProviderHostname` 函数；init 中调用 `FaviconCache.preloadFavicons(PROVIDERS.map(...))`。
+  - `dashboard.js`：`renderPanels` 中 `icon.src` 从 `` `https://www.google.com/s2/favicons?domain=${new URL(provider.url).hostname}&sz=32` `` 改为 `FaviconCache.getFaviconSrc(provider.id)`；init 的 `.finally` 中调用 `FaviconCache.preloadFavicons(activePanels)`。
+  - `manage.html` 和 `dashboard.html` 均在 `providers.js` 之后、业务脚本之前引入 `favicon-cache.js`。
+- 验证步骤：
+1. 执行 `node --check favicon-cache.js`。
+2. 执行 `node --check manage.js`。
+3. 执行 `node --check dashboard.js`。
+4. 检索确认无残留硬编码 Google Favicon URL：`rg -n "google.com/s2/favicons" manage.js dashboard.js`。
+5. 检索确认 FaviconCache 调用存在：`rg -n "FaviconCache" manage.js dashboard.js manage.html dashboard.html favicon-cache.js`。
+- 验证证据：
+  - 证据 A：`node --check favicon-cache.js` 通过，无语法错误。
+  - 证据 B：`node --check manage.js` 通过，无语法错误。
+  - 证据 C：`node --check dashboard.js` 通过，无语法错误。
+  - 证据 D：`rg -n "google.com/s2/favicons" manage.js dashboard.js` 无命中，硬编码 URL 已全部移除。
+  - 证据 E：`rg -n "FaviconCache" manage.js dashboard.js manage.html dashboard.html favicon-cache.js` 命中：manage.js 4 处、dashboard.js 3 处、manage.html 1 处、dashboard.html 1 处、favicon-cache.js 多处定义，调用链完整。
+- 风险/问题：
+  - `chrome.storage.local` 在扩展页面中可用，但在非扩展上下文（如测试）中不可用，`favicon-cache.js` 内部已做 try/catch 兜底。
+  - `preloadFavicons` 是异步不阻塞的，首次加载时图标可能先显示 Google API URL，下一次加载时显示 dataUrl 缓存。
+  - 主任务 T-20260605-009 仍有子任务 1（manage.html 选择器沿用上次配置）和子任务 2（Session 图标显示）待完成。
+- 下步建议：
+  - 继续完成 T-20260605-009 的子任务 1 和 2。
+
+---
+
+- 时间：2026-06-14
+- 任务 ID：T-20260605-009
+- 任务名：manage.html页面改进，创建对话支持选择AI或者直接沿用上次的配置
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `manage.html`（+provider picker HTML +3个script标签）
+  - `manage.js`（+provider picker逻辑 + FaviconCache替代硬编码PROVIDER_FAVICON）
+  - `manage.css`（+.provider-picker下拉面板样式）
+  - `background.js`（handleSessionCreate 接收 message.providers）
+  - `favicon-cache.js`（新建，统一13个provider的hostname + API URL + 浏览器原生缓存预热）
+  - `dashboard.html`（+script引入favicon-cache.js）
+  - `dashboard.js`（renderPanels 用 FaviconCache 替代硬编码 favicon URL）
+  - `tasks.json`（状态更新）
+  - `progress.md`
+- 操作摘要：
+  - 方案B：统一图标定义 + 缓存 + AI选择器
+  - 子任务1+2：manage.html 添加 provider 多选下拉面板（.provider-picker），13 个 AI 带 checkbox+图标+标签，支持全选/取消全选/点击外部关闭/Escape关闭。buildProviderPicker 从 PROVIDERS 数组动态生成。loadSessions 完成后从最近会话的 providers 初始化默认选中，无历史则用 SESSION_PROVIDER_IDS 默认值["deepseek","gemini","grok"]。createSession 发送消息时携带 selectedProviderIds，为空时阻止创建并提示"请至少选择一个 AI"。background.js handleSessionCreate 接收 message.providers 并用 PROVIDER_BY_ID 过滤，空则抛错"no-providers-selected"。
+  - 子任务3：新建 favicon-cache.js，维护 PROVIDER_HOSTS 映射（13个provider ID→hostname），getFaviconSrc 返回 Google Favicon API URL，preloadFavicons 通过 off-screen <img> 预热浏览器缓存。manage.js 和 dashboard.js 均接入 FaviconCache，硬编码的 PROVIDER_FAVICON map 和 inline URL 构造已删除。
+  - CORS 问题修复：初版用 fetch+crossOrigin 获取 favicon 遇 CORS 阻止，改为 <img> + canvas (crossOrigin=anonymous) 仍失败，最终简化为纯 <img> 标签加载（浏览器原生缓存），移除 data URL 转换逻辑。
+  - Code review 修复：空数组 fallback 修复、ARIA 属性补充、Escape 键关闭、persistToStorage 批量写入、console.warn 错误日志、buildApiUrl 移除无用 encodeURIComponent。
+  - init 顺序：先 preloadFavicons 预热缓存，再 buildProviderPicker，最后 loadSessions。
+- 验证步骤：
+  1. 导航到 manage.html 页面。
+  2. 检查 provider picker 按钮显示"3 个 AI ▾"，点击展开下拉面板，13 个 AI 均列出，deepseek/gemini/grok 默认勾选。
+  3. 点击任意历史会话，右侧恢复面板显示对应的子会话列表（DEEPSEEK/GEMINI/GROK）。
+  4. 会话列表每个 item 显示对应 AI 图标。
+  5. Reload 页面检查控制台无 CORS 错误。
+  6. 勾选/取消勾选 AI，点击新建会话，验证发送消息携带正确的 providers。
+- 验证证据：
+  - 证据 A：chrome-devtools MCP snapshot 显示按钮"3 个 AI ▾"，下拉面板 13 个 checkbox，grok/gemini/deepseek 已勾选。
+  - 证据 B：点击会话后 restoreSummary 显示 DEEPSEEK/GEMINI/GROK 三个子会话，各带"可恢复"标签和时间戳。
+  - 证据 C：页面 reload 后控制台 0 个 CORS 错误（仅 1 个 404，非 favicon 相关）。
+  - 证据 D：evaluate_script 验证选择 chatgpt 后按钮变为"1 个 AI ▾"，checkbox 状态正确同步。
+  - 证据 E：代码审查通过，spec compliance + code quality review 均完成。
+- 风险/问题：
+  - 所有历史会话当前均为默认 3 个 AI（历史原因），新建带不同 AI 的会话后才能直观体现功能。
+  - 浏览器原生缓存由浏览器管理，无法通过 JS 控制缓存策略。
+- 下一步建议：
+  - 用户确认后合并提交。

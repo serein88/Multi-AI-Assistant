@@ -185,7 +185,12 @@ async function handleSessionCreate(message) {
     throw new Error("session-modules-unavailable");
   }
 
-  const providers = getSessionProviderIds();
+  const providers = Array.isArray(message?.providers)
+    ? message.providers.filter(p => PROVIDER_BY_ID[p])
+    : getSessionProviderIds();
+  if (providers.length === 0) {
+    throw new Error("no-providers-selected");
+  }
   const now = new Date().toISOString();
   const sessionId = generateSessionId(now);
   const mode = message?.mode === "background"

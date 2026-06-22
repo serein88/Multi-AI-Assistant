@@ -477,7 +477,7 @@
     {
       "createdAt": "2026-05-17",
       "category": "fix",
-      "archived": false,
+      "archived": true,
       "criteria": "1. getStopSelectors('deepseek') 返回 DeepSeek 专属选择器；2. waitForResponseStart 和 waitForResponseComplete 的停止按钮信号对 DeepSeek 生效；3. 文本稳定性阈值可从 8s 缩短",
       "priority": "P0",
       "status": "完成",
@@ -488,7 +488,7 @@
     {
       "createdAt": "2026-05-17",
       "category": "fix",
-      "archived": false,
+      "archived": true,
       "criteria": "1. isGeminiStopVisible 匹配中英文停止按钮；2. isGeminiSendVisible 用 *= 包含匹配；3. getStopSelectors('gemini') 返回 Gemini 专属选择器",
       "priority": "P0",
       "status": "完成",
@@ -499,7 +499,7 @@
     {
       "createdAt": "2026-05-17",
       "category": "fix",
-      "archived": false,
+      "archived": true,
       "criteria": "1. waitForResponseComplete Step 1 有 Grok 专属停止按钮+发送按钮检测逻辑；2. sendGrokMessage 内 waitForGrokSendSignal 去掉无效 hasStreamingIndicator 调用",
       "priority": "P1",
       "status": "完成",
@@ -516,7 +516,7 @@
       "criteria": "恢复对话时，保持上一次进行该对话的布局。对话与对话之前要隔离。也就是不同对话之间不一样。",
       "notes": "修复1：loadPanelsFromStorage() 不再用 chrome.storage.local 的旧面板覆盖 localStorage 的正确布局。\n修复2：单行布局(rowCount<=1)时 applyGridLayout 不再清空 rowSizes，保留用户调整的行高。\n\n验证结果（chrome-devtools MCP 实机调试）：\n- 多行布局(4面板)：colSizes=[50,50], rowSizes=[320,320] 完全恢复 ✓\n- 单行布局(2面板)：rowSizes=[443] 拖动分割线后保存，导航离开再返回，gridTemplateRows=443px 完全恢复 ✓",
       "createdAt": "2026-05-17",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260604-001",
@@ -538,7 +538,7 @@
       "criteria": "1. waitForTabComplete 增加可配置超时（默认 30s）；2. 超时后 reject 并附带明确错误信息；3. 调用方 sendPromptToProviderTab 和 openProviders 能正确处理超时；4. 现有正常流程不受影响",
       "notes": "2026-06-05 已实现：waitForTabComplete 支持可配置超时，默认 30s；超时 reject 并清理 onUpdated listener；sendPromptToProviderTab 超时返回 false；openProviders autoSend 超时记录 warning 不再产生未处理挂起；node --test tests/session/*.test.js 通过（55 pass, 0 fail）。待用户确认。",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-002",
@@ -614,6 +614,17 @@
       "status": "完成",
       "criteria": "点击刷新或者新建对话，光标一直保持在同一发送输入栏。",
       "notes": "2026-06-05 五修：1) 简化 setFrameFocusShielded 只用 inert+tabindex；2) 加载期间始终屏蔽 iframe；3) rAF 轮询（~16ms）检测焦点被抢并立即恢复，30s 超时自动停止；4) 用户确认光标不再乱跳，但 IME 拼音仍可能被打断（跨域 iframe 内部 focus 调用无法拦截）。",
+      "createdAt": "2026-06-05",
+      "archived": true
+    },
+    {
+      "id": "T-20260605-009",
+      "name": "manage.html页面改进，创建对话支持选择AI或者直接沿用上次的配置。",
+      "category": "fix",
+      "priority": "P0",
+      "status": "待确认",
+      "criteria": "1.manage.html历史会话选中后不再是只有默认的三个deepseek，gemini和grok了，根据选定的AI显示。2.Session 2026-06-05xxx这里也根据对应的对话有哪些AI显示对应的图标。3.图标可以做一个缓存，不用每次重新加载了。",
+      "notes": "方案B：统一图标定义+缓存+AI选择器。改动文件：manage.html(+选择器HTML+3个script)、manage.js(+provider picker+FaviconCache替代硬编码)、manage.css(+选择器样式)、background.js(接收message.providers)、favicon-cache.js(新建统一hostname+API URL)、dashboard.html(+script)、dashboard.js(FaviconCache替代硬编码)。MCP验证：3项验收标准全部通过(无CORS错误、默认复用上次配置、恢复面板显示正确AI)",
       "createdAt": "2026-06-05",
       "archived": false
     }

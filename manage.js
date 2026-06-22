@@ -10,10 +10,16 @@ const restorePanelEl = document.getElementById("restorePanel");
 const restoreTitleEl = document.getElementById("restoreTitle");
 const restoreSummaryEl = document.getElementById("restoreSummary");
 const statusEl = document.getElementById("status");
+const providerPickerBtn = document.getElementById("providerPickerBtn");
+const providerDropdown = document.getElementById("providerDropdown");
+const providerListEl = document.getElementById("providerList");
+const providerSelectAllBtn = document.getElementById("providerSelectAll");
+const providerDeselectAllBtn = document.getElementById("providerDeselectAll");
 
 let sessionCache = [];
 let selectedSessionId = null;
 let pendingAction = false;
+var selectedProviderIds = [];
 
 function setStatus(text) {
   statusEl.textContent = text || "";
@@ -36,33 +42,98 @@ function formatTimestamp(value) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
+// --- Provider picker ---
+
+function buildProviderPicker() {
+  providerListEl.replaceChildren();
+
+  PROVIDERS.forEach(function (p) {
+    var row = document.createElement("label");
+    row.className = "provider-row";
+
+    var checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = p.id;
+    checkbox.checked = selectedProviderIds.indexOf(p.id) >= 0;
+    checkbox.addEventListener("change", function () {
+      var idx = selectedProviderIds.indexOf(p.id);
+      if (checkbox.checked && idx < 0) {
+        selectedProviderIds.push(p.id);
+      } else if (!checkbox.checked && idx >= 0) {
+        selectedProviderIds.splice(idx, 1);
+      }
+      updatePickerLabel();
+    });
+
+    var img = document.createElement("img");
+    img.className = "provider-favicon";
+    img.src = FaviconCache.getFaviconSrc(p.id);
+    img.alt = p.id;
+    img.width = 18;
+    img.height = 18;
+    img.loading = "lazy";
+    img.onerror = function () { this.style.display = "none"; };
+
+    var label = document.createElement("span");
+    label.className = "provider-label";
+    label.textContent = p.label;
+
+    row.append(checkbox, img, label);
+    providerListEl.appendChild(row);
+  });
+}
+
+function updatePickerLabel() {
+  providerPickerBtn.textContent = selectedProviderIds.length + " 个 AI ▾";
+}
+
+function syncPickerCheckboxes() {
+  var checkboxes = providerListEl.querySelectorAll("input[type=\"checkbox\"]");
+  checkboxes.forEach(function (cb) {
+    cb.checked = selectedProviderIds.indexOf(cb.value) >= 0;
+  });
+  updatePickerLabel();
+}
+
+function toggleDropdown(forceOpen) {
+  var isOpen = typeof forceOpen === "boolean" ? forceOpen : providerDropdown.classList.contains("hidden");
+  if (isOpen) {
+    providerDropdown.classList.remove("hidden");
+    providerPickerBtn.setAttribute("aria-expanded", "true");
+  } else {
+    providerDropdown.classList.add("hidden");
+    providerPickerBtn.setAttribute("aria-expanded", "false");
+  }
+}
+
+function setSelectedProviders(ids) {
+  var validIds = [];
+  var knownIds = PROVIDERS.map(function (p) { return p.id; });
+  (ids || []).forEach(function (id) {
+    if (knownIds.indexOf(id) >= 0) {
+      validIds.push(id);
+    }
+  });
+  selectedProviderIds = validIds;
+  syncPickerCheckboxes();
+}
+
+// --- Session helpers ---
+
 function formatSessionSummary(session) {
-    const PROVIDER_FAVICON = {
-      chatgpt: "https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32",
-      claude: "https://www.google.com/s2/favicons?domain=claude.ai&sz=32",
-      grok: "https://www.google.com/s2/favicons?domain=grok.com&sz=32",
-      gemini: "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32",
-      copilot: "https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32",
-      doubao: "https://www.google.com/s2/favicons?domain=doubao.com&sz=32",
-      kimi: "https://www.google.com/s2/favicons?domain=kimi.com&sz=32",
-      deepseek: "https://www.google.com/s2/favicons?domain=deepseek.com&sz=32",
-      tongyi: "https://www.google.com/s2/favicons?domain=tongyi.aliyun.com&sz=32",
-      yuanbao: "https://www.google.com/s2/favicons?domain=yuanbao.tencent.com&sz=32",
-      zhipu: "https://www.google.com/s2/favicons?domain=chatglm.cn&sz=32",
-      you: "https://www.google.com/s2/favicons?domain=you.com&sz=32",
-      ima: "https://www.google.com/s2/favicons?domain=ima.qq.com&sz=32"
-    };
-    return {
-      id: session.sessionId,
-      title: session.name || session.sessionId,
-      providers: session.providers || [],
-      favicons: (session.providers || []).map((p) => ({ id: p, src: PROVIDER_FAVICON[p] || "" })),
-      children: Object.values(session.childSessions || {}).map((child) => ({
-      provider: child.provider,
-      title: child.title || child.provider,
-      recoverable: Boolean(child.recoverable),
-      lastActiveAt: formatTimestamp(child.lastActiveAt)
-    }))
+  return {
+    id: session.sessionId,
+    title: session.name || session.sessionId,
+    providers: session.providers || [],
+    favicons: (session.providers || []).map(function (p) { return { id: p, src: FaviconCache.getFaviconSrc(p) }; }),
+    children: Object.values(session.childSessions || {}).map(function (child) {
+      return {
+        provider: child.provider,
+        title: child.title || child.provider,
+        recoverable: Boolean(child.recoverable),
+        lastActiveAt: formatTimestamp(child.lastActiveAt)
+      };
+    })
   };
 }
 
@@ -80,37 +151,37 @@ function renderSessionList(sessions) {
   sessionListEl.replaceChildren();
   emptyStateEl.classList.toggle("hidden", sessions.length > 0);
 
-  sessions.forEach((session) => {
+  sessions.forEach(function (session) {
     const summary = formatSessionSummary(session);
     const card = document.createElement("button");
     card.type = "button";
     card.className = "session-item" + (selectedSessionId === summary.id ? " selected" : "");
     card.disabled = pendingAction;
 
-      const nameEl = document.createElement("div");
-      nameEl.className = "session-name";
-      nameEl.textContent = summary.title;
+    const nameEl = document.createElement("div");
+    nameEl.className = "session-name";
+    nameEl.textContent = summary.title;
 
-      const iconsEl = document.createElement("div");
-      iconsEl.className = "session-icons";
-      summary.favicons.forEach((f) => {
-        const img = document.createElement("img");
-        img.className = "session-favicon";
-        img.src = f.src;
-        img.alt = f.id;
-        img.title = f.id;
-        img.width = 16;
-        img.height = 16;
-        img.loading = "lazy";
-        img.onerror = function() { this.style.display = "none"; };
-        iconsEl.appendChild(img);
-      });
+    const iconsEl = document.createElement("div");
+    iconsEl.className = "session-icons";
+    summary.favicons.forEach(function (f) {
+      const img = document.createElement("img");
+      img.className = "session-favicon";
+      img.src = f.src;
+      img.alt = f.id;
+      img.title = f.id;
+      img.width = 16;
+      img.height = 16;
+      img.loading = "lazy";
+      img.onerror = function () { this.style.display = "none"; };
+      iconsEl.appendChild(img);
+    });
 
-      card.append(nameEl, iconsEl);
-    card.addEventListener("click", () => {
+    card.append(nameEl, iconsEl);
+    card.addEventListener("click", function () {
       selectedSessionId = summary.id;
       // Update selected visual
-      sessionListEl.querySelectorAll(".session-item").forEach((el) => el.classList.remove("selected"));
+      sessionListEl.querySelectorAll(".session-item").forEach(function (el) { el.classList.remove("selected"); });
       card.classList.add("selected");
       renderRestorePanel(session);
     });
@@ -125,7 +196,7 @@ function hideRestorePanel() {
   restorePanelEl.classList.add("hidden");
   welcomeStateEl.classList.remove("hidden");
   restoreSummaryEl.replaceChildren();
-  sessionListEl.querySelectorAll(".session-item").forEach((el) => el.classList.remove("selected"));
+  sessionListEl.querySelectorAll(".session-item").forEach(function (el) { el.classList.remove("selected"); });
   setPendingState(pendingAction);
 }
 
@@ -149,7 +220,7 @@ function renderRestorePanel(session) {
     emptyEl.textContent = "没有子会话记录。";
     childrenWrap.appendChild(emptyEl);
   } else {
-    summary.children.forEach((child) => {
+    summary.children.forEach(function (child) {
       const row = document.createElement("div");
       row.className = "child-row";
 
@@ -165,7 +236,7 @@ function renderRestorePanel(session) {
       const meta = document.createElement("div");
       meta.className = "child-meta";
       const badge = document.createElement("span");
-      badge.className = `badge ${child.recoverable ? "ok" : "muted"}`;
+      badge.className = "badge " + (child.recoverable ? "ok" : "muted");
       badge.textContent = child.recoverable ? "可恢复" : "不可恢复";
       const lastActiveEl = document.createElement("span");
       lastActiveEl.textContent = child.lastActiveAt;
@@ -182,14 +253,28 @@ function renderRestorePanel(session) {
 
 // --- Actions ---
 
-async function loadSessions(options = {}) {
-  const { preserveStatus = false } = options;
+async function loadSessions(options) {
+  options = options || {};
+  const preserveStatus = options.preserveStatus;
   if (!preserveStatus) {
     setStatus("正在读取历史会话...");
   }
   const sessions = await sendRuntimeMessage({ type: "session:list" });
   sessionCache = Array.isArray(sessions) ? sessions : [];
   renderSessionList(sessionCache);
+
+  // Initialize selected providers from most recent session
+  if (selectedProviderIds.length === 0) {
+    var defaultIds = (typeof SESSION_PROVIDER_IDS !== "undefined")
+      ? SESSION_PROVIDER_IDS.slice()
+      : ["deepseek", "gemini", "grok"];
+    if (sessionCache.length > 0 && Array.isArray(sessionCache[0].providers) && sessionCache[0].providers.length > 0) {
+      setSelectedProviders(sessionCache[0].providers);
+    } else {
+      setSelectedProviders(defaultIds);
+    }
+  }
+
   if (!preserveStatus) {
     setStatus(sessionCache.length > 0 ? "已加载历史会话。" : "还没有已保存会话。");
   }
@@ -197,18 +282,22 @@ async function loadSessions(options = {}) {
 
 async function createSession() {
   if (pendingAction) return;
+  if (selectedProviderIds.length === 0) {
+    setStatus("请至少选择一个 AI。");
+    return;
+  }
   setPendingState(true);
   setStatus("正在创建会话...");
   const mode = backgroundModeInput.checked ? "background" : "foreground";
   try {
-    const result = await sendRuntimeMessage({ type: "session:create", mode });
+    const result = await sendRuntimeMessage({ type: "session:create", mode: mode, providers: selectedProviderIds.slice() });
     const sid = result.session?.sessionId || "";
     const name = result.session?.name || sid || "unknown";
-    setStatus(`会话已创建：${name}。`);
+    setStatus("会话已创建：" + name + "。");
     setPendingState(false);
-    loadSessions({ preserveStatus: true }).catch(() => {});
+    loadSessions({ preserveStatus: true }).catch(function () {});
   } catch (error) {
-    setStatus(`创建失败：${error.message}`);
+    setStatus("创建失败：" + error.message);
     setPendingState(false);
   }
 }
@@ -227,30 +316,63 @@ async function restoreSession() {
       sessionId: selectedSessionId
     });
     const restoredCount = Array.isArray(result.restored) ? result.restored.length : 0;
-    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话。` : "该会话没有可恢复的子会话。");
+    setStatus(restoredCount > 0 ? "已恢复 " + restoredCount + " 个子会话。" : "该会话没有可恢复的子会话。");
     setPendingState(false);
-    loadSessions({ preserveStatus: true }).catch(() => {});
+    loadSessions({ preserveStatus: true }).catch(function () {});
   } catch (error) {
-    setStatus(`恢复失败：${error.message}`);
+    setStatus("恢复失败：" + error.message);
     setPendingState(false);
   }
 }
 
 // --- Event listeners ---
 
-createSessionButton.addEventListener("click", () => {
-  createSession().catch((error) => setStatus(`创建失败：${error.message}`));
+createSessionButton.addEventListener("click", function () {
+  createSession().catch(function (error) { setStatus("创建失败：" + error.message); });
 });
 
-loadSessionsButton.addEventListener("click", () => {
-  loadSessions().catch((error) => setStatus(`读取失败：${error.message}`));
+loadSessionsButton.addEventListener("click", function () {
+  loadSessions().catch(function (error) { setStatus("读取失败：" + error.message); });
 });
 
-confirmRestoreButton.addEventListener("click", () => {
-  restoreSession().catch((error) => setStatus(`恢复失败：${error.message}`));
+confirmRestoreButton.addEventListener("click", function () {
+  restoreSession().catch(function (error) { setStatus("恢复失败：" + error.message); });
 });
 
 closeRestorePanelButton.addEventListener("click", hideRestorePanel);
 
+// Provider picker events
+providerPickerBtn.addEventListener("click", function () {
+  toggleDropdown();
+});
+
+providerSelectAllBtn.addEventListener("click", function () {
+  setSelectedProviders(PROVIDERS.map(function (p) { return p.id; }));
+});
+
+providerDeselectAllBtn.addEventListener("click", function () {
+  setSelectedProviders([]);
+});
+
+document.addEventListener("click", function (e) {
+  var picker = document.getElementById("providerPicker");
+  if (picker && !picker.contains(e.target)) {
+    if (providerDropdown && !providerDropdown.classList.contains("hidden")) {
+      toggleDropdown(false);
+    }
+  }
+});
+
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") {
+    if (providerDropdown && !providerDropdown.classList.contains("hidden")) {
+      toggleDropdown(false);
+    }
+  }
+});
+
 // Init
-loadSessions().catch((error) => setStatus(`初始化失败：${error.message}`));
+FaviconCache.preloadFavicons(PROVIDERS.map(function (p) { return p.id; })).then(function () {
+  buildProviderPicker();
+  loadSessions().catch(function (error) { setStatus("初始化失败：" + error.message); });
+});

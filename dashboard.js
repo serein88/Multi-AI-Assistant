@@ -617,6 +617,12 @@ async function loadPanelsFromStorage() {
     if (value.childSessionUrls && typeof value.childSessionUrls === "object") {
       sessionChildUrls = { ...value.childSessionUrls };
     }
+    // New session: activePanels is empty because localStorage has no record yet.
+    // Seed from session data so user-selected providers are respected.
+    if (activePanels.length === 0 && Array.isArray(value.panels) && value.panels.length > 0) {
+      activePanels = value.panels.slice();
+      log("Seeded activePanels from session storage:", activePanels);
+    }
     return;
   }
 
@@ -1581,7 +1587,7 @@ function renderPanels() {
     
     // Icon
     const icon = document.createElement("img");
-    icon.src = `https://www.google.com/s2/favicons?domain=${new URL(provider.url).hostname}&sz=32`;
+    icon.src = FaviconCache.getFaviconSrc(provider.id);
     icon.onerror = () => { icon.style.display = "none"; }; // Hide if fails
     title.appendChild(icon);
     
@@ -2504,12 +2510,14 @@ loadPanelsFromStorage()
   .finally(() => {
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);
-    if (promptFocusGuard) {
-      promptFocusGuard.focusPrompt();
-      promptFocusGuard.captureIfPromptFocused();
-    }
-    renderPanels();
-    startTranscriptPolling();
+    FaviconCache.preloadFavicons(activePanels).then(function () {
+      if (promptFocusGuard) {
+        promptFocusGuard.focusPrompt();
+        promptFocusGuard.captureIfPromptFocused();
+      }
+      renderPanels();
+      startTranscriptPolling();
+    });
   });
 
 
