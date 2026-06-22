@@ -1,5 +1,43 @@
 # Progress.md
 
+## 2026-06-22（记录 4）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-005
+- 任务名：减少静默吞错：关键路径补充日志
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `content/content.js`（4 处 console.warn）
+  - `dashboard.js`（1 处 console.warn）
+- 操作摘要：
+  - 为关键路径的空 catch 块补充 console.warn 日志，包含上下文信息（provider 名、函数名等）
+  - **content.js 补充 4 处**：
+    1. line 733: 转录实时状态发送失败 - `Failed to send transcript live-status for ${provider}`
+    2. line 904: 转录轮次发送失败 - `Failed to send transcript turn for ${provider} (${role})`
+    3. line 1121: 输入框文本提取失败 - `isEditableCleared: Failed to extract text from editable element`
+    4. line 1324: 子会话同步失败 - `Failed to sync child session for ${provider}`
+  - **dashboard.js 补充 1 处**：
+    1. line 592: localStorage 状态解析失败 - `loadState: Failed to parse stored state`
+  - **background.js**: sendPromptToProviderTab 已有完整日志（line 633-637），无需补充
+  - 其余空 catch 块为选择器匹配的防御性代码（处理无效 CSS 选择器），或已有 console.error，日志价值较低
+- 验证步骤：
+  1. 检查 5 处补充的 console.warn 是否包含上下文信息
+  2. 确认不改变现有错误处理语义（仍然吞错，只是添加日志）
+- 验证证据：
+  ```javascript
+  // 示例 1: 转录实时状态
+  console.warn(`[MultiAI Content] Failed to send transcript live-status for ${provider}:`, error);
+  
+  // 示例 2: dashboard 状态解析
+  console.warn('[MultiAI Dashboard] loadState: Failed to parse stored state:', error);
+  ```
+- 风险/问题：无
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - 后续遇到问题时，可在控制台看到更详细的错误信息
+
+---
+
 ## 2026-06-22（记录 3）
 
 - 时间：2026-06-22

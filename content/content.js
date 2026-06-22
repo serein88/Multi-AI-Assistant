@@ -730,8 +730,8 @@ function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
         result.catch(() => undefined);
       }
     }
-  } catch {
-    // ignore transcript live-status errors
+  } catch (error) {
+    console.warn(`[MultiAI Content] Failed to send transcript live-status for ${provider}:`, error);
   }
 }
 
@@ -901,8 +901,8 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
         result.catch(() => undefined);
       }
     }
-  } catch {
-    // ignore transcript turn errors
+  } catch (error) {
+    console.warn(`[MultiAI Content] Failed to send transcript turn for ${provider} (${role}):`, error);
   }
 }
 
@@ -1118,7 +1118,8 @@ function isEditableCleared(el) {
   try {
     const text = normalizeTurnText(extractPromptFromEditable(el));
     return text.length === 0;
-  } catch {
+  } catch (error) {
+    console.warn('[MultiAI Content] isEditableCleared: Failed to extract text from editable element:', error);
     return false;
   }
 }
@@ -1321,7 +1322,7 @@ function sendChildSessionSync(provider) {
       }
     }
   } catch (error) {
-    // ignore sync errors
+    console.warn(`[MultiAI Content] Failed to sync child session for ${provider}:`, error);
   }
 }
 

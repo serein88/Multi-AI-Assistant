@@ -589,7 +589,8 @@ function loadState() {
       const newProviders = sortedProviderIds.filter(id => !storedSet.has(id));
       sortedProviderIds = [...state.sortedProviderIds, ...newProviders];
     }
-  } catch {
+  } catch (error) {
+    console.warn('[MultiAI Dashboard] loadState: Failed to parse stored state:', error);
     activePanels = [];
   }
 }

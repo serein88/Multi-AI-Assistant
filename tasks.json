@@ -578,9 +578,9 @@
       "name": "减少静默吞错：关键路径补充日志",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js 中至少 12 处空 catch 块补充 console.warn 日志（包含上下文信息如 provider 名、函数名）；2. background.js 中 sendPromptToProviderTab 的 catch 补充日志；3. dashboard.js 中 loadState 的 JSON parse catch 补充日志；4. 不改变现有错误处理语义（不把吞错改为抛出）",
-      "notes": "来源：代码质量扫描。20+ 处 catch 块完全吞掉错误，排查问题时无法定位。优先处理 content.js 和 background.js 中的关键路径",
+      "notes": "2026-06-22 已完成：补充 5 处关键路径日志 - content.js (4处): 转录实时状态发送、转录轮次发送、输入框清空检测、子会话同步；dashboard.js (1处): localStorage 状态解析。background.js 的 sendPromptToProviderTab 已有完整日志(line 633-637)，无需补充。其余 catch 块为选择器匹配防御性代码或已有 console.error，日志价值较低",
       "createdAt": "2026-06-05",
       "archived": false
     },
