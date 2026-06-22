@@ -1,5 +1,24 @@
 ﻿const DASHBOARD_MAX_PANELS = 6;
 
+const SESSION_PROVIDER_IDS = [
+  "chatgpt",
+  "claude",
+  "copilot",
+  "deepseek",
+  "doubao",
+  "gemini",
+  "grok",
+  "ima",
+  "kimi",
+  "tongyi",
+  "you",
+  "yuanbao",
+  "zhipu"
+];
+if (typeof globalThis !== "undefined") {
+  globalThis.SESSION_PROVIDER_IDS = SESSION_PROVIDER_IDS;
+}
+
 const PROVIDERS = [
   { id: "chatgpt", label: "ChatGPT", url: "https://chatgpt.com/" },
   { id: "claude", label: "Claude", url: "https://claude.ai/" },
@@ -43,5 +62,16 @@ function findProviderByToken(token) {
   if (byId) return byId;
 
   return PROVIDERS.find((provider) => provider.label.toLowerCase() === lowered) || null;
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = {
+    DASHBOARD_MAX_PANELS,
+    SESSION_PROVIDER_IDS,
+    PROVIDERS,
+    PROVIDER_BY_ID,
+    normalizeProviders,
+    findProviderByToken
+  };
 }
 

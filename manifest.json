@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Multi AI Assistant",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Open multiple AI chat sites and send the same prompt.",
   "action": {
     "default_title": "Multi AI"
@@ -106,8 +106,12 @@
       "resources": [
         "dashboard.html",
         "dashboard.css",
+        "dashboard-focus.js",
         "dashboard.js",
-        "providers.js"
+        "providers.js",
+        "manage.html",
+        "manage.css",
+        "manage.js"
       ],
       "matches": [
         "<all_urls>"

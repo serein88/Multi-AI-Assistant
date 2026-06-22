@@ -1,132 +1,238 @@
-﻿const STORAGE_KEY = "multi-ai-state";
-
-const promptEl = document.getElementById("prompt");
+const createSessionButton = document.getElementById("createSession");
+const loadSessionsButton = document.getElementById("loadSessions");
+const confirmRestoreButton = document.getElementById("confirmRestore");
+const closeRestorePanelButton = document.getElementById("closeRestorePanel");
+const backgroundModeInput = document.getElementById("backgroundMode");
+const emptyStateEl = document.getElementById("emptyState");
+const sessionListEl = document.getElementById("sessionList");
+const restorePanelEl = document.getElementById("restorePanel");
+const restoreSummaryEl = document.getElementById("restoreSummary");
 const statusEl = document.getElementById("status");
-const openSendButton = document.getElementById("openSend");
-const openOnlyButton = document.getElementById("openOnly");
-const openDashboardButton = document.getElementById("openDashboard");
-const providerCheckboxes = Array.from(document.querySelectorAll(".providers input[type='checkbox']"));
-const DASHBOARD_KEY = "multi-ai-dashboard-panels";
-const MAX_DASHBOARD_PANELS = typeof DASHBOARD_MAX_PANELS === "number" ? DASHBOARD_MAX_PANELS : 6;
 
-function getSelectedProviders() {
-  return providerCheckboxes
-    .filter((checkbox) => checkbox.checked)
-    .map((checkbox) => checkbox.value);
-}
+let sessionCache = [];
+let selectedSessionId = null;
+let pendingAction = false;
 
 function setStatus(text) {
-  statusEl.textContent = text;
+  statusEl.textContent = text || "";
 }
 
-async function loadState() {
-  const stored = await chrome.storage.local.get(STORAGE_KEY);
-  const state = stored[STORAGE_KEY];
-  if (!state) return;
+function setPendingState(isPending) {
+  pendingAction = isPending;
+  createSessionButton.disabled = isPending;
+  loadSessionsButton.disabled = isPending;
+  confirmRestoreButton.disabled = isPending || !selectedSessionId;
+  closeRestorePanelButton.disabled = isPending;
 
-  if (typeof state.prompt === "string") {
-    promptEl.value = state.prompt;
+  sessionListEl.querySelectorAll("button").forEach((button) => {
+    button.disabled = isPending;
+  });
+}
+
+function formatTimestamp(value) {
+  if (!value) return "未知时间";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
   }
+  return date.toLocaleString("zh-CN", {
+    hour12: false
+  });
+}
 
-  if (Array.isArray(state.providers)) {
-    providerCheckboxes.forEach((checkbox) => {
-      checkbox.checked = state.providers.includes(checkbox.value);
+function formatSessionSummary(session) {
+  return {
+    id: session.sessionId,
+    title: session.name || session.sessionId,
+    subtitle: `${(session.providers || []).join(" / ")} · ${formatTimestamp(session.lastActiveAt || session.createdAt)}`,
+    children: Object.values(session.childSessions || {}).map((child) => ({
+      provider: child.provider,
+      title: child.title || child.provider,
+      recoverable: Boolean(child.recoverable),
+      lastActiveAt: formatTimestamp(child.lastActiveAt)
+    }))
+  };
+}
+
+async function sendRuntimeMessage(message) {
+  const response = await chrome.runtime.sendMessage(message);
+  if (!response || !response.ok) {
+    throw new Error(response?.error || "unknown-runtime-error");
+  }
+  return response.result;
+}
+
+function hideRestorePanel() {
+  selectedSessionId = null;
+  restorePanelEl.classList.add("hidden");
+  restoreSummaryEl.replaceChildren();
+  setPendingState(pendingAction);
+}
+
+function renderRestorePanel(session) {
+  const summary = formatSessionSummary(session);
+  restoreSummaryEl.replaceChildren();
+
+  const summaryHead = document.createElement("div");
+  summaryHead.className = "summary-head";
+
+  const titleEl = document.createElement("div");
+  titleEl.className = "summary-title";
+  titleEl.textContent = summary.title;
+
+  const subtitleEl = document.createElement("div");
+  subtitleEl.className = "summary-subtitle";
+  subtitleEl.textContent = summary.subtitle;
+
+  summaryHead.append(titleEl, subtitleEl);
+
+  const childrenWrap = document.createElement("div");
+  childrenWrap.className = "summary-children";
+
+  if (summary.children.length === 0) {
+    const emptyEl = document.createElement("div");
+    emptyEl.className = "empty small";
+    emptyEl.textContent = "没有子会话记录。";
+    childrenWrap.appendChild(emptyEl);
+  } else {
+    summary.children.forEach((child) => {
+      const row = document.createElement("div");
+      row.className = "child-row";
+
+      const left = document.createElement("div");
+
+      const providerEl = document.createElement("div");
+      providerEl.className = "child-provider";
+      providerEl.textContent = child.provider;
+
+      const childTitleEl = document.createElement("div");
+      childTitleEl.className = "child-title";
+      childTitleEl.textContent = child.title;
+
+      left.append(providerEl, childTitleEl);
+
+      const meta = document.createElement("div");
+      meta.className = "child-meta";
+
+      const badge = document.createElement("span");
+      badge.className = `badge ${child.recoverable ? "ok" : "muted"}`;
+      badge.textContent = child.recoverable ? "可恢复" : "不可恢复";
+
+      const lastActiveEl = document.createElement("span");
+      lastActiveEl.textContent = child.lastActiveAt;
+
+      meta.append(badge, lastActiveEl);
+      row.append(left, meta);
+      childrenWrap.appendChild(row);
     });
   }
+
+  restoreSummaryEl.append(summaryHead, childrenWrap);
+  restorePanelEl.classList.remove("hidden");
+  setPendingState(pendingAction);
 }
 
-async function saveState() {
-  const state = {
-    prompt: promptEl.value,
-    providers: getSelectedProviders()
-  };
+function renderSessionList(sessions) {
+  sessionListEl.replaceChildren();
+  hideRestorePanel();
+  emptyStateEl.classList.toggle("hidden", sessions.length > 0);
 
-  await chrome.storage.local.set({ [STORAGE_KEY]: state });
-}
+  sessions.forEach((session) => {
+    const summary = formatSessionSummary(session);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "session-item";
+    card.disabled = pendingAction;
 
-function waitForTabComplete(tabId) {
-  return new Promise((resolve) => {
-    const listener = (updatedTabId, info) => {
-      if (updatedTabId !== tabId) {
-        return;
-      }
-      if (info.status === "complete") {
-        chrome.tabs.onUpdated.removeListener(listener);
-        resolve();
-      }
-    };
+    const titleEl = document.createElement("div");
+    titleEl.className = "session-title";
+    titleEl.textContent = summary.title;
 
-    chrome.tabs.onUpdated.addListener(listener);
+    const subtitleEl = document.createElement("div");
+    subtitleEl.className = "session-subtitle";
+    subtitleEl.textContent = summary.subtitle;
+
+    const childrenEl = document.createElement("div");
+    childrenEl.className = "session-children";
+    summary.children.forEach((child) => {
+      const badge = document.createElement("span");
+      badge.className = `badge ${child.recoverable ? "ok" : "muted"}`;
+      badge.textContent = child.provider;
+      childrenEl.appendChild(badge);
+    });
+
+    card.append(titleEl, subtitleEl, childrenEl);
+    card.addEventListener("click", () => {
+      selectedSessionId = summary.id;
+      renderRestorePanel(session);
+    });
+    sessionListEl.appendChild(card);
   });
 }
 
-async function openProviders(autoSend) {
-  const providers = getSelectedProviders();
-  const prompt = promptEl.value.trim();
-
-  if (providers.length === 0) {
-    setStatus("至少选择一个 AI。");
-    return;
+async function loadSessions(options = {}) {
+  const { preserveStatus = false } = options;
+  if (!preserveStatus) {
+    setStatus("正在读取历史会话...");
   }
-
-  if (autoSend && !prompt) {
-    setStatus("请输入要发送的内容。");
-    return;
+  const sessions = await sendRuntimeMessage({ type: "session:list" });
+  sessionCache = Array.isArray(sessions) ? sessions : [];
+  renderSessionList(sessionCache);
+  if (!preserveStatus) {
+    setStatus(sessionCache.length > 0 ? "已加载历史会话。" : "还没有已保存会话。");
   }
-
-  await saveState();
-
-  const results = [];
-  for (const providerId of providers) {
-    const provider = PROVIDER_BY_ID[providerId];
-    if (!provider) continue;
-    const tab = await chrome.tabs.create({ url: provider.url, active: false });
-    results.push(tab);
-
-    if (autoSend) {
-      waitForTabComplete(tab.id).then(() => {
-        chrome.tabs.sendMessage(tab.id, {
-          type: "sendPrompt",
-          provider: providerId,
-          prompt
-        });
-      });
-    }
-  }
-
-  setStatus(results.length === 0 ? "未打开任何标签。" : (autoSend ? "已打开并尝试发送。" : "已打开标签页。"));
 }
 
-async function openDashboard() {
-  const providers = getSelectedProviders();
-  if (providers.length === 0) {
-    setStatus("至少选择一个 AI。");
-    return;
+async function createSession() {
+  if (pendingAction) return;
+  setPendingState(true);
+  setStatus("正在创建会话...");
+  const mode = backgroundModeInput.checked ? "background" : "foreground";
+  try {
+    const result = await sendRuntimeMessage({ type: "session:create", mode });
+    await loadSessions({ preserveStatus: true });
+    setStatus(`会话已创建：${result.session?.name || result.session?.sessionId || "unknown"}`);
+  } finally {
+    setPendingState(false);
   }
-  if (providers.length > MAX_DASHBOARD_PANELS) {
-    setStatus(`最多选择 ${MAX_DASHBOARD_PANELS} 个 AI 分屏。`);
-    return;
-  }
-
-  await saveState();
-  await chrome.storage.local.set({ [DASHBOARD_KEY]: providers });
-  await chrome.tabs.create({ url: chrome.runtime.getURL("dashboard.html"), active: true });
-  setStatus("已打开分屏界面。");
 }
 
-openSendButton.addEventListener("click", () => openProviders(true));
-openOnlyButton.addEventListener("click", () => openProviders(false));
-openDashboardButton.addEventListener("click", openDashboard);
+async function restoreSession() {
+  if (!selectedSessionId) {
+    setStatus("请先选择要恢复的会话。");
+    return;
+  }
 
-promptEl.addEventListener("input", () => {
-  saveState().catch(() => undefined);
+  if (pendingAction) return;
+  setPendingState(true);
+  setStatus("正在恢复会话...");
+  try {
+    const result = await sendRuntimeMessage({
+      type: "session:restore",
+      sessionId: selectedSessionId
+    });
+
+    const restoredCount = Array.isArray(result.restored) ? result.restored.length : 0;
+    hideRestorePanel();
+    await loadSessions({ preserveStatus: true });
+    setStatus(restoredCount > 0 ? `已恢复 ${restoredCount} 个子会话。` : "该会话没有可恢复的子会话。");
+  } finally {
+    setPendingState(false);
+  }
+}
+
+createSessionButton.addEventListener("click", () => {
+  createSession().catch((error) => setStatus(`创建失败：${error.message}`));
 });
 
-providerCheckboxes.forEach((checkbox) => {
-  checkbox.addEventListener("change", () => {
-    saveState().catch(() => undefined);
-  });
+loadSessionsButton.addEventListener("click", () => {
+  loadSessions().catch((error) => setStatus(`读取失败：${error.message}`));
 });
 
-loadState().catch(() => undefined);
+confirmRestoreButton.addEventListener("click", () => {
+  restoreSession().catch((error) => setStatus(`恢复失败：${error.message}`));
+});
 
+closeRestorePanelButton.addEventListener("click", hideRestorePanel);
+
+loadSessions().catch((error) => setStatus(`初始化失败：${error.message}`));

@@ -1,4 +1,4 @@
-const RESPONSE_SELECTORS = {
+﻿const RESPONSE_SELECTORS = {
   chatgpt: [
     "[data-message-author-role='assistant'] .markdown",
     "[data-message-author-role='assistant']",
@@ -12,10 +12,10 @@ const RESPONSE_SELECTORS = {
     "main [class*='bot-message']"
   ],
   gemini: [
-    "[data-md]",
-    "[class*='markdown']",
-    "[class*='response']",
-    "rich-text"
+    "div.markdown.markdown-main-panel",
+    ".markdown.markdown-main-panel",
+    "structured-content-container.model-response-text",
+    ".model-response-text"
   ],
   copilot: [
     "cib-chat-turn.cib-bot-turn",
@@ -24,10 +24,9 @@ const RESPONSE_SELECTORS = {
     "[class*='ai-message']"
   ],
   grok: [
-    "[data-role='assistant']",
-    ".assistant",
-    "[class*='message-ai']",
-    "[data-testid*='chat-message']"
+    ".response-content-markdown",
+    ".response-content-markdown.markdown",
+    "[id^='response-'] .response-content-markdown"
   ],
   kimi: [
     "[class*='assistant']",
@@ -35,9 +34,7 @@ const RESPONSE_SELECTORS = {
     "[class*='answer']"
   ],
   deepseek: [
-    "[class*='assistant']",
-    "[data-role='assistant']",
-    "[data-testid*='chat-message']"
+    ".ds-markdown"
   ],
   doubao: [
     "[data-role='assistant']",
@@ -65,22 +62,290 @@ const RESPONSE_SELECTORS = {
   ]
 };
 
+const MANUAL_TURN_CAPTURE_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
+const MANUAL_USER_SELECTORS = {
+  default: [
+    "[data-role='user']",
+    "[data-message-author-role='user']",
+    "[data-testid='user-message']",
+    "[data-testid*='user-message']",
+    "[class*='message-user']",
+    "[class*='user-message']",
+    "[class*='human-message']",
+    "[class*='from-user']"
+  ],
+  deepseek: [
+    ".ds-message:not(:has(.ds-markdown))",
+    "[class*='message-user']",
+    "[data-role='user']",
+    "[data-message-author-role='user']"
+  ],
+  gemini: [
+    "div.query-text.gds-body-l",
+    "div.query-text",
+    "p.query-text-line"
+  ],
+  grok: [
+    "[data-role='user']",
+    "[data-message-author-role='user']",
+    "[class*='message-user']",
+    "[class*='user-message']"
+  ]
+};
+const MANUAL_ASSISTANT_SELECTORS = {
+  default: [
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[data-testid='bot-message']",
+    "[data-testid*='assistant-message']",
+    "[class*='message-assistant']",
+    "[class*='assistant-message']",
+    "[class*='bot-message']",
+    "[class*='ai-message']"
+  ],
+  deepseek: [
+    ".ds-message:has(.ds-markdown)",
+    "[data-role='assistant']",
+    "[data-message-author-role='assistant']",
+    "[class*='message-assistant']",
+    "[class*='assistant-message']"
+  ],
+  gemini: [
+    "div.markdown.markdown-main-panel",
+    "structured-content-container.model-response-text",
+    ".model-response-text"
+  ],
+  grok: [
+    ".response-content-markdown",
+    ".response-content-markdown.markdown",
+    "[id^='response-'] .response-content-markdown"
+  ]
+};
+
+const THINKING_SELECTORS = {
+  deepseek: [
+    "[class*='ds-think-content']",
+    ".ds-think-content"
+  ],
+  gemini: [
+    "[class*='thinking']",
+    "[class*='reasoning']",
+    "[data-testid*='thinking']",
+    ".thought-content",
+    ".thinking-chip"
+  ],
+  grok: [
+    "[class*='thinking']",
+    "[class*='reasoning']",
+    "[class*='thought']",
+    "[data-testid*='thinking']",
+    "[class*='think-block']"
+  ]
+};
+
+function shouldIgnoreThinkingNode(provider, node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+  const selectors = THINKING_SELECTORS[provider];
+  if (!selectors || selectors.length === 0) return false;
+
+  // Check if the node itself matches a thinking selector
+  for (const sel of selectors) {
+    try {
+      if (node.matches(sel)) return true;
+    } catch { /* ignore invalid selector */ }
+  }
+
+  // Check if the node is inside a thinking block
+  for (const sel of selectors) {
+    try {
+      if (node.closest(sel)) return true;
+    } catch { /* ignore invalid selector */ }
+  }
+
+  return false;
+}
+
+function extractTextExcludingThinking(provider, node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return node ? (node.textContent || "") : "";
+  }
+  const selectors = THINKING_SELECTORS[provider];
+  if (!selectors || selectors.length === 0) {
+    return node.innerText || node.textContent || "";
+  }
+  const clone = node.cloneNode(true);
+  for (const sel of selectors) {
+    try {
+      clone.querySelectorAll(sel).forEach((el) => el.remove());
+    } catch { /* ignore */ }
+  }
+  return clone.innerText || clone.textContent || "";
+}
+
 function extractLatestResponse(provider) {
   const selectors = RESPONSE_SELECTORS[provider] || RESPONSE_SELECTORS.chatgpt || [];
   const root = document.body || document;
   let latest = "";
   for (const sel of selectors) {
     const nodes = root.querySelectorAll ? Array.from(root.querySelectorAll(sel)) : [];
-    if (nodes.length) {
-      const target = nodes[nodes.length - 1];
-      const text = target.innerText || target.textContent || "";
+    // Iterate in reverse to find the last non-thinking response node
+    for (let i = nodes.length - 1; i >= 0; i--) {
+      const target = nodes[i];
+      // Skip nodes that ARE thinking blocks or are INSIDE thinking blocks
+      if (shouldIgnoreThinkingNode(provider, target)) {
+        continue;
+      }
+      const text = extractTextExcludingThinking(provider, target);
       if (text.trim()) {
         latest = text.trim();
+        break;
       }
     }
     if (latest) break;
   }
   return latest;
+}
+
+// Inline response-state logic (response-state.js may not be injected due to Chrome caching)
+const _inlineResponseState = (function() {
+  function normalizeText(value) {
+    return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  }
+  function shouldUseGenericResponseStartSignals(provider) {
+    return provider !== "deepseek" && provider !== "grok";
+  }
+  function getProviderStabilityMs(provider) {
+    if (provider === "deepseek") return 1500;
+    if (provider === "grok") return 1500;
+    return 1200;
+  }
+  function createResponseStabilityTracker(options = {}) {
+    const provider = options.provider || "";
+    const baselineText = normalizeText(options.baselineText);
+    const baselineResponseCount = Number(options.baselineResponseCount) || 0;
+    const stabilityMs = Number(options.stabilityMs) || 1200;
+    const requireNewResponse = provider === "deepseek";
+    let observedNewResponse = !requireNewResponse;
+    let lastStableResponse = "";
+    let lastStableResponseAt = 0;
+    return {
+      check(sample = {}) {
+        const text = normalizeText(sample.text);
+        const responseCount = Number(sample.responseCount) || 0;
+        const now = Number(sample.now) || Date.now();
+        const streaming = sample.streaming === true;
+        if (!text) return { complete: false, reason: "empty" };
+        if (!observedNewResponse) {
+          // DeepSeek: only check text change, NOT response count.
+          // countResponseNodes() includes .ds-message which appears during the
+          // thinking phase (before .ds-markdown is created), causing the gate to
+          // open prematurely while the text still reads the previous response.
+          if (provider === "deepseek") {
+            if (text === baselineText) {
+              return { complete: false, reason: "baseline" };
+            }
+          } else {
+            if (text === baselineText && responseCount <= baselineResponseCount) {
+              return { complete: false, reason: "baseline" };
+            }
+          }
+          console.log(`[DS-gate] opened: text="${text.substring(0, 50)}" baseline="${baselineText.substring(0, 50)}" count=${responseCount} baseline=${baselineResponseCount}`);
+          observedNewResponse = true;
+        }
+        if (text !== lastStableResponse) {
+          lastStableResponse = text;
+          lastStableResponseAt = now;
+          return { complete: false, reason: "changed" };
+        }
+        if (lastStableResponseAt > 0 && !streaming) {
+          const elapsed = now - lastStableResponseAt;
+          if (elapsed >= stabilityMs) {
+            return { complete: true, reason: "stable", elapsed };
+          }
+        }
+        return { complete: false, reason: "waiting" };
+      }
+    };
+  }
+  return { shouldUseGenericResponseStartSignals, getProviderStabilityMs, createResponseStabilityTracker };
+})();
+
+// Set global for any code that reads it directly
+if (typeof globalThis !== "undefined" && !globalThis.MultiAIResponseState) {
+  globalThis.MultiAIResponseState = _inlineResponseState;
+}
+
+function getResponseStateApi() {
+  return globalThis.MultiAIResponseState || _inlineResponseState || {
+    shouldUseGenericResponseStartSignals(provider) {
+      return provider !== "deepseek" && provider !== "grok";
+    },
+    getProviderStabilityMs(provider) {
+      if (provider === "deepseek") return 1500;
+      if (provider === "grok") return 1500;
+      return 1200;
+    },
+    createResponseStabilityTracker(options = {}) {
+      const provider = options.provider || "";
+      let lastStableResponse = "";
+      let lastStableResponseAt = 0;
+      let newResponseDetected = false;
+      const baselineCount = Number(options.baselineResponseCount) || 0;
+      const baselineText = typeof options.baselineText === "string" ? options.baselineText.trim() : "";
+      return {
+        check(sample = {}) {
+          const text = typeof sample.text === "string" ? sample.text.trim() : "";
+          if (!text) return { complete: false, reason: "empty" };
+
+          // Gate: must detect a NEW response before starting stability timer.
+          // For DeepSeek: only check text change (not response count) because
+          // countResponseNodes() includes .ds-message which appears during thinking.
+          if (!newResponseDetected) {
+            if (provider === "deepseek") {
+              if (text === baselineText) {
+                return { complete: false, reason: "baseline" };
+              }
+            } else {
+              const currentCount = Number(sample.responseCount) || 0;
+              if (currentCount > baselineCount) {
+                newResponseDetected = true;
+              } else {
+                return { complete: false, reason: "waiting-for-new-response" };
+              }
+            }
+            newResponseDetected = true;
+          }
+
+          if (text !== lastStableResponse) {
+            lastStableResponse = text;
+            lastStableResponseAt = sample.now || Date.now();
+            return { complete: false, reason: "changed" };
+          }
+          const now = sample.now || Date.now();
+          const stabilityMs = options.stabilityMs || 1200;
+          if (!sample.streaming && now - lastStableResponseAt >= stabilityMs) {
+            return { complete: true, reason: "stable", elapsed: now - lastStableResponseAt };
+          }
+          return { complete: false, reason: "waiting" };
+        }
+      };
+    }
+  };
+}
+
+function getProviderStabilityMs(provider) {
+  return getResponseStateApi().getProviderStabilityMs(provider);
+}
+
+function shouldUseGenericResponseStartSignals(provider) {
+  return getResponseStateApi().shouldUseGenericResponseStartSignals(provider);
+}
+
+function captureResponseBaseline(provider) {
+  return {
+    text: extractLatestResponse(provider),
+    responseCount: countResponseNodes(provider)
+  };
 }
 
 const PROVIDER_CONFIGS = {
@@ -281,6 +546,8 @@ const PROVIDER_CONFIGS = {
   deepseek: {
     inputSelectors: [
       "textarea[placeholder*='输入']",
+      "textarea[placeholder*='发送消息']",
+      "textarea[placeholder*='DeepSeek']",
       "textarea",
       "div[contenteditable='true']"
     ],
@@ -445,6 +712,658 @@ function postSendResult(provider, success) {
     provider,
     success: Boolean(success)
   });
+}
+
+function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
+  if (!provider || !status) return;
+  const payload = {
+    type: "session:transcript-live-status",
+    provider,
+    status,
+    occurredAt: occurredAt || new Date().toISOString()
+  };
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch {
+    // ignore transcript live-status errors
+  }
+}
+
+let manualTurnCaptureStarted = false;
+let manualTurnNodeSnapshot = new WeakMap();
+const pendingManualTurnRoots = new Set();
+let manualTurnFlushTimer = null;
+let manualTurnWarmupUntil = 0;
+let manualTurnCapturingActiveResponse = false;
+let manualTurnObserver = null;
+
+let manualSendCaptureStarted = false;
+let lastManualSendProvider = "";
+let lastManualSendText = "";
+let lastManualSendAt = 0;
+
+function getManualSelectors(map, provider, fallback = []) {
+  const scoped = Array.isArray(map?.[provider]) ? map[provider] : [];
+  const defaults = Array.isArray(map?.default) ? map.default : fallback;
+  return Array.from(new Set([...scoped, ...defaults]));
+}
+
+function getManualUserSelectors(provider) {
+  return getManualSelectors(MANUAL_USER_SELECTORS, provider);
+}
+
+function getManualAssistantSelectors(provider) {
+  return Array.from(new Set([
+    ...getManualSelectors(MANUAL_ASSISTANT_SELECTORS, provider),
+    ...(Array.isArray(RESPONSE_SELECTORS[provider]) ? RESPONSE_SELECTORS[provider] : [])
+  ]));
+}
+
+function normalizeTurnText(raw) {
+  if (typeof raw !== "string") return "";
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+function normalizeProviderTurnText(provider, role, raw) {
+  let text = normalizeTurnText(raw);
+  if (!text) {
+    return "";
+  }
+
+  if (provider === "gemini") {
+    if (role === "user") {
+      text = text.replace(/^(你说|You said)\s*/i, "");
+    } else if (role === "assistant") {
+      text = text.replace(/^(Gemini 说|Gemini said)\s*/i, "");
+    }
+  }
+
+  return normalizeTurnText(text);
+}
+
+function shouldIgnoreManualTurnNode(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return true;
+  }
+
+  if (node.getAttribute("aria-hidden") === "true" || node.closest("[aria-hidden='true']")) {
+    return true;
+  }
+
+  const className = typeof node.className === "string" ? node.className : "";
+  if (
+    /\b(?:cdk-visually-hidden|visually-hidden|screen-reader-[^\s]+)\b/.test(className) ||
+    /\bscreen-reader\b/.test(className)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function pruneManualTurnNodes(nodes) {
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return [];
+  }
+
+  const unique = Array.from(new Set(nodes)).filter((node) => !shouldIgnoreManualTurnNode(node));
+  return unique.filter((node) => !unique.some((other) => (
+    other !== node &&
+    other.nodeType === Node.ELEMENT_NODE &&
+    node.contains(other)
+  )));
+}
+
+function findRoleFromAttributes(node) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
+  const roleHint = `${node.getAttribute("data-role") || ""} ${node.getAttribute("data-message-author-role") || ""}`.toLowerCase();
+  if (roleHint.includes("user") || roleHint.includes("human")) return "user";
+  if (roleHint.includes("assistant") || roleHint.includes("bot") || roleHint.includes("model")) return "assistant";
+  return "";
+}
+
+function elementMatchesAnySelector(node, selectors) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors)) return false;
+  for (const selector of selectors) {
+    try {
+      if (node.matches(selector)) {
+        return true;
+      }
+    } catch {
+      // ignore selector mismatch
+    }
+  }
+  return false;
+}
+
+function collectMatchingElements(root, selectors) {
+  if (!root || root.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors) || selectors.length === 0) {
+    return [];
+  }
+
+  const nodes = [];
+  if (elementMatchesAnySelector(root, selectors)) {
+    nodes.push(root);
+  }
+
+  for (const selector of selectors) {
+    try {
+      const matches = root.querySelectorAll(selector);
+      if (matches && matches.length > 0) {
+        nodes.push(...matches);
+      }
+    } catch {
+      // ignore selector mismatch
+    }
+  }
+
+  return Array.from(new Set(nodes));
+}
+
+function detectManualTurnRole(provider, node, userSelectors, assistantSelectors) {
+  const fromAttr = findRoleFromAttributes(node);
+  if (fromAttr) {
+    return fromAttr;
+  }
+  if (elementMatchesAnySelector(node, userSelectors)) {
+    return "user";
+  }
+  if (elementMatchesAnySelector(node, assistantSelectors)) {
+    return "assistant";
+  }
+  return "";
+}
+
+function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, extra = null) {
+  if (!provider || !role || !content) return;
+
+  const payload = {
+    type: "session:transcript-provider-turn",
+    provider,
+    role,
+    content,
+    occurredAt: occurredAt || new Date().toISOString()
+  };
+  if (extra && typeof extra === "object") {
+    Object.assign(payload, extra);
+  }
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch {
+    // ignore transcript turn errors
+  }
+}
+
+function isCapturingActiveResponse() {
+  return manualTurnCapturingActiveResponse;
+}
+
+function pauseManualTurnObserver() {
+  if (manualTurnObserver) {
+    manualTurnObserver.disconnect();
+  }
+  if (manualTurnFlushTimer) {
+    clearTimeout(manualTurnFlushTimer);
+    manualTurnFlushTimer = null;
+  }
+  pendingManualTurnRoots.clear();
+}
+
+function resumeManualTurnObserver(provider) {
+  if (manualTurnObserver && document.body) {
+    manualTurnObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true
+    });
+  }
+}
+
+function setCapturingActiveResponse(active) {
+  manualTurnCapturingActiveResponse = active;
+}
+
+function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
+  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
+    return;
+  }
+
+  const normalized = normalizeProviderTurnText(provider, role, content);
+  if (!normalized) {
+    return;
+  }
+
+  const previous = manualTurnNodeSnapshot.get(node);
+  if (previous && previous.role === role && previous.content === normalized) {
+    return;
+  }
+
+  manualTurnNodeSnapshot.set(node, { role, content: normalized });
+  if (options.captureOnly) {
+    return;
+  }
+
+  // During active response capture, the waitForResponseComplete path sends the
+  // final turn. Suppress intermediate streaming chunks from the MutationObserver.
+  if (role === "assistant" && isCapturingActiveResponse()) {
+    return;
+  }
+
+  sendTranscriptProviderTurn(provider, role, normalized, new Date().toISOString());
+}
+
+function scanManualTurnRoots(provider, roots, options = {}) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider) || !document.body) {
+    return;
+  }
+
+  const userSelectors = getManualUserSelectors(provider);
+  const assistantSelectors = getManualAssistantSelectors(provider);
+  const candidates = new Map();
+
+  roots.forEach((root) => {
+    if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+    collectMatchingElements(root, userSelectors).forEach((node) => candidates.set(node, "user"));
+    collectMatchingElements(root, assistantSelectors).forEach((node) => {
+      if (!candidates.has(node)) {
+        candidates.set(node, "assistant");
+      }
+    });
+  });
+
+  const orderedNodes = pruneManualTurnNodes(Array.from(candidates.keys()));
+  orderedNodes.forEach((node) => {
+    // Skip thinking/reasoning content blocks
+    if (shouldIgnoreThinkingNode(provider, node)) {
+      return;
+    }
+    const fallbackRole = candidates.get(node);
+    const role = detectManualTurnRole(provider, node, userSelectors, assistantSelectors) || fallbackRole;
+    if (role !== "user" && role !== "assistant") {
+      return;
+    }
+    const text = normalizeProviderTurnText(provider, role, extractTextExcludingThinking(provider, node));
+    if (!text) {
+      return;
+    }
+    rememberTurnNodeSnapshot(provider, node, role, text, options);
+  });
+}
+
+function enqueueManualTurnRoot(provider, root) {
+  if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
+  // Walk up to find the nearest message container so querySelectorAll can match
+  // deep selectors like ".ds-message:has(.ds-markdown)". Without this, mutation
+  // targets are often deeply nested text spans that contain no matching children.
+  const MESSAGE_CONTAINER_SELECTORS = [".ds-message", ".response-content-markdown", "[data-message-author-role]"];
+  let container = root;
+  for (const sel of MESSAGE_CONTAINER_SELECTORS) {
+    try {
+      const found = root.closest(sel);
+      if (found) { container = found; break; }
+    } catch { /* ignore */ }
+  }
+  pendingManualTurnRoots.add(container);
+  if (manualTurnFlushTimer) return;
+
+  manualTurnFlushTimer = setTimeout(() => {
+    manualTurnFlushTimer = null;
+    const roots = Array.from(pendingManualTurnRoots);
+    pendingManualTurnRoots.clear();
+    const captureOnly = Date.now() < manualTurnWarmupUntil;
+    scanManualTurnRoots(provider, roots, captureOnly ? { captureOnly: true } : undefined);
+  }, 120);
+}
+
+function startManualTurnCapture(provider) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
+  if (manualTurnCaptureStarted) return;
+  if (!document.body) return;
+  manualTurnCaptureStarted = true;
+  manualTurnNodeSnapshot = new WeakMap();
+  manualTurnWarmupUntil = Date.now() + 2500;
+
+  scanManualTurnRoots(provider, [document.body], { captureOnly: true });
+
+  const observer = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === "characterData") {
+        if (mutation.target?.parentElement) {
+          enqueueManualTurnRoot(provider, mutation.target.parentElement);
+        }
+        continue;
+      }
+
+      if (mutation.target && mutation.target.nodeType === Node.ELEMENT_NODE) {
+        enqueueManualTurnRoot(provider, mutation.target);
+      }
+
+      if (!mutation.addedNodes || mutation.addedNodes.length === 0) {
+        continue;
+      }
+
+      mutation.addedNodes.forEach((node) => {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          enqueueManualTurnRoot(provider, node);
+        } else if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
+          enqueueManualTurnRoot(provider, node.parentElement);
+        }
+      });
+    }
+  });
+
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true
+  });
+  manualTurnObserver = observer;
+}
+
+function isManualSendSuppressed(provider, prompt) {
+  if (!provider || !prompt) {
+    return false;
+  }
+
+  if (provider !== lastManualSendProvider) {
+    return false;
+  }
+
+  if (prompt !== lastManualSendText) {
+    return false;
+  }
+
+  return Date.now() - lastManualSendAt < 1200;
+}
+
+function rememberManualSend(provider, prompt) {
+  lastManualSendProvider = provider;
+  lastManualSendText = prompt;
+  lastManualSendAt = Date.now();
+}
+
+function isEditableElement(el) {
+  if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
+  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") return true;
+  return el.isContentEditable === true || el.getAttribute("contenteditable") === "true";
+}
+
+function findClosestEditableTarget(start) {
+  if (!start || start.nodeType !== Node.ELEMENT_NODE) return null;
+  if (isEditableElement(start)) return start;
+  return start.closest("textarea, input, [contenteditable='true'], [role='textbox']");
+}
+
+function extractPromptFromEditable(el) {
+  if (!el) return "";
+  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+    return typeof el.value === "string" ? el.value : "";
+  }
+  return getEditableText(el) || el.innerText || el.textContent || "";
+}
+
+function isEditableCleared(el) {
+  try {
+    const text = normalizeTurnText(extractPromptFromEditable(el));
+    return text.length === 0;
+  } catch {
+    return false;
+  }
+}
+
+function getManualSendButtonSelectors(provider) {
+  const selectors = Array.isArray(PROVIDER_CONFIGS?.[provider]?.sendButtonSelectors)
+    ? PROVIDER_CONFIGS[provider].sendButtonSelectors
+    : [];
+
+  // Some configs intentionally include broad fallbacks for automation (e.g. `button:has(svg)`).
+  // For manual user send detection we must keep it conservative to avoid false positives.
+  return selectors.filter((sel) => sel && sel !== "button:has(svg)");
+}
+
+function findAncestorMatchingAnySelector(node, selectors, maxDepth = 6) {
+  let current = node;
+  let depth = 0;
+  while (current && depth <= maxDepth) {
+    if (elementMatchesAnySelector(current, selectors)) {
+      return current;
+    }
+    current = current.parentElement;
+    depth += 1;
+  }
+  return null;
+}
+
+function recordManualSend(provider, prompt) {
+  const normalized = normalizeProviderTurnText(provider, "user", prompt);
+  if (!normalized) return;
+
+  if (isManualSendSuppressed(provider, normalized)) {
+    return;
+  }
+  rememberManualSend(provider, normalized);
+
+  // Only start DOM-based turn capture when a *real user action* happens.
+  // This avoids restore/load re-ingestion while still making manual-chat capture robust.
+  startManualTurnCapture(provider);
+  // Pause MutationObserver entirely during response capture to prevent interference.
+  // Only the waitForResponseComplete path will send the final turn.
+  setCapturingActiveResponse(true);
+  pauseManualTurnObserver();
+  const responseBaseline = captureResponseBaseline(provider);
+
+  const inputEl = arguments.length >= 3 ? arguments[2] : null;
+  const occurredAt = new Date().toISOString();
+
+  const finishCapture = () => {
+    setCapturingActiveResponse(false);
+    resumeManualTurnObserver(provider);
+  };
+
+  const startResponseFlow = (assumeStarted = false) => {
+    sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
+
+    const startedPromise = assumeStarted ? Promise.resolve(true) : waitForResponseStart(provider, responseBaseline);
+
+    // Best-effort: detect answering state and capture the final assistant text for manual sends too.
+    startedPromise.then((started) => {
+      if (!started) {
+        finishCapture();
+        sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
+        return;
+      }
+
+      sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
+
+      waitForResponseComplete(provider, responseBaseline).then(() => {
+        const latest = extractLatestResponse(provider);
+        if (latest) {
+          sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
+            status: "completed"
+          });
+        }
+        finishCapture();
+        sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
+      });
+    });
+  };
+
+  // Delay until after the UI has applied the send. This prevents false positives when the user
+  // presses Enter but the message is not actually sent (e.g. blocked by overlays).
+  setTimeout(() => {
+    if (inputEl && !isEditableCleared(inputEl)) {
+      // Fallback: input did not clear, so confirm by observing response start.
+      waitForResponseStart(provider, responseBaseline).then((started) => {
+        if (!started) {
+          finishCapture();
+          return;
+        }
+        startResponseFlow(true);
+      });
+      return;
+    }
+
+    startResponseFlow(false);
+  }, 900);
+}
+
+function startManualSendCapture(provider) {
+  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
+  if (manualSendCaptureStarted) return;
+  if (!document.body) return;
+  manualSendCaptureStarted = true;
+
+  document.addEventListener("keydown", (event) => {
+    if (!event || !event.isTrusted) return;
+    if (event.defaultPrevented) return;
+
+    const key = event.key || "";
+    if (key !== "Enter") return;
+    if (event.shiftKey) return;
+
+    const target = findClosestEditableTarget(event.target);
+    if (!target) return;
+    const prompt = extractPromptFromEditable(target);
+    if (!prompt || !String(prompt).trim()) return;
+
+    recordManualSend(provider, prompt, target);
+  }, true);
+
+  document.addEventListener("click", (event) => {
+    if (!event || !event.isTrusted) return;
+    if (!event.target || event.target.nodeType !== Node.ELEMENT_NODE) return;
+
+    const selectors = getManualSendButtonSelectors(provider);
+    if (selectors.length === 0) return;
+    const matched = findAncestorMatchingAnySelector(event.target, selectors);
+    if (!matched) return;
+
+    const active = findClosestEditableTarget(document.activeElement) ||
+      findClosestEditableTarget(document.querySelector("textarea, [contenteditable='true'], [role='textbox']")) ||
+      findClosestEditableTarget(findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []));
+    if (!active) return;
+
+    const prompt = extractPromptFromEditable(active);
+    if (!prompt || !String(prompt).trim()) return;
+
+    recordManualSend(provider, prompt, active);
+  }, true);
+}
+
+const CHILD_SESSION_SYNC_PROVIDERS = new Set([
+  "chatgpt",
+  "claude",
+  "copilot",
+  "deepseek",
+  "doubao",
+  "gemini",
+  "grok",
+  "ima",
+  "kimi",
+  "tongyi",
+  "you",
+  "yuanbao",
+  "zhipu"
+]);
+const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
+let childSessionSyncStarted = false;
+let lastSyncedFingerprint = "";
+
+function createDebouncedSync(fn, delay) {
+  let timer = null;
+  return () => {
+    if (timer) {
+      clearTimeout(timer);
+    }
+    timer = setTimeout(() => {
+      timer = null;
+      fn();
+    }, delay);
+  };
+}
+
+function sendChildSessionSync(provider) {
+  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
+  const url = window.location.href;
+  const title = document.title || "";
+  const fingerprint = `${provider}::${url}::${title}`;
+  const hasFingerprintChanged = fingerprint !== lastSyncedFingerprint;
+
+  if (hasFingerprintChanged) {
+    lastSyncedFingerprint = fingerprint;
+  }
+
+  const payload = {
+    type: "session:sync-child",
+    provider,
+    url,
+    title,
+    lastActiveAt: new Date().toISOString()
+  };
+
+  try {
+    if (chrome?.runtime?.sendMessage) {
+      const result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch(() => undefined);
+      }
+    }
+  } catch (error) {
+    // ignore sync errors
+  }
+}
+
+function startChildSessionSync(provider) {
+  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
+  if (childSessionSyncStarted) return;
+  childSessionSyncStarted = true;
+
+  const debouncedSync = createDebouncedSync(() => sendChildSessionSync(provider), CHILD_SESSION_SYNC_DEBOUNCE_MS);
+
+  sendChildSessionSync(provider);
+
+  window.addEventListener("popstate", debouncedSync);
+  window.addEventListener("hashchange", debouncedSync);
+
+  const titleObserver = new MutationObserver(() => debouncedSync());
+  const bodyObserver = new MutationObserver(() => debouncedSync());
+  const headObserver = new MutationObserver(() => {
+    const titleEl = document.querySelector("title");
+    if (titleEl) {
+      titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
+    }
+  });
+
+  const titleEl = document.querySelector("title");
+  if (titleEl) {
+    titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
+  }
+
+  if (document.head) {
+    headObserver.observe(document.head, { childList: true, subtree: true });
+  }
+
+  if (document.body) {
+    bodyObserver.observe(document.body, { childList: true, subtree: true });
+  } else {
+    document.addEventListener("DOMContentLoaded", () => {
+      if (document.body) {
+        bodyObserver.observe(document.body, { childList: true, subtree: true });
+      }
+    }, { once: true });
+  }
 }
 
 log(`Content script loaded for ${window.location.hostname}`);
@@ -1201,10 +2120,6 @@ async function sendGrokMessage(input, prompt, config) {
           return true;
         }
 
-        if (hasStreamingIndicator("grok")) {
-          return true;
-        }
-
         const currentCount = countResponseNodes("grok");
         if (currentCount > baselineCount) {
           return true;
@@ -1492,9 +2407,28 @@ function getStopSelectors(provider) {
     ];
   }
 
+  if (provider === "deepseek") {
+    // DeepSeek: NO stop button during normal streaming (verified 2026-05-31 via CDP).
+    // Stop button only appears in "continue generation" (interrupted response) scenario.
+    // Return empty array — completion detection relies on text stability only.
+    return [];
+  }
+
+  if (provider === "gemini") {
+    // Gemini: stop button uses "停止回答" (zh) or "Stop response" (en) as aria-label.
+    return [
+      'button[aria-label*="停止回答"]',
+      'button[aria-label*="Stop response"]',
+      'button[aria-label*="Stop"]',
+      'button[aria-label*="停止"]',
+      'button[data-testid*="stop"]'
+    ];
+  }
+
   return [
     'button[aria-label*="Stop"]',
     'button[aria-label*="停止"]',
+    'button[aria-label*="停止回答"]',
     'button[aria-label*="暂停"]',
     'button[data-testid*="stop"]',
     'button[aria-label*="Pause"]',
@@ -1536,13 +2470,23 @@ function hasStreamingIndicator(provider) {
   if (provider === "chatgpt") {
     return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming, .result-streaming, .markdown.result-streaming`);
   }
+  if (provider === "deepseek") {
+    // DeepSeek retains .ds-think-content in DOM permanently for ALL messages —
+    // it cannot be used as a streaming indicator at all (always returns true).
+    // DeepSeek does have a stop button, but it is not useful as a streaming indicator
+    // is text stability: when the response text stops changing for N seconds.
+    // So hasStreamingIndicator must return false for DeepSeek to let the
+    // waitForResponseComplete code fall through to text stability (Step 3).
+    return false;
+  }
   return !!document.querySelector(base);
 }
 
-async function waitForResponseStart(provider) {
+async function waitForResponseStart(provider, responseBaseline = null) {
   const timeout = 12000;
   const stopSelectors = getStopSelectors(provider);
-  const baselineCount = countResponseNodes(provider);
+  const baselineCount = Number(responseBaseline?.responseCount) || countResponseNodes(provider);
+  const baselineText = typeof responseBaseline?.text === "string" ? responseBaseline.text.trim() : extractLatestResponse(provider).trim();
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   
   log(`Waiting for response start: ${provider}, baseline=${baselineCount}`);
@@ -1609,10 +2553,17 @@ async function waitForResponseStart(provider) {
         return;
       }
 
+      const latest = extractLatestResponse(provider).trim();
+      if (latest && latest !== baselineText) {
+        log("Response started: Latest response text changed");
+        cleanup();
+        resolve(true);
+        return;
+      }
+
       // 4. Check Send Button Disappearance or Disabled (Generic)
       // Only if we have valid send selectors
-      // FIX: Skip for Grok because selectors might be unstable/heuristic-based, leading to false positives if selectors match nothing.
-      if (sendSelectors.length > 0 && provider !== 'grok') {
+      if (sendSelectors.length > 0 && shouldUseGenericResponseStartSignals(provider)) {
         // If send button is GONE or DISABLED, we assume started.
         let sendBtnActive = false;
         
@@ -1648,7 +2599,7 @@ async function waitForResponseStart(provider) {
       // 5. Check Input Clearance (Generic but powerful)
       // If input was non-empty and now is empty, response likely started
       const inputEl = findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []);
-      if (inputEl) {
+      if (shouldUseGenericResponseStartSignals(provider) && inputEl) {
         const val = getEditableText(inputEl).trim();
         // We don't have the original prompt here easily, but if it's empty, it's a good sign.
         // But we must be careful not to trigger if it was ALREADY empty (unlikely during sending).
@@ -1675,11 +2626,22 @@ async function waitForResponseStart(provider) {
   });
 }
 
-async function waitForResponseComplete(provider) {
+async function waitForResponseComplete(provider, responseBaseline = null) {
   const timeout = 90000;
   const stopSelectors = getStopSelectors(provider);
   const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
   let sawStop = false;
+  let grokStopWasSeen = false;
+  let stopDisappearAt = 0;
+  const baseline = responseBaseline || captureResponseBaseline(provider);
+  const stabilityMs = getProviderStabilityMs(provider);
+  const stabilityTracker = getResponseStateApi().createResponseStabilityTracker({
+    provider,
+    baselineText: baseline.text || "",
+    baselineResponseCount: Number(baseline.responseCount) || 0,
+    stabilityMs,
+    now: Date.now()
+  });
 
   // Helper for deep check
   const hasElementDeep = (selectors) => {
@@ -1707,31 +2669,165 @@ async function waitForResponseComplete(provider) {
       clearInterval(interval);
     };
 
+    // --- Provider-specific helpers (based on real DOM investigation 2026-05-06) ---
+
+    // DeepSeek: no reliable stop button during normal streaming.
+    // Primary signal: new assistant response text becoming stable.
+    // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
+
+    // Gemini: "停止回答" (Stop response) button appears during response.
+    // On completion: stop button disappears, send button returns (ariaDisabled=true because input cleared).
+    // NOTE: No position filter — must work inside dashboard iframe (smaller viewport).
+    const geminiStopWasSeen = { current: false };
+    const isGeminiStopVisible = () => {
+      const stopBtns = document.querySelectorAll('button[aria-label*="停止回答"], button[aria-label*="Stop response"]');
+      for (const b of stopBtns) {
+        const r = b.getBoundingClientRect();
+        if (r.width > 0 && r.height > 0) return true;
+      }
+      return false;
+    };
+    const isGeminiSendVisible = () => {
+      const sendBtn = document.querySelector('button.send-button, button[aria-label*="发送"], button[aria-label*="Send"]');
+      if (!sendBtn) return false;
+      const r = sendBtn.getBoundingClientRect();
+      return r.width > 0 && r.height > 0;
+    };
+
     const check = () => {
       if (settled) return;
+
+      // === Step 1: Provider-specific detection (based on real DOM) ===
+
+      if (provider === "deepseek") {
+        // DeepSeek: has a stop button (detected via getStopSelectors), .ds-think-content lingers permanently in DOM
+        // for ALL historical messages (not usable as streaming indicator).
+        // Primary signal: text stability (Step 3).
+        // Outer 90s timeout serves as the absolute safety net.
+        // No provider-specific logic needed here — fall through to Step 3.
+      }
+
+      if (provider === "gemini") {
+        const gmStopVisible = isGeminiStopVisible();
+        if (gmStopVisible) {
+          geminiStopWasSeen.current = true;
+          log(`[GM] stop visible → still responding`);
+          return; // Still responding
+        }
+        // Stop button gone — if it was seen before, check send button is back
+        if (geminiStopWasSeen.current) {
+          const sendVis = isGeminiSendVisible();
+          if (sendVis) {
+            log(`[GM] stop gone + send visible → COMPLETED`);
+            cleanup();
+            resolve(true);
+            return;
+          }
+          log(`[GM] stop gone but send not visible → wait`);
+        }
+      }
+
+      if (provider === "grok") {
+        // Grok: stop button appears during streaming, send button recovers after completion.
+        // Track stop button lifecycle similar to Gemini.
+        const grokStopVisible = hasElementDeep(stopSelectors);
+        if (grokStopVisible) {
+          grokStopWasSeen = true;
+          log(`[Grok] stop visible → still responding`);
+          return; // Still responding
+        }
+        // Stop button gone — if it was seen before, check send button is back
+        if (grokStopWasSeen && sendSelectors.length > 0) {
+          for (const sel of sendSelectors) {
+            const el = document.querySelector(sel);
+            if (el && isElementVisible(el)) {
+              const btn = el.closest('button, [role="button"], input') || el;
+              if (!isElementDisabled(btn)) {
+                log(`[Grok] stop gone + send enabled → COMPLETED`);
+                cleanup();
+                resolve(true);
+                return;
+              }
+            }
+          }
+        }
+      }
+
+      // === Step 2: Universal stop button tracking (ChatGPT, etc.) ===
       const stopVisible = hasElementDeep(stopSelectors);
       if (stopVisible) {
         sawStop = true;
-        return;
-      }
-      if (provider === "chatgpt" && sendSelectors.length > 0) {
-        const sendVisible = hasElementDeep(sendSelectors);
-        if (sawStop || sendVisible) {
-          cleanup();
-          resolve(true);
-        }
+        stopDisappearAt = 0;
+        log(`[${provider}] stop button visible → still responding`);
         return;
       }
 
-      if (sawStop) {
-        // Stop button disappeared -> generation likely done
+      // Stop just disappeared — record timestamp for grace period
+      if (sawStop && stopDisappearAt === 0) {
+        stopDisappearAt = Date.now();
+        log(`[${provider}] stop just disappeared, grace period started`);
+      }
+
+      // Stop disappeared AND send button is back → completed
+      if (sawStop && sendSelectors.length > 0) {
+        for (const sel of sendSelectors) {
+          const el = document.querySelector(sel);
+          if (el && isElementVisible(el)) {
+            const btn = el.closest('button, [role="button"], input') || el;
+            if (!isElementDisabled(btn)) {
+              log(`[${provider}] stop gone + send enabled → COMPLETED`);
+              cleanup();
+              resolve(true);
+              return;
+            }
+          }
+        }
+      }
+
+      // === Step 3: Fallback — text stability ===
+      const latest = extractLatestResponse(provider);
+      const normalized = typeof latest === "string" ? latest.trim() : "";
+      if (normalized) {
+        const currentResponseCount = countResponseNodes(provider);
+        const sample = stabilityTracker.check({
+          text: normalized,
+          responseCount: currentResponseCount,
+          streaming: hasStreamingIndicator(provider),
+          now: Date.now()
+        });
+        // Diagnostic logging for DeepSeek gate debugging
+        if (provider === "deepseek" && sample.reason !== "stable") {
+          log(`[DS] check: reason=${sample.reason} count=${currentResponseCount} text="${normalized.substring(0, 30)}"`);
+        }
+        if (sample.complete) {
+          log(`[${provider}] text stable ${sample.elapsed}ms → COMPLETED (fallback)`);
+          cleanup();
+          resolve(true);
+          return;
+        }
+      }
+
+      // === Step 4: Grace period fallback ===
+      if (
+        sawStop &&
+        stopDisappearAt > 0 &&
+        !stopVisible &&
+        !hasStreamingIndicator(provider) &&
+        Date.now() - stopDisappearAt >= 3000
+      ) {
         cleanup();
         resolve(true);
+        return;
       }
     };
 
     const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid']
+    });
 
     const interval = setInterval(check, 500);
     const timer = setTimeout(() => {
@@ -1801,6 +2897,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   if (!config) {
     console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
+    sendTranscriptLiveStatus(provider, "failed");
     return false;
   }
 
@@ -1822,12 +2919,20 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       return trySendPrompt(provider, prompt, retryCount + 1);
     }
     postSendResult(provider, false);
+    sendTranscriptLiveStatus(provider, "failed");
     return false;
   }
 
   await new Promise(resolve => setTimeout(resolve, 10));
 
   let sendOk = false;
+
+  // Pause MutationObserver entirely during send + response capture.
+  // This prevents the observer from capturing streaming chunks during the send
+  // process (especially important for Grok which has its own response detection).
+  setCapturingActiveResponse(true);
+  pauseManualTurnObserver();
+  const responseBaseline = captureResponseBaseline(provider);
 
   // Special handlers for complex editors
   if (provider === "chatgpt") {
@@ -1851,17 +2956,19 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         await new Promise(resolve => setTimeout(resolve, 50));
         return trySendPrompt(provider, prompt, retryCount + 1);
       }
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
       postSendResult(provider, false);
+      sendTranscriptLiveStatus(provider, "failed");
       return false;
     }
 
     await new Promise(resolve => setTimeout(resolve, 10));
 
-    sendOk = config.useShadow
-      ? clickSendButtonDeep(config.sendButtonSelectors)
-      : clickSendButton(config.sendButtonSelectors);
-
-    if (!sendOk && input) {
+    // For DeepSeek, the Enter key is more reliable than button click because
+    // the send button selector may match sidebar toggle buttons.
+    // For other providers, try button click first, then Enter as fallback.
+    if (provider === "deepseek") {
       try {
         input.focus({ preventScroll: true });
         const baseEventInit = {
@@ -1873,21 +2980,56 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
           which: 13
         };
 
-        const targets = [input];
         ["keydown", "keypress", "keyup"].forEach((type) => {
-          targets.forEach((t) => {
-            try {
-              const evt = new KeyboardEvent(type, baseEventInit);
-              t.dispatchEvent(evt);
-            } catch (e) {
-              // ignore
-            }
-          });
+          try {
+            const evt = new KeyboardEvent(type, baseEventInit);
+            input.dispatchEvent(evt);
+          } catch (e) {
+            // ignore
+          }
         });
 
         sendOk = true;
       } catch (error) {
         console.error("发送 Enter 事件失败:", error);
+        // Fall back to button click
+        sendOk = config.useShadow
+          ? clickSendButtonDeep(config.sendButtonSelectors)
+          : clickSendButton(config.sendButtonSelectors);
+      }
+    } else {
+      sendOk = config.useShadow
+        ? clickSendButtonDeep(config.sendButtonSelectors)
+        : clickSendButton(config.sendButtonSelectors);
+
+      if (!sendOk && input) {
+        try {
+          input.focus({ preventScroll: true });
+          const baseEventInit = {
+            bubbles: true,
+            cancelable: true,
+            key: "Enter",
+            code: "Enter",
+            keyCode: 13,
+            which: 13
+          };
+
+          const targets = [input];
+          ["keydown", "keypress", "keyup"].forEach((type) => {
+            targets.forEach((t) => {
+              try {
+                const evt = new KeyboardEvent(type, baseEventInit);
+                t.dispatchEvent(evt);
+              } catch (e) {
+                // ignore
+              }
+            });
+          });
+
+          sendOk = true;
+        } catch (error) {
+          console.error("发送 Enter 事件失败:", error);
+        }
       }
     }
   }
@@ -1898,33 +3040,55 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
     if (!posted) {
       console.error(`[Content] Failed to postMessage: sendResult`);
     }
+    if (!sendOk) {
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
+      sendTranscriptLiveStatus(provider, "failed");
+    }
 
-    const responseStarted = sendOk ? await waitForResponseStart(provider) : false;
+    const responseStarted = sendOk ? await waitForResponseStart(provider, responseBaseline) : false;
     log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
     if (provider === "grok" && sendOk && !responseStarted) {
       log("[Content] Grok response start not detected, downgrade sendResult to failed");
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
+      sendTranscriptLiveStatus(provider, "interrupted");
       sendOk = false;
       postSendResult(provider, false);
       return sendOk;
     }
 
     if (responseStarted) {
+      sendTranscriptLiveStatus(provider, "responding");
       postToDashboard({
         source: "multi-ai-content",
         type: "responseStarted",
         provider: provider
       });
 
-      waitForResponseComplete(provider).then(() => {
+      waitForResponseComplete(provider, responseBaseline).then(() => {
+        // Send final turn BEFORE resuming observer to prevent duplicates
         const latest = extractLatestResponse(provider);
+        if (latest) {
+          sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
+            status: "completed"
+          });
+        }
         postToDashboard({
           source: "multi-ai-content",
           type: "responseComplete",
           provider: provider,
           text: latest
         });
+        sendTranscriptLiveStatus(provider, "completed");
+        setCapturingActiveResponse(false);
+        resumeManualTurnObserver(provider);
       });
+    } else if (sendOk) {
+      setCapturingActiveResponse(false);
+      resumeManualTurnObserver(provider);
+      sendTranscriptLiveStatus(provider, "interrupted");
     }
   }
 
@@ -1957,6 +3121,12 @@ window.addEventListener("message", (event) => {
 
 function initializeCustomFixes() {
   const provider = getProviderFromHost();
+
+  startChildSessionSync(provider);
+  startManualSendCapture(provider);
+  // Start MutationObserver early so the warmup period expires before the user sends a message.
+  // Without this, the observer only starts on send and all captures within 2.5s are captureOnly.
+  startManualTurnCapture(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");

@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Task Board</title>
+<style>
+/* ─── CSS Variables ─── */
+:root {
+  --bg: #f5f6fa;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #1e293b;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --cat-feat: #16a34a;
+  --cat-fix: #dc2626;
+  --cat-design: #3b82f6;
+  --cat-test: #ea580c;
+  --cat-refactor: #9333ea;
+  --cat-docs: #6b7280;
+  --status-pending: #94a3b8;
+  --status-active: #3b82f6;
+  --status-review: #f59e0b;
+  --status-done: #16a34a;
+  --status-failed: #ef4444;
+  --radius: 8px;
+  --radius-sm: 4px;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans SC", sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+/* ─── Top Bar ─── */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  flex-wrap: wrap;
+}
+.topbar h1 {
+  font-size: 20px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.topbar .filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.topbar .filters label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.topbar select {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+.topbar .actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+/* ─── Buttons ─── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+}
+.btn:hover { background: var(--bg); }
+.btn-primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.btn-primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+.btn-danger { color: var(--danger); border-color: var(--danger); }
+.btn-danger:hover { background: #fef2f2; }
+.save-status {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.save-status.dirty { color: var(--danger); }
+/* ─── Main Container ─── */
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+}
+/* ─── Table ─── */
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.task-table thead th {
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border-bottom: 2px solid var(--border);
+  position: sticky;
+  top: 0;
+  user-select: none;
+}
+.task-table tbody td {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.task-table tbody tr:nth-child(even) { background: #fafbfe; }
+.task-table tbody tr:hover { background: #f0f4ff; }
+.task-table tbody tr.detail-row td {
+  background: #f8fafc;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+.detail-content {
+  padding: 12px 16px 12px 48px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.detail-content strong { color: var(--text); font-weight: 600; }
+.detail-content p { margin-bottom: 6px; white-space: pre-wrap; }
+.col-id { width: 150px; font-family: monospace; font-size: 13px; color: var(--text-secondary); }
+.col-name { min-width: 200px; }
+.col-category { width: 90px; }
+.col-priority { width: 80px; }
+.col-status { width: 100px; }
+.col-actions { width: 110px; text-align: center; }
+.task-name-btn {
+  background: none;
+  border: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  max-width: 100%;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0;
+}
+.task-name-btn:hover { color: var(--primary); }
+.task-name-btn::before {
+  content: "\25B6 ";
+  font-size: 10px;
+  opacity: .4;
+}
+.task-name-btn.expanded::before { content: "\25BC "; }
+/* badges */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  color: #fff;
+  white-space: nowrap;
+}
+.badge-feat { background: var(--cat-feat); }
+.badge-fix { background: var(--cat-fix); }
+.badge-design { background: var(--cat-design); }
+.badge-test { background: var(--cat-test); }
+.badge-refactor { background: var(--cat-refactor); }
+.badge-docs { background: var(--cat-docs); }
+/* status dot */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+.dot-待进行 { background: var(--status-pending); }
+.dot-进行中 { background: var(--status-active); }
+.dot-待确认 { background: var(--status-review); }
+.dot-完成 { background: var(--status-done); }
+.dot-失败 { background: var(--status-failed); }
+/* inline select */
+.inline-select {
+  font-size: 13px;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+}
+/* action buttons in table */
+.action-group { display: flex; gap: 4px; justify-content: center; }
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-icon:hover { background: var(--bg); }
+/* ─── Archive Section ─── */
+.archive-section { margin-top: 32px; }
+.archive-section summary {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 10px 0;
+  list-style: none;
+}
+.archive-section summary::-webkit-details-marker { display: none; }
+.archive-section summary::before {
+  content: "\25B6 ";
+  font-size: 12px;
+}
+.archive-section[open] summary::before {
+  content: "\25BC ";
+}
+/* ─── Modal / Overlay ─── */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.4);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0,0,0,.2);
+  width: 480px;
+  max-width: 94vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.modal h2 {
+  font-size: 18px;
+  margin-bottom: 16px;
+}
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%;
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-family: var(--font);
+}
+.form-group textarea { resize: vertical; min-height: 70px; }
+.form-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+.form-actions .btn-delete {
+  margin-right: auto;
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.form-actions .btn-delete:hover { background: #fef2f2; }
+/* ─── Empty State ─── */
+.empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+  font-size: 15px;
+}
+.empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+/* ─── Responsive ─── */
+@media (max-width: 768px) {
+  .topbar { padding: 10px 12px; gap: 8px; }
+  .topbar h1 { font-size: 16px; }
+  .container { padding: 12px 8px 40px; }
+  .task-table { display: block; overflow-x: auto; }
+  .col-id { width: 110px; }
+}
+</style>
+</head>
+<body>
+<!-- ─── Top Bar ─── -->
+<div class="topbar">
+  <h1>Task Board</h1>
+  <div class="filters">
+    <label>状态
+      <select id="filterStatus">
+        <option value="">全部</option>
+        <option value="待进行">待进行</option>
+        <option value="进行中">进行中</option>
+        <option value="待确认">待确认</option>
+        <option value="完成">完成</option>
+        <option value="失败">失败</option>
+      </select>
+    </label>
+    <label>分类
+      <select id="filterCategory">
+        <option value="">全部</option>
+        <option value="feat">feat</option>
+        <option value="fix">fix</option>
+        <option value="design">design</option>
+        <option value="test">test</option>
+        <option value="refactor">refactor</option>
+        <option value="docs">docs</option>
+      </select>
+    </label>
+    <label>优先级
+      <select id="filterPriority">
+        <option value="">全部</option>
+        <option value="P0">P0</option>
+        <option value="P1">P1</option>
+        <option value="P2">P2</option>
+        <option value="P3">P3</option>
+      </select>
+    </label>
+    <label style="cursor:pointer;">
+      <input type="checkbox" id="showArchived"> 显示归档
+    </label>
+  </div>
+  <div class="actions">
+    <span class="save-status" id="saveStatus">请先打开文件</span>
+    <button class="btn" id="btnOpen" onclick="openFile()">打开文件</button>
+    <button class="btn" id="btnSave" onclick="saveFile()" disabled>保存</button>
+    <button class="btn" id="btnRefresh" onclick="refreshFile()" disabled>刷新</button>
+    <button class="btn btn-primary" id="btnAdd" onclick="showAddModal()">+ 新增任务</button>
+  </div>
+</div>
+<!-- ─── Main Content ─── -->
+<div class="container" id="mainContainer">
+  <div class="empty-state" id="emptyState">
+    <div class="icon">&#128194;</div>
+    <p>请点击右上角"打开文件"加载 <code>tasks.json</code></p>
+  </div>
+  <table class="task-table" id="taskTable" style="display:none">
+    <thead>
+      <tr>
+        <th class="col-id" style="cursor:pointer" onclick="sortBy('id')">ID <span id="sort-id"></span></th>
+        <th class="col-name" style="cursor:pointer" onclick="sortBy('name')">任务名 <span id="sort-name"></span></th>
+        <th class="col-category" style="cursor:pointer" onclick="sortBy('category')">分类 <span id="sort-category"></span></th>
+        <th class="col-priority" style="cursor:pointer" onclick="sortBy('priority')">优先级 <span id="sort-priority"></span></th>
+        <th class="col-status" style="cursor:pointer" onclick="sortBy('status')">状态 <span id="sort-status"></span></th>
+        <th class="col-actions">操作</th>
+      </tr>
+    </thead>
+    <tbody id="taskBody"></tbody>
+  </table>
+  <!-- Archive section -->
+  <div class="archive-section" id="archiveSection" style="display:none">
+    <details>
+      <summary>归档任务 (<span id="archiveCount">0</span>)</summary>
+      <table class="task-table" style="margin-top: 10px;">
+    <thead>
+      <tr>
+        <th class="col-id" style="cursor:pointer" onclick="sortBy('id')">ID <span id="sort-id-a"></span></th>
+        <th class="col-name" style="cursor:pointer" onclick="sortBy('name')">任务名 <span id="sort-name-a"></span></th>
+        <th class="col-category" style="cursor:pointer" onclick="sortBy('category')">分类 <span id="sort-category-a"></span></th>
+        <th class="col-priority" style="cursor:pointer" onclick="sortBy('priority')">优先级 <span id="sort-priority-a"></span></th>
+        <th class="col-status" style="cursor:pointer" onclick="sortBy('status')">状态 <span id="sort-status-a"></span></th>
+        <th class="col-actions">操作</th>
+      </tr>
+    </thead>
+        <tbody id="archiveBody"></tbody>
+      </table>
+    </details>
+  </div>
+</div>
+<!-- ─── Add / Edit Modal ─── -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h2 id="modalTitle">新增任务</h2>
+    <div class="form-group">
+      <label for="fName">任务名称 *</label>
+      <input type="text" id="fName" placeholder="输入任务名称" required>
+    </div>
+    <div class="form-group">
+      <label for="fCategory">分类</label>
+      <select id="fCategory">
+        <option value="feat">feat（功能）</option>
+        <option value="fix">fix（修复）</option>
+        <option value="design">design（设计）</option>
+        <option value="test">test（测试）</option>
+        <option value="refactor">refactor（重构）</option>
+        <option value="docs">docs（文档）</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="fPriority">优先级</label>
+      <select id="fPriority">
+        <option value="P0">P0（紧急）</option>
+        <option value="P1" selected>P1（高）</option>
+        <option value="P2">P2（中）</option>
+        <option value="P3">P3（低）</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="fCriteria">验收标准</label>
+      <textarea id="fCriteria" placeholder="描述验收标准"></textarea>
+    </div>
+    <div class="form-group">
+      <label for="fNotes">备注</label>
+      <textarea id="fNotes" placeholder="备注信息"></textarea>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-delete" id="btnDeleteTask" onclick="deleteTask()" style="display:none">删除任务</button>
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" id="modalSubmit" onclick="submitModal()">创建</button>
+    </div>
+  </div>
+</div>
+<script>
+/* ============================================================
+   Task Board - Vanilla JS (single-file, no dependencies)
+   ============================================================ */
+// ─── State ───
+let fileHandle = null;
+let fileData = null;
+let dirty = false;
+let expandedRows = new Set();
+let editingTaskId = null;
+let sortKey = 'id';
+let sortDir = 'asc';
+// ─── Constants ───
+const STATUSES = ['待进行', '进行中', '待确认', '完成', '失败'];
+const CATEGORIES = ['feat', 'fix', 'design', 'test', 'refactor', 'docs'];
+// ─── DOM refs ───
+const $ = (sel) => document.querySelector(sel);
+const taskBody = $('#taskBody');
+const archiveBody = $('#archiveBody');
+const taskTable = $('#taskTable');
+const archiveSection = $('#archiveSection');
+const archiveCount = $('#archiveCount');
+const emptyState = $('#emptyState');
+const saveStatusEl = $('#saveStatus');
+const btnSave = $('#btnSave');
+const modalOverlay = $('#modalOverlay');
+// ─── File Operations ───
+async function openFile() {
+  try {
+    [fileHandle] = await window.showOpenFilePicker({
+      types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }]
+    });
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    fileData = JSON.parse(text);
+    if (!fileData.tasks || !Array.isArray(fileData.tasks)) {
+      fileData = { version: 1, tasks: [] };
+    }
+    dirty = false;
+    expandedRows.clear();
+    render();
+    updateStatus('已加载');
+  btnSave.disabled = false;
+  $('#btnRefresh').disabled = false;
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      alert('打开文件失败：' + err.message);
+    }
+  }
+}
+async function saveFile() {
+  if (!fileHandle) return;
+  try {
+    const writable = await fileHandle.createWritable();
+    await writable.write(JSON.stringify(fileData, null, 2));
+    await writable.close();
+    dirty = false;
+    updateStatus('已保存');
+  } catch (err) {
+    alert('保存失败：' + err.message);
+  }
+}
+async function refreshFile() {
+  if (!fileHandle) return;
+  try {
+    const file = await fileHandle.getFile();
+    const text = await file.text();
+    fileData = JSON.parse(text);
+    if (!fileData.tasks || !Array.isArray(fileData.tasks)) {
+      fileData = { version: 1, tasks: [] };
+    }
+    dirty = false;
+    expandedRows.clear();
+    render();
+    updateStatus('已刷新');
+  } catch (err) {
+    alert('刷新失败：' + err.message);
+  }
+}
+function markDirty() {
+  dirty = true;
+  updateStatus('未保存');
+}
+function updateStatus(text) {
+  saveStatusEl.textContent = text;
+  if (dirty || text === '未保存') {
+    saveStatusEl.classList.add('dirty');
+  } else {
+    saveStatusEl.classList.remove('dirty');
+  }
+}
+// ─── ID Generation ───
+function generateId() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const prefix = 'T-' + y + m + d;
+  let maxSeq = 0;
+  if (fileData && fileData.tasks) {
+    for (const t of fileData.tasks) {
+      if (t.id && t.id.startsWith(prefix)) {
+        const seq = parseInt(t.id.split('-').pop(), 10);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    }
+  }
+  return prefix + '-' + String(maxSeq + 1).padStart(3, '0');
+}
+function todayStr() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + d;
+}
+// ─── Filtering ───
+// ─── Sorting ───
+function sortBy(key) {
+  if (sortKey === key) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortKey = key;
+    sortDir = 'asc';
+  }
+  render();
+}
+function sortTasks(tasks) {
+  const priorityOrder = { P0: 0, P1: 1, P2: 2, P3: 3 };
+  const statusOrder = { '待进行': 0, '进行中': 1, '待确认': 2, '完成': 3, '失败': 4 };
+  return [...tasks].sort((a, b) => {
+    let va = a[sortKey] || '';
+    let vb = b[sortKey] || '';
+    if (sortKey === 'priority') { va = priorityOrder[va] ?? 99; vb = priorityOrder[vb] ?? 99; }
+    if (sortKey === 'status') { va = statusOrder[va] ?? 99; vb = statusOrder[vb] ?? 99; }
+    if (typeof va === 'string') { va = va.toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+function updateSortIndicators() {
+  const keys = ['id', 'name', 'category', 'priority', 'status'];
+  for (const k of keys) {
+    // Update both main table and archive table indicators
+    for (const suffix of ['', '-a']) {
+      const el = document.getElementById('sort-' + k + suffix);
+      if (el) el.textContent = sortKey === k ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+    }
+  }
+}
+// ─── Filtering ───
+function getFilters() {
+  return {
+    status: $('#filterStatus').value,
+    category: $('#filterCategory').value,
+    priority: $('#filterPriority').value,
+    showArchived: $('#showArchived').checked,
+  };
+}
+function filterTasks(tasks) {
+  const f = getFilters();
+  return tasks.filter(t => {
+    if (!f.showArchived && t.archived) return false;
+    if (f.status && t.status !== f.status) return false;
+    if (f.category && t.category !== f.category) return false;
+    if (f.priority && t.priority !== f.priority) return false;
+    return true;
+  });
+}
+function partitionActiveArchived(tasks) {
+  const active = [];
+  const archived = [];
+  for (const t of tasks) {
+    (t.archived ? archived : active).push(t);
+  }
+  return { active, archived };
+}
+// ─── Rendering ───
+function render() {
+  if (!fileData) {
+    emptyState.style.display = '';
+    taskTable.style.display = 'none';
+    archiveSection.style.display = 'none';
+    return;
+  }
+  const f = getFilters();
+  const filtered = filterTasks(fileData.tasks);
+  const { active, archived } = partitionActiveArchived(filtered);
+  const sortedActive = sortTasks(active);
+  const sortedArchived = sortTasks(archived);
+  updateSortIndicators();
+  if (sortedActive.length === 0 && sortedArchived.length === 0) {
+    emptyState.style.display = '';
+    emptyState.querySelector('p').textContent = '暂无匹配的任务';
+    taskTable.style.display = 'none';
+  } else {
+    emptyState.style.display = 'none';
+    taskTable.style.display = '';
+    taskBody.innerHTML = sortedActive.map(t => renderRow(t)).join('');
+  }
+  if (f.showArchived && sortedArchived.length > 0) {
+    archiveSection.style.display = '';
+    archiveCount.textContent = sortedArchived.length;
+    archiveBody.innerHTML = sortedArchived.map(t => renderRow(t)).join('');
+  } else {
+    archiveSection.style.display = 'none';
+  }
+}
+function renderRow(t) {
+  const expanded = expandedRows.has(t.id);
+  const catBadge = '<span class="badge badge-' + t.category + '">' + escapeHtml(t.category) + '</span>';
+  const statusDot = '<span class="status-dot dot-' + t.status + '"></span>' + escapeHtml(t.status);
+  const priorityOpts = ['P0','P1','P2','P3'].map(p =>
+    '<option value="' + p + '"' + (t.priority === p ? ' selected' : '') + '>' + p + '</option>'
+  ).join('');
+  const statusOpts = STATUSES.map(s =>
+    '<option value="' + s + '"' + (t.status === s ? ' selected' : '') + '>' + s + '</option>'
+  ).join('');
+  const archiveBtnTitle = t.archived ? '取消归档' : '归档';
+  const archiveBtnIcon = t.archived ? '📤' : '📥';
+  let html = '<tr data-id="' + t.id + '">' +
+    '<td class="col-id">' + escapeHtml(t.id) + '</td>' +
+    '<td class="col-name">' +
+      '<button class="task-name-btn' + (expanded ? ' expanded' : '') + '"' +
+      ' onclick="toggleDetail(\'' + t.id + '\')">' + escapeHtml(t.name) + '</button>' +
+    '</td>' +
+    '<td class="col-category">' + catBadge + '</td>' +
+    '<td class="col-priority">' +
+      '<select class="inline-select" onchange="changePriority(\'' + t.id + '\', this.value)">' +
+        priorityOpts +
+      '</select>' +
+    '</td>' +
+    '<td class="col-status">' +
+      '<select class="inline-select" onchange="changeStatus(\'' + t.id + '\', this.value)">' +
+        statusOpts +
+      '</select>' +
+    '</td>' +
+    '<td class="col-actions">' +
+      '<div class="action-group">' +
+        '<button class="btn-icon" title="编辑" onclick="editTask(\'' + t.id + '\')">&#9998;</button>' +
+        '<button class="btn-icon" title="' + archiveBtnTitle + '" onclick="toggleArchive(\'' + t.id + '\')">' + archiveBtnIcon + '</button>' +
+      '</div>' +
+    '</td>' +
+  '</tr>';
+  if (expanded) {
+    const criteria = t.criteria ? escapeHtml(t.criteria) : '<em>无</em>';
+    const notes = t.notes ? escapeHtml(t.notes) : '<em>无</em>';
+    html += '<tr class="detail-row" data-id="' + t.id + '">' +
+      '<td colspan="6">' +
+        '<div class="detail-content">' +
+          '<p><strong>验收标准：</strong>' + criteria + '</p>' +
+          '<p><strong>备注：</strong>' + notes + '</p>' +
+          '<p style="font-size:12px;color:var(--text-muted);margin-top:4px;">创建于 ' + (t.createdAt || '未知') + '</p>' +
+        '</div>' +
+      '</td>' +
+    '</tr>';
+  }
+  return html;
+}
+// ─── Inline Actions ───
+function toggleDetail(id) {
+  if (expandedRows.has(id)) {
+    expandedRows.delete(id);
+  } else {
+    expandedRows.add(id);
+  }
+  render();
+}
+function changePriority(id, value) {
+  const task = findTask(id);
+  if (task && task.priority !== value) {
+    task.priority = value;
+    markDirty();
+  }
+}
+function changeStatus(id, value) {
+  const task = findTask(id);
+  if (task && task.status !== value) {
+    task.status = value;
+    markDirty();
+  }
+}
+function toggleArchive(id) {
+  const task = findTask(id);
+  if (task) {
+    task.archived = !task.archived;
+    markDirty();
+    render();
+  }
+}
+function editTask(id) {
+  const task = findTask(id);
+  if (!task) return;
+  editingTaskId = id;
+  $('#modalTitle').textContent = '编辑任务';
+  $('#modalSubmit').textContent = '保存';
+  $('#btnDeleteTask').style.display = '';
+  $('#fName').value = task.name || '';
+  $('#fCategory').value = task.category || 'feat';
+  $('#fPriority').value = task.priority || 'P1';
+  $('#fCriteria').value = task.criteria || '';
+  $('#fNotes').value = task.notes || '';
+  modalOverlay.classList.add('open');
+}
+function deleteTask() {
+  if (!editingTaskId) return;
+  const task = findTask(editingTaskId);
+  if (!task) return;
+  if (!confirm('确定要删除任务 ' + task.id + '：' + task.name + ' 吗？')) return;
+  fileData.tasks = fileData.tasks.filter(t => t.id !== editingTaskId);
+  markDirty();
+  closeModal();
+  render();
+}
+function findTask(id) {
+  if (!fileData) return null;
+  return fileData.tasks.find(t => t.id === id) || null;
+}
+// ─── Modal ───
+function showAddModal() {
+  if (!fileData) {
+    alert('请先打开 tasks.json 文件');
+    return;
+  }
+  editingTaskId = null;
+  $('#modalTitle').textContent = '新增任务';
+  $('#modalSubmit').textContent = '创建';
+  $('#btnDeleteTask').style.display = 'none';
+  $('#fName').value = '';
+  $('#fCategory').value = 'feat';
+  $('#fPriority').value = 'P1';
+  $('#fCriteria').value = '';
+  $('#fNotes').value = '';
+  modalOverlay.classList.add('open');
+  $('#fName').focus();
+}
+function closeModal() {
+  modalOverlay.classList.remove('open');
+  editingTaskId = null;
+}
+function submitModal() {
+  const name = $('#fName').value.trim();
+  if (!name) {
+    alert('任务名称不能为空');
+    $('#fName').focus();
+    return;
+  }
+  const category = $('#fCategory').value;
+  const priority = $('#fPriority').value;
+  const criteria = $('#fCriteria').value.trim();
+  const notes = $('#fNotes').value.trim();
+  if (editingTaskId) {
+    const task = findTask(editingTaskId);
+    if (task) {
+      task.name = name;
+      task.category = category;
+      task.priority = priority;
+      task.criteria = criteria;
+      task.notes = notes;
+      markDirty();
+    }
+  } else {
+    const newTask = {
+      id: generateId(),
+      name: name,
+      category: category,
+      priority: priority,
+      status: '待进行',
+      criteria: criteria,
+      notes: notes,
+      createdAt: todayStr(),
+      archived: false,
+    };
+    fileData.tasks.push(newTask);
+    markDirty();
+  }
+  closeModal();
+  render();
+}
+// ─── Escape HTML ───
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
+}
+// ─── Event Listeners ───
+$('#filterStatus').addEventListener('change', render);
+$('#filterCategory').addEventListener('change', render);
+$('#filterPriority').addEventListener('change', render);
+$('#showArchived').addEventListener('change', render);
+modalOverlay.addEventListener('click', (e) => {
+  if (e.target === modalOverlay) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    if (fileHandle) saveFile();
+  }
+});
+// ─── Initial render ───
+render();
+</script>
+</body>
+</html>

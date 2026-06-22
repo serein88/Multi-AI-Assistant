@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi AI Assistant - 管理</title>
+    <link rel="stylesheet" href="manage.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1 class="topbar-title">Multi AI Assistant</h1>
+      <div class="topbar-actions">
+        <label class="toggle">
+          <input id="backgroundMode" type="checkbox" />
+          <span>后台创建</span>
+        </label>
+        <div class="provider-picker" id="providerPicker">
+          <button id="providerPickerBtn" class="provider-picker-trigger" type="button" aria-haspopup="true" aria-expanded="false" aria-controls="providerDropdown">0 个 AI ▾</button>
+          <div id="providerDropdown" class="provider-dropdown hidden" role="menu">
+            <div class="provider-dropdown-head">
+              <button id="providerSelectAll" class="ghost" type="button">全选</button>
+              <button id="providerDeselectAll" class="ghost" type="button">取消全选</button>
+            </div>
+            <div id="providerList" class="provider-list"></div>
+          </div>
+        </div>
+        <button id="createSession" class="primary">新建会话</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <nav class="sidebar">
+        <div class="sidebar-head">
+          <h2>历史会话</h2>
+          <button id="loadSessions" class="ghost" type="button">刷新</button>
+        </div>
+        <div id="emptyState" class="empty">还没有已保存会话。</div>
+        <div id="sessionList" class="session-list"></div>
+      </nav>
+
+      <main class="content">
+        <div id="welcomeState" class="welcome">
+          <h2>欢迎使用 Multi AI Assistant</h2>
+          <p>点击右上角「新建会话」开始，或从左侧选择历史会话继续。</p>
+        </div>
+
+        <section id="restorePanel" class="restore-panel hidden">
+          <div class="restore-head">
+            <h2 id="restoreTitle"></h2>
+            <button id="closeRestorePanel" class="ghost" type="button">返回</button>
+          </div>
+          <div id="restoreSummary" class="restore-summary"></div>
+          <div class="restore-actions">
+            <button id="confirmRestore" class="primary" type="button">恢复会话</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="status" class="status-bar" aria-live="polite"></div>
+
+    <script src="providers.js"></script>
+    <script src="favicon-cache.js"></script>
+    <script src="manage.js"></script>
+  </body>
+</html>

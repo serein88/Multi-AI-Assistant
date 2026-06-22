@@ -5,6 +5,11 @@
 /_metadata
 /.worktrees
 /.claude
-/.mcp.json
-/.opencode.json
-/.code-review-graph
+.mcp.json
+.opencode.json
+/.superpowers
+/.temp
+/tests
+/.mindfs
+/docs
+claude.md
