@@ -600,9 +600,9 @@
       "name": "content.js 补充核心链路单元测试",
       "category": "test",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. 为 getProviderFromHost / getStopSelectors / shouldIgnoreThinkingNode / extractTextExcludingThinking 等纯函数编写测试；2. 测试文件放在 tests/content/ 目录下；3. node --test 通过且不破坏现有测试；4. 覆盖至少 5 个可独立测试的纯函数",
-      "notes": "来源：测试覆盖分析。content.js 是最大文件（3,250 行）但零测试覆盖。优先测试可独立抽出的纯函数，不依赖 DOM 环境",
+      "notes": "2026-06-22 已完成：新建 tests/content/pure-functions.test.js 覆盖 6 个纯函数（getProviderFromHost、getStopSelectors、shouldIgnoreThinkingNode、normalizeTurnText、normalizeProviderTurnText、shouldIgnoreManualTurnNode），共 50 个测试用例全部通过；现有测试不受影响（108 pass, 5 fail 与本次无关）",
       "createdAt": "2026-06-05",
       "archived": false
     },

@@ -1,5 +1,48 @@
 # Progress.md
 
+## 2026-06-22（记录 8）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-007
+- 任务名：content.js 补充核心链路单元测试
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `tests/content/pure-functions.test.js`（新建，565 行）
+- 操作摘要：
+  - **目标**：为 content.js 核心纯函数补充单元测试覆盖
+  - **测试函数**（6 个）：
+    1. `getProviderFromHost` - 从 hostname 识别 provider ID
+    2. `getStopSelectors` - 获取 provider 专属停止按钮选择器
+    3. `shouldIgnoreThinkingNode` - 判断节点是否为 thinking 内容
+    4. `normalizeTurnText` - 标准化文本空白字符
+    5. `normalizeProviderTurnText` - 移除 provider 特定前缀（如 Gemini "你说"）
+    6. `shouldIgnoreManualTurnNode` - 判断是否忽略手动轮次节点（aria-hidden、screen-reader 等）
+  - **测试用例数**：50 个
+  - **策略**：复制函数实现到测试文件，避免 DOM 依赖；简化版本专注业务逻辑验证
+- 验证步骤：
+  1. 运行 `node --test tests/content/pure-functions.test.js`
+  2. 运行 `node --test tests/**/*.test.js` 验证无回归
+- 验证证据：
+  - **新增测试**：50/50 通过 ✅
+  - **全部测试**：113 个测试，108 pass，5 fail
+  - **现有失败与本次无关**（来自 T-20260605-009 扩展 provider 列表后未更新测试数据）：
+    - `shields a frame from focus...`
+    - `removes temporary focus shield...`
+    - `isSessionProviderSupported rejects unsupported providers`
+    - `providers.js exports the session provider allowlist`
+    - `handleSessionCreate persists transcript shell for new sessions`
+- 代码统计：
+  - 新增文件：1 个
+  - 新增代码：565 行
+  - 测试覆盖函数：6 个纯函数
+  - 测试用例：50 个
+- 风险/问题：无
+- 下一步建议：
+  - 提交代码
+  - 后续可继续补充其他纯函数测试（如 `findElement`、`deepQueryAll` 等）
+
+---
+
 ## 2026-06-22（记录 7）
 
 - 时间：2026-06-22
