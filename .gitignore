@@ -9,5 +9,6 @@
 .opencode.json
 /.superpowers
 /.temp
-CLAUDE.md
 /tests
+/.mindfs
+/docs
