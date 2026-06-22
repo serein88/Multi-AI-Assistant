@@ -1,5 +1,44 @@
 # Progress.md
 
+## 2026-06-22（记录 2）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-009
+- 任务名：manage.html 支持选择 AI + favicon 统一缓存
+- 状态流转：进行中 -> 待确认 -> 完成（用户已确认）
+- 变更文件：
+  - `favicon-cache.js`
+  - `providers.js`
+  - `session/provider-session-bindings.js`
+  - `content/content.js`
+- 操作摘要：
+  - **问题 1**：Copilot 和通义千问 favicon 显示为灰色默认图标（16x16）
+    - 根因：Google Favicon API 对 `copilot.microsoft.com` 和 `www.qianwen.com` 返回默认图标
+    - 修复：`favicon-cache.js` 中 `copilot` 映射改为 `copilot.cloud.microsoft`，`tongyi` 映射改为 `qianwen.aliyun.com`
+  - **问题 2**：大多数 AI 供应商显示"不可恢复"
+    - 根因：只有 deepseek、gemini、grok 在 `SESSION_PROVIDER_IDS`、`SESSION_PROVIDER_URL_PREFIXES`、`CHILD_SESSION_SYNC_PROVIDERS` 三处配置中
+    - 修复：将所有 13 个 AI 供应商添加到上述三处配置，并为每个供应商添加 URL 前缀映射
+  - **问题 3**：Copilot 图标显示为 Bing 搜索放大镜
+    - 根因：初始修复使用 `www.bing.com` 作为 Copilot 的 favicon 域名
+    - 修复：测试 6 个候选域名，选择 `copilot.cloud.microsoft` 作为最佳匹配（彩色渐变 Copilot 专属图标）
+- 验证步骤：
+  1. 在 Chrome 扩展管理页面重新加载扩展
+  2. 打开 manage.html，检查 AI 选择器下拉菜单中的 favicon 显示
+  3. 创建包含多个 AI 的会话
+  4. 在会话列表侧边栏和详情面板中检查 favicon 和"可恢复"徽章
+- 验证证据：
+  - Chrome DevTools evaluate_script 确认所有 favicon 的 naturalWidth 为 32（正确尺寸）
+  - 用户确认：其他供应商的对话也显示可以恢复了，修复成功
+  - 用户确认：Copilot 图标已更正（从放大镜改为 Copilot 专属图标）
+- 风险/问题：
+  - 部分 AI 供应商的实际会话 URL 可能与 `SESSION_PROVIDER_URL_PREFIXES` 中配置的前缀不完全匹配，需要后续验证
+  - Kimi 和通义千问添加了多个域名前缀以覆盖可能的 URL 变体
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - 实际创建会话并测试各个 AI 供应商的恢复功能，确认 URL 前缀配置正确
+
+---
+
 ## 记录格式
 
 - 时间：

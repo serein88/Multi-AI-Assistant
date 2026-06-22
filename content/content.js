@@ -1262,7 +1262,21 @@ function startManualSendCapture(provider) {
   }, true);
 }
 
-const CHILD_SESSION_SYNC_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
+const CHILD_SESSION_SYNC_PROVIDERS = new Set([
+  "chatgpt",
+  "claude",
+  "copilot",
+  "deepseek",
+  "doubao",
+  "gemini",
+  "grok",
+  "ima",
+  "kimi",
+  "tongyi",
+  "you",
+  "yuanbao",
+  "zhipu"
+]);
 const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
 let childSessionSyncStarted = false;
 let lastSyncedFingerprint = "";

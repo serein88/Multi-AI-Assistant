@@ -1,10 +1,34 @@
 (() => {
-  const DEFAULT_SESSION_PROVIDER_IDS = ["deepseek", "gemini", "grok"];
+  const DEFAULT_SESSION_PROVIDER_IDS = [
+    "chatgpt",
+    "claude",
+    "copilot",
+    "deepseek",
+    "doubao",
+    "gemini",
+    "grok",
+    "ima",
+    "kimi",
+    "tongyi",
+    "you",
+    "yuanbao",
+    "zhipu"
+  ];
 
   const SESSION_PROVIDER_URL_PREFIXES = {
+    chatgpt: ["https://chatgpt.com/"],
+    claude: ["https://claude.ai/"],
+    copilot: ["https://copilot.microsoft.com/", "https://copilot.cloud.microsoft/"],
     deepseek: ["https://chat.deepseek.com/"],
+    doubao: ["https://www.doubao.com/"],
     gemini: ["https://gemini.google.com/"],
-    grok: ["https://grok.com/", "https://www.grok.com/"]
+    grok: ["https://grok.com/", "https://www.grok.com/"],
+    ima: ["https://ima.qq.com/"],
+    kimi: ["https://www.kimi.com/", "https://kimi.moonshot.cn/"],
+    tongyi: ["https://www.qianwen.com/", "https://qianwen.aliyun.com/"],
+    you: ["https://you.com/"],
+    yuanbao: ["https://yuanbao.tencent.com/"],
+    zhipu: ["https://chatglm.cn/"]
   };
 
   const SESSION_PROVIDER_IGNORED_PATH_PATTERNS = {
