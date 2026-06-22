@@ -622,7 +622,7 @@
       "name": "manage.html页面改进，创建对话支持选择AI或者直接沿用上次的配置。",
       "category": "fix",
       "priority": "P0",
-      "status": "待确认",
+      "status": "完成",
       "criteria": "1.manage.html历史会话选中后不再是只有默认的三个deepseek，gemini和grok了，根据选定的AI显示。2.Session 2026-06-05xxx这里也根据对应的对话有哪些AI显示对应的图标。3.图标可以做一个缓存，不用每次重新加载了。",
       "notes": "方案B：统一图标定义+缓存+AI选择器。改动文件：manage.html(+选择器HTML+3个script)、manage.js(+provider picker+FaviconCache替代硬编码)、manage.css(+选择器样式)、background.js(接收message.providers)、favicon-cache.js(新建统一hostname+API URL)、dashboard.html(+script)、dashboard.js(FaviconCache替代硬编码)。MCP验证：3项验收标准全部通过(无CORS错误、默认复用上次配置、恢复面板显示正确AI)",
       "createdAt": "2026-06-05",
