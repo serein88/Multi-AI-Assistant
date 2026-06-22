@@ -1,5 +1,41 @@
 # Progress.md
 
+## 2026-06-22（记录 9）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-007（续）
+- 任务名：修复现有的 5 个失败测试
+- 状态流转：完成 -> 完成（追加）
+- 变更文件：
+  - `tests/dashboard-focus.test.js`（修改 2 个测试）
+  - `tests/session/provider-session-bindings.test.js`（修改 2 个测试）
+  - `tests/session/transcript-store.test.js`（修改 1 个测试）
+- 操作摘要：
+  - **问题根因**：
+    - dashboard-focus.test.js (2 个失败) - 测试期望 `pointerEvents` 和 `visibility` 属性，但实际代码已简化为只用 `inert` 和 `tabindex`
+    - session 测试 (3 个失败) - 测试期望 provider 列表为 `['deepseek', 'gemini', 'grok']`，但 T-20260605-009 已扩展到 13 个
+  - **修复详情**：
+    1. `shields a frame from focus...` - 移除 `pointerEvents`/`visibility` 断言，保留 `inert`/`tabindex`/`dataset` 断言
+    2. `removes temporary focus shield...` - 移除 `pointerEvents`/`visibility` 断言
+    3. `isSessionProviderSupported rejects unsupported providers` - 改用真正不存在的 `"nonexistent"` 而非已支持的 `"chatgpt"`
+    4. `providers.js exports the session provider allowlist` - 更新期望列表为完整 13 个 provider
+    5. `handleSessionCreate persists transcript shell...` - 更新期望列表为完整 13 个 provider
+- 验证步骤：
+  1. 运行 `node --test` 验证全部测试通过
+- 验证证据：
+  - **全量测试**：113/113 通过 ✅
+  - **测试耗时**：178.755209ms
+  - **无回归**：所有现有测试保持通过
+- 代码统计：
+  - 修改文件：3 个测试文件
+  - 修改测试：5 个
+  - 新增/删除代码：净减少约 30 行（移除废弃断言）
+- 风险/问题：无
+- 下一步建议：
+  - 提交代码
+
+---
+
 ## 2026-06-22（记录 8）
 
 - 时间：2026-06-22

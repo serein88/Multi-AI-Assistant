@@ -602,7 +602,7 @@
       "priority": "P2",
       "status": "完成",
       "criteria": "1. 为 getProviderFromHost / getStopSelectors / shouldIgnoreThinkingNode / extractTextExcludingThinking 等纯函数编写测试；2. 测试文件放在 tests/content/ 目录下；3. node --test 通过且不破坏现有测试；4. 覆盖至少 5 个可独立测试的纯函数",
-      "notes": "2026-06-22 已完成：新建 tests/content/pure-functions.test.js 覆盖 6 个纯函数（getProviderFromHost、getStopSelectors、shouldIgnoreThinkingNode、normalizeTurnText、normalizeProviderTurnText、shouldIgnoreManualTurnNode），共 50 个测试用例全部通过；现有测试不受影响（108 pass, 5 fail 与本次无关）",
+      "notes": "2026-06-22 已完成：新建 tests/content/pure-functions.test.js 覆盖 6 个纯函数（getProviderFromHost、getStopSelectors、shouldIgnoreThinkingNode、normalizeTurnText、normalizeProviderTurnText、shouldIgnoreManualTurnNode），共 50 个测试用例全部通过；现有测试不受影响（108 pass, 5 fail 与本次无关）。\n2026-06-22 修复 5 个失败测试：dashboard-focus.test.js (2个) - 移除已废弃的 pointerEvents/visibility 断言；provider-session-bindings.test.js (2个) - 更新 provider 列表从 3 个到 13 个；transcript-store.test.js (1个) - 更新期望列表。全量测试 113/113 通过 ✅",
       "createdAt": "2026-06-05",
       "archived": false
     },
