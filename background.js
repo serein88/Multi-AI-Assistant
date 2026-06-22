@@ -1,5 +1,5 @@
 const START_PAGE = "dashboard.html";
-const DEBUG = true; // Set to false in production
+const DEBUG = false; // Set to true for development debugging
 
 try {
   importScripts(

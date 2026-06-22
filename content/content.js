@@ -675,7 +675,7 @@ function deepFindElement(selectors) {
   return null;
 }
 
-const DEBUG = true;
+const DEBUG = false; // Set to true for development debugging
 function log(msg, ...args) {
   if (DEBUG) {
     console.log(`[MultiAI Content] ${msg}`, ...args);

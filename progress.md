@@ -1,5 +1,34 @@
 # Progress.md
 
+## 2026-06-22（记录 3）
+
+- 时间：2026-06-22
+- 任务 ID：T-20260605-006
+- 任务名：DEBUG 标志改为生产默认关闭
+- 状态流转：待进行 -> 进行中 -> 完成
+- 变更文件：
+  - `background.js`（第 2 行）
+  - `dashboard.js`（第 187 行）
+  - `content/content.js`（第 678 行）
+- 操作摘要：
+  - 将三个核心文件中的 `DEBUG` 常量从 `true` 改为 `false`
+  - 更新注释从「Set to false in production」改为「Set to true for development debugging」
+  - 生产环境不再默认输出调试日志，避免性能影响和潜在的信息泄露
+- 验证步骤：
+  1. 检查三个文件的 DEBUG 常量值
+  2. 确认日志输出结构不变（仍使用 `if (DEBUG)` 包裹）
+- 验证证据：
+  ```diff
+  - const DEBUG = true; // Set to false in production
+  + const DEBUG = false; // Set to true for development debugging
+  ```
+- 风险/问题：无
+- 下一步建议：
+  - 提交代码（遵循 CLAUDE.md 规则，等待用户指示）
+  - 如有需要，可继续处理 T-20260605-005（补充关键路径日志）
+
+---
+
 ## 2026-06-22（记录 2）
 
 - 时间：2026-06-22

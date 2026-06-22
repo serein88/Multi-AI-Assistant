@@ -184,7 +184,7 @@ let transcriptProviderExpanded = new Set();
 let transcriptViewMode = localStorage.getItem("multi-ai-transcript-view") || "messages";
 let transcriptCollapsed = localStorage.getItem("multi-ai-transcript-collapsed") === "true";
 
-const DEBUG = true; // Set to false in production
+const DEBUG = false; // Set to true for development debugging
 
 function log(msg, ...args) {
   if (DEBUG) {
