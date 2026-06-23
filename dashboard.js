@@ -1066,7 +1066,7 @@ function scheduleTranscriptRefresh(delay = 0) {
   }
   transcriptRefreshTimeoutId = window.setTimeout(() => {
     transcriptRefreshTimeoutId = null;
-    refreshSessionTranscript({ silent: true }).catch(() => undefined);
+    refreshSessionTranscript({ silent: true }).catch((err) => console.warn("[MultiAI Dashboard] scheduleTranscriptRefresh:", err));
   }, delay);
 }
 
@@ -1929,7 +1929,10 @@ function sendPromptToProvider(providerId, prompt) {
     if (!iframe || !iframe.contentWindow || IFRAME_BLOCKED_PROVIDERS.has(providerId)) {
       chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt })
         .then((res) => resolvePendingSend(providerId, res && res.ok))
-        .catch(() => resolvePendingSend(providerId, false));
+        .catch((err) => {
+          console.warn("[MultiAI Dashboard] sendPromptToProviderTab:", err);
+          resolvePendingSend(providerId, false);
+        });
       return;
     }
 
@@ -2513,7 +2516,7 @@ window.addEventListener("beforeunload", () => {
 
 if (transcriptRefreshBtn) {
   transcriptRefreshBtn.addEventListener("click", () => {
-    refreshSessionTranscript().catch(() => undefined);
+    refreshSessionTranscript().catch((err) => console.warn("[MultiAI Dashboard] transcriptRefreshBtn:", err));
   });
 }
 
@@ -2557,7 +2560,7 @@ registerCleanup(_cleanupHandlers, () => document.removeEventListener("visibility
 
 loadState();
 loadPanelsFromStorage()
-  .catch(() => undefined)
+  .catch((err) => console.warn("[MultiAI Dashboard] loadPanelsFromStorage:", err))
   .finally(() => {
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);

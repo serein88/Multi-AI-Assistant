@@ -675,7 +675,7 @@ function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
     if (chrome?.runtime?.sendMessage) {
       const result = chrome.runtime.sendMessage(payload);
       if (result && typeof result.catch === "function") {
-        result.catch(() => undefined);
+        result.catch((err) => console.warn(`[MultiAI Content] sendTranscriptLiveStatus (${provider}):`, err));
       }
     }
   } catch (error) {
@@ -871,7 +871,7 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
     if (chrome?.runtime?.sendMessage) {
       const result = chrome.runtime.sendMessage(payload);
       if (result && typeof result.catch === "function") {
-        result.catch(() => undefined);
+        result.catch((err) => console.warn(`[MultiAI Content] sendTranscriptProviderTurn (${provider}/${role}):`, err));
       }
     }
   } catch (error) {
@@ -1306,7 +1306,7 @@ function sendChildSessionSync(provider) {
     if (chrome?.runtime?.sendMessage) {
       const result = chrome.runtime.sendMessage(payload);
       if (result && typeof result.catch === "function") {
-        result.catch(() => undefined);
+        result.catch((err) => console.warn(`[MultiAI Content] sendChildSessionSync (${provider}):`, err));
       }
     }
   } catch (error) {
@@ -3104,7 +3104,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   trySendPrompt(provider, prompt)
     .then((ok) => sendResponse({ ok }))
-    .catch(() => sendResponse({ ok: false }));
+    .catch((err) => {
+      console.warn(`[MultiAI Content] trySendPrompt (${provider}):`, err);
+      sendResponse({ ok: false });
+    });
   return true;
 });
 
@@ -3116,7 +3119,7 @@ window.addEventListener("message", (event) => {
 
   const provider = data.provider || getProviderFromHost();
   const prompt = typeof data.prompt === "string" ? data.prompt : "";
-  trySendPrompt(provider, prompt).catch(() => undefined);
+  trySendPrompt(provider, prompt).catch((err) => console.warn(`[MultiAI Content] trySendPrompt (${provider}):`, err));
 });
 
 function initializeCustomFixes() {
