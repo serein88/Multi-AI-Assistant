@@ -1,5 +1,20 @@
 # Progress.md
 
+## 2026-06-23（记录 26）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-011 / T-20260622-012（跨模块回归修复）
+- 状态：修复完成
+- BUG 1（高）：response-detection.js `collectText` 误用 `RESPONSE_SELECTORS` 结构
+  - 原因：`_rs()` 返回按 provider 分组的对象（`{ chatgpt: [...], deepseek: [...] }`），但代码按 `{ messageSelector, roleAttr }` 读取
+  - 影响：响应完成检测文本采集失效，transcript final turn 时机错误
+  - 修复：`rs[provider] || rs.chatgpt` 正确遍历选择器数组
+- BUG 2（高）：provider-configs.js 导出结构与 transcript-capture.js 读取方式不匹配
+  - 原因：`globalThis.__MAI_ProviderConfigs` 导出为 `{ PROVIDER_CONFIGS, HOST_MAP, getProviderFromHost }`，但 TC 按 flat `cfgs[provider]` 读取
+  - 影响：`getManualSendButtonSelectors()` 返回空数组，手动转录捕获点击路径失效
+  - 修复：`globalThis.__MAI_ProviderConfigs` 直接暴露 PROVIDER_CONFIGS，HOST_MAP/getProviderFromHost 作为 non-enumerable 属性
+- 验证：lint 0 errors + 121/121 tests pass
+
 ## 2026-06-23（记录 25）
 
 - 时间：2026-06-23
