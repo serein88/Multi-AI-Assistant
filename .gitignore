@@ -13,3 +13,5 @@
 /.mindfs
 /docs
 claude.md
+node_modules
+package-lock.json

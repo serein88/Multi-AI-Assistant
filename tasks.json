@@ -688,7 +688,7 @@
       "name": "工程化：添加 package.json 和测试脚本",
       "category": "feat",
       "priority": "P1",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. 创建 package.json，包含 test/test:watch/lint/validate 脚本；2. 配置 eslint 和 web-ext 依赖；3. npm test 可运行所有测试；4. npm run lint 可检查代码规范；5. 文档更新：CLAUDE.md 补充测试运行说明",
       "notes": "中严重度可维护性问题：无构建工具导致测试无法自动化。建议 package.json 内容见诊断报告第 9 节。",
       "createdAt": "2026-06-22",

@@ -1741,7 +1741,7 @@ function handlePanelAction(panelEl, provider, action, actionButton = null) {
       try {
         iframe.contentWindow.location.reload();
       } catch (e) {
-        iframe.src = iframe.src;
+        iframe.src = iframe.src; // eslint-disable-line no-self-assign -- cross-origin iframe reload fallback
       }
     }
     return;
