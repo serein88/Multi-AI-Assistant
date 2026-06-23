@@ -196,36 +196,21 @@ var __MAI_Response = (function () {
     if (provider === "deepseek") textStableMs = 1500;
     else if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = 1800;
     function collectText() {
-      var sel = _rs();
+      // RESPONSE_SELECTORS is keyed by provider: { chatgpt: [...selectors], deepseek: [...], ... }
+      var rs = _rs();
+      var selectors = rs[provider] || rs.chatgpt || [];
+      var root = doc.body || doc;
       var texts = [];
-      var msgEls = Array.from(doc.querySelectorAll(sel.messageSelector));
-      msgEls.forEach(function (el) {
-        if (el.querySelector && el.querySelector("#__mai_stopwatch__")) return;
-        var role = el.getAttribute(sel.roleAttr);
-        if (role !== "assistant" && role !== "bot") return;
-        var isTarget = false;
-        if (provider === "chatglm") isTarget = el.getAttribute("data-message-author-role") !== "user";
-        else if (provider === "copilot") isTarget = !el.closest("[data-content='ai-card-inner']");
-        else if (provider === "hunyuan") isTarget = role === "assistant";
-        else if (provider === "yuanbao") isTarget = role === "assistant" || el.getAttribute("data-role") === "assistant";
-        if (isTarget) {
+      selectors.forEach(function (sel) {
+        var nodes = root.querySelectorAll ? Array.from(root.querySelectorAll(sel)) : [];
+        nodes.forEach(function (el) {
+          if (el.querySelector && el.querySelector("#__mai_stopwatch__")) return;
           var cloned = el.cloneNode(true);
-          var $$stopwatch = cloned.querySelector("#__mai_stopwatch__");
-          if ($$stopwatch) $$stopwatch.remove();
+          var sw = cloned.querySelector("#__mai_stopwatch__");
+          if (sw) sw.remove();
           var t = cloned.textContent || "";
-          if (provider === "hunyuan") {
-            t = t.replace(/\n{4,}/g, "\n\n\n");
-            var contentEl = el.querySelector("[class*='content']");
-            if (contentEl) {
-              var wc = contentEl.closest("[class*='writer-container']");
-              if (wc) {
-                var copyBtn = wc.querySelector("button[class*='copy']");
-                if (copyBtn) copyBtn.remove();
-              }
-            }
-          }
           if (t.trim()) texts.push(t.trim());
-        }
+        });
       });
       return texts;
     }

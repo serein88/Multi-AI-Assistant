@@ -326,7 +326,7 @@ window.addEventListener("message", (event) => {
 
 async function trySendPrompt(provider, prompt, retryCount = 0) {
   const maxRetries = provider === "grok" ? 0 : 2;
-  const config = PC.PROVIDER_CONFIGS ? PC.PROVIDER_CONFIGS[provider] : null;
+  const config = PC[provider] || null;
   if (!config) {
     console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
