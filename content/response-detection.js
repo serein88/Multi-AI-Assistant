@@ -234,12 +234,20 @@ var __MAI_Response = (function () {
       return false;
     }
 
+    var globalTimeout = config.timeout || 120000;
+
     return new Promise(function (resolve, reject) {
       var finished = false;
       var pendingCheck = null;
 
+      // Global safety timeout — bail out if never completed
+      var globalTimer = setTimeout(function () {
+        if (!finished) onDone("global-timeout", collectText().join("\n"));
+      }, globalTimeout);
+
       function cleanup() {
         clearTimeout(pendingCheck);
+        clearTimeout(globalTimer);
       }
 
       function onDone(reason, text) {
@@ -247,6 +255,11 @@ var __MAI_Response = (function () {
         finished = true;
         cleanup();
         log("[ResponseComplete]", provider, "done:", reason, "textLen:", (text || "").length);
+        // Timeout without new response → not completed
+        if (reason === "global-timeout" && !newResponseDetected) {
+          resolve({ completed: false, reason: "global-timeout", text: "" });
+          return;
+        }
         if (text && text.trim()) resolve({ completed: true, reason: reason, text: text });
         else resolve({ completed: false, reason: "empty", text: "" });
       }
@@ -279,10 +292,29 @@ var __MAI_Response = (function () {
       }
 
       // Step 2: 文本稳定性检测
+      // Gate: only start counting stability after a NEW response appears.
+      // Use extractLatestResponse (single latest turn) for baseline comparison,
+      // NOT collectText().join (all turns concatenated — would false-positive on history).
+      var _MC = function () { return globalThis.__MAI_Content || {}; };
+      var _latest = function () { var mc = _MC(); return mc.extractLatestResponse ? mc.extractLatestResponse(provider) : ""; };
+      var newResponseDetected = false;
       var lastTextSnapshot = null;
       var textStableStart = null;
       function checkTextStability(k) {
         if (finished) return;
+
+        // Gate: wait until a genuinely new response appears
+        if (!newResponseDetected) {
+          var latestNow = _latest();
+          var countNow = SH.countResponseNodes ? SH.countResponseNodes(provider) : 0;
+          var hasNew = (latestNow !== baselineText) || (countNow > baselineCount);
+          if (!hasNew) {
+            setTimeout(function () { checkTextStability(0); }, 400);
+            return;
+          }
+          newResponseDetected = true;
+        }
+
         if (isStreaming(doc)) {
           textStableStart = null;
           lastTextSnapshot = null;
@@ -310,16 +342,6 @@ var __MAI_Response = (function () {
             return;
           }
           var finalText = collectText().join("\n");
-          // Check if a NEW response appeared (text differs from baseline or more nodes)
-          var currentCount = SH.countResponseNodes ? SH.countResponseNodes(provider) : 0;
-          var hasNewContent = (finalText !== baselineText) || (currentCount > baselineCount);
-          if (!hasNewContent && baselineText) {
-            // No new response yet — keep waiting
-            textStableStart = null;
-            lastTextSnapshot = null;
-            setTimeout(function () { checkTextStability(0); }, 800);
-            return;
-          }
           onDone("text-stable", finalText);
           return;
         }
