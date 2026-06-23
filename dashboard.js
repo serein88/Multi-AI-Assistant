@@ -2586,13 +2586,16 @@ loadPanelsFromStorage()
   .finally(() => {
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);
-    FaviconCache.preloadFavicons(activePanels).then(function () {
-      if (promptFocusGuard) {
-        promptFocusGuard.focusPrompt();
-        promptFocusGuard.captureIfPromptFocused();
-      }
-      renderPanels();
-      startTranscriptPolling();
+    // Render panels immediately — don't block on favicon preload
+    if (promptFocusGuard) {
+      promptFocusGuard.focusPrompt();
+      promptFocusGuard.captureIfPromptFocused();
+    }
+    renderPanels();
+    startTranscriptPolling();
+    // Preload favicons in background (non-blocking)
+    FaviconCache.preloadFavicons(activePanels).catch(function (err) {
+      console.warn("[MultiAI Dashboard] preloadFavicons:", err);
     });
   });
 
