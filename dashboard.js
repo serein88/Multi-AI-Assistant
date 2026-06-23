@@ -61,6 +61,10 @@ const ALLOWED_IFRAME_ORIGINS = new Set(
     : []
 );
 
+// Shared cleanup registry for window/document-level listeners.
+// Each entry is a no-arg function that removes the corresponding listener.
+const _cleanupHandlers = [];
+
 let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
 let I18N = I18N_DATA[currentLang];
 
@@ -1690,16 +1694,18 @@ function renderPanels() {
 }
 
 // Global click listener for Settings Modal
-document.addEventListener("click", (event) => {
+const _settingsClickHandler = (event) => {
     if (!settingsPanel.hidden) {
         // Close if clicking outside the settings card and not on the toggle button
-        if (!settingsPanel.contains(event.target) && 
-            event.target !== settingsBtn && 
+        if (!settingsPanel.contains(event.target) &&
+            event.target !== settingsBtn &&
             !settingsBtn.contains(event.target)) {
             closeSettings();
         }
     }
-});
+};
+document.addEventListener("click", _settingsClickHandler);
+_cleanupHandlers.push(() => document.removeEventListener("click", _settingsClickHandler));
 
 function handlePanelAction(panelEl, provider, action, actionButton = null) {
   const index = Number(panelEl.dataset.index);
@@ -2256,7 +2262,7 @@ function showMessage(text, type = "info") {
   }, 3000);
 }
 
-window.addEventListener("message", (event) => {
+const _mainMessageHandler = (event) => {
   if (!ALLOWED_IFRAME_ORIGINS.has(event.origin)) return;
   const data = event.data || {};
   if (data.source !== "multi-ai-content") return;
@@ -2307,7 +2313,9 @@ window.addEventListener("message", (event) => {
     setPanelBadgeStatus(data.provider, "success");
     updateSendingState();
   }
-});
+};
+window.addEventListener("message", _mainMessageHandler);
+_cleanupHandlers.push(() => window.removeEventListener("message", _mainMessageHandler));
 
 function ensureDefaultPanels() {
   if (activePanels.length === 0) {
@@ -2468,6 +2476,10 @@ window.addEventListener("beforeunload", () => {
   if (promptProgrammaticFocusUnblockTimerId) {
     clearTimeout(promptProgrammaticFocusUnblockTimerId);
   }
+  for (const cleanup of _cleanupHandlers) {
+    try { cleanup(); } catch (_) { /* ignore */ }
+  }
+  _cleanupHandlers.length = 0;
   saveState();
 });
 
@@ -2507,11 +2519,13 @@ if (transcriptViewModeBtn) {
   });
 }
 
-document.addEventListener("visibilitychange", () => {
+const _visibilityChangeHandler = () => {
   if (!document.hidden) {
     scheduleTranscriptRefresh(0);
   }
-});
+};
+document.addEventListener("visibilitychange", _visibilityChangeHandler);
+_cleanupHandlers.push(() => document.removeEventListener("visibilitychange", _visibilityChangeHandler));
 
 loadState();
 loadPanelsFromStorage()

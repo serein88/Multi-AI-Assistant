@@ -692,6 +692,8 @@ let manualTurnCapturingActiveResponse = false;
 let manualTurnObserver = null;
 
 let manualSendCaptureStarted = false;
+const _manualSendCleanupHandlers = [];
+const _sessionSyncCleanupHandlers = [];
 let lastManualSendProvider = "";
 let lastManualSendText = "";
 let lastManualSendAt = 0;
@@ -1174,7 +1176,7 @@ function startManualSendCapture(provider) {
   if (!document.body) return;
   manualSendCaptureStarted = true;
 
-  document.addEventListener("keydown", (event) => {
+  const handleKeydown = (event) => {
     if (!event || !event.isTrusted) return;
     if (event.defaultPrevented) return;
 
@@ -1188,9 +1190,9 @@ function startManualSendCapture(provider) {
     if (!prompt || !String(prompt).trim()) return;
 
     recordManualSend(provider, prompt, target);
-  }, true);
+  };
 
-  document.addEventListener("click", (event) => {
+  const handleClick = (event) => {
     if (!event || !event.isTrusted) return;
     if (!event.target || event.target.nodeType !== Node.ELEMENT_NODE) return;
 
@@ -1208,7 +1210,15 @@ function startManualSendCapture(provider) {
     if (!prompt || !String(prompt).trim()) return;
 
     recordManualSend(provider, prompt, active);
-  }, true);
+  };
+
+  document.addEventListener("keydown", handleKeydown, true);
+  document.addEventListener("click", handleClick, true);
+
+  _manualSendCleanupHandlers.push(
+    () => document.removeEventListener("keydown", handleKeydown, true),
+    () => document.removeEventListener("click", handleClick, true)
+  );
 }
 
 const CHILD_SESSION_SYNC_PROVIDERS = new Set([
@@ -1286,6 +1296,11 @@ function startChildSessionSync(provider) {
   window.addEventListener("popstate", debouncedSync);
   window.addEventListener("hashchange", debouncedSync);
 
+  _sessionSyncCleanupHandlers.push(
+    () => window.removeEventListener("popstate", debouncedSync),
+    () => window.removeEventListener("hashchange", debouncedSync)
+  );
+
   const titleObserver = new MutationObserver(() => debouncedSync());
   const bodyObserver = new MutationObserver(() => debouncedSync());
   const headObserver = new MutationObserver(() => {
@@ -1313,6 +1328,12 @@ function startChildSessionSync(provider) {
       }
     }, { once: true });
   }
+
+  _sessionSyncCleanupHandlers.push(
+    () => titleObserver.disconnect(),
+    () => bodyObserver.disconnect(),
+    () => headObserver.disconnect()
+  );
 }
 
 log(`Content script loaded for ${window.location.hostname}`);
@@ -3213,3 +3234,15 @@ if (document.readyState === "loading") {
 } else {
   initializeCustomFixes();
 }
+
+// Cleanup event listeners and observers on page unload to prevent memory leaks
+window.addEventListener("beforeunload", () => {
+  for (const cleanup of _manualSendCleanupHandlers) {
+    try { cleanup(); } catch (_) { /* ignore */ }
+  }
+  for (const cleanup of _sessionSyncCleanupHandlers) {
+    try { cleanup(); } catch (_) { /* ignore */ }
+  }
+  _manualSendCleanupHandlers.length = 0;
+  _sessionSyncCleanupHandlers.length = 0;
+});
