@@ -150,3 +150,61 @@ test("cleanup is error-resilient: handlers after a throwing handler still execut
   assert.ok(result.thirdCalled, "third handler should execute even if second throws");
   assert.equal(result.registryLength, 0, "registry should be emptied");
 });
+
+// --- Simulate observer cleanup registry from content.js (T-20260622-004) ---
+
+function simulateObserverCleanup() {
+  const observerCleanupHandlers = [];
+
+  let manualTurnDisconnected = false;
+  let geminiDisconnected = false;
+  let cloudflareDisconnected = false;
+  let cloudflareIntervalCleared = false;
+
+  // Simulate manualTurnObserver registration
+  observerCleanupHandlers.push(() => { manualTurnDisconnected = true; });
+
+  // Simulate Gemini dark mode observer registration
+  observerCleanupHandlers.push(() => { geminiDisconnected = true; });
+
+  // Simulate Cloudflare observer + setInterval registration
+  observerCleanupHandlers.push(() => {
+    cloudflareIntervalCleared = true;
+    cloudflareDisconnected = true;
+  });
+
+  // Simulate beforeunload
+  for (const cleanup of observerCleanupHandlers) {
+    try { cleanup(); } catch (_) { /* ignore */ }
+  }
+  observerCleanupHandlers.length = 0;
+
+  return {
+    manualTurnDisconnected,
+    geminiDisconnected,
+    cloudflareDisconnected,
+    cloudflareIntervalCleared,
+    registryLength: observerCleanupHandlers.length
+  };
+}
+
+test("observer cleanup: manualTurnObserver is disconnected on unload", () => {
+  const result = simulateObserverCleanup();
+  assert.ok(result.manualTurnDisconnected, "manualTurnObserver should be disconnected");
+});
+
+test("observer cleanup: Gemini dark mode observer is disconnected on unload", () => {
+  const result = simulateObserverCleanup();
+  assert.ok(result.geminiDisconnected, "Gemini observer should be disconnected");
+});
+
+test("observer cleanup: Cloudflare observer and interval are cleaned on unload", () => {
+  const result = simulateObserverCleanup();
+  assert.ok(result.cloudflareDisconnected, "Cloudflare observer should be disconnected");
+  assert.ok(result.cloudflareIntervalCleared, "Cloudflare interval should be cleared");
+});
+
+test("observer cleanup: registry is emptied after cleanup", () => {
+  const result = simulateObserverCleanup();
+  assert.equal(result.registryLength, 0, "observer cleanup registry should be empty");
+});

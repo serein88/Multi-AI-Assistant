@@ -694,6 +694,7 @@ let manualTurnObserver = null;
 let manualSendCaptureStarted = false;
 const _manualSendCleanupHandlers = [];
 const _sessionSyncCleanupHandlers = [];
+const _observerCleanupHandlers = [];
 let lastManualSendProvider = "";
 let lastManualSendText = "";
 let lastManualSendAt = 0;
@@ -1020,6 +1021,13 @@ function startManualTurnCapture(provider) {
     characterData: true
   });
   manualTurnObserver = observer;
+
+  _observerCleanupHandlers.push(() => {
+    if (manualTurnObserver) {
+      manualTurnObserver.disconnect();
+      manualTurnObserver = null;
+    }
+  });
 }
 
 function isManualSendSuppressed(provider, prompt) {
@@ -3134,6 +3142,7 @@ function initializeCustomFixes() {
       });
     });
     observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    _observerCleanupHandlers.push(() => observer.disconnect());
 
   }
 
@@ -3217,7 +3226,7 @@ function initializeCustomFixes() {
     };
 
     // Check periodically
-    setInterval(attemptVerification, 2000);
+    const verificationIntervalId = setInterval(attemptVerification, 2000);
 
     // Also observe mutations
     const observer = new MutationObserver((mutations) => {
@@ -3226,6 +3235,11 @@ function initializeCustomFixes() {
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+
+    _observerCleanupHandlers.push(() => {
+      clearInterval(verificationIntervalId);
+      observer.disconnect();
+    });
   }
 }
 
@@ -3243,6 +3257,10 @@ window.addEventListener("beforeunload", () => {
   for (const cleanup of _sessionSyncCleanupHandlers) {
     try { cleanup(); } catch (_) { /* ignore */ }
   }
+  for (const cleanup of _observerCleanupHandlers) {
+    try { cleanup(); } catch (_) { /* ignore */ }
+  }
   _manualSendCleanupHandlers.length = 0;
   _sessionSyncCleanupHandlers.length = 0;
+  _observerCleanupHandlers.length = 0;
 });
