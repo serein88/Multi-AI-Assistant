@@ -1,5 +1,20 @@
 # Progress.md
 
+## 2026-06-23（记录 27）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-011/012（二次回归修复）
+- 状态：修复完成
+- BUG 1（高）：provider-configs.js var __MAI_ProviderConfigs 覆盖 globalThis 导出
+  - 原因：`var __MAI_ProviderConfigs = IIFE()` 返回 PC（namespace），覆盖了 IIFE 内部设置的 flat PROVIDER_CONFIGS
+  - 影响：content.js `PC[provider]` 取不到配置，统一发送失败
+  - 修复：恢复 namespace 导出，content.js 用 `PC.PROVIDER_CONFIGS[provider]`，transcript-capture.js 新增 `getProviderConfigs()` 兼容读取
+- BUG 2（中高）：waitForResponseComplete 未使用 baseline
+  - 原因：`meta` 参数（实为 responseBaseline）的 text/responseCount 未被使用
+  - 影响：无 stop button 的 provider 可能对旧文本误判完成
+  - 修复：checkTextStability 稳定后检查 text !== baselineText 或 count > baselineCount
+- 验证：lint 0 errors + 121/121 tests pass + node -e 模拟加载顺序验证通过
+
 ## 2026-06-23（记录 26）
 
 - 时间：2026-06-23
