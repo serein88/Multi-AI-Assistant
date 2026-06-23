@@ -177,307 +177,15 @@ function captureResponseBaseline(provider) {
   };
 }
 
-const PROVIDER_CONFIGS = {
-  chatgpt: {
-    inputSelectors: [
-      "#prompt-textarea",
-      "textarea#prompt-textarea",
-      "textarea[data-id='root']",
-      "textarea[id*='prompt']",
-      "textarea[aria-label*='Message']",
-      "textarea[aria-label*='消息']",
-      "textarea[placeholder*='Message']",
-      "textarea[placeholder*='消息']",
-      "textarea[placeholder*='Ask']",
-      "form textarea",
-      "div[contenteditable='true'][role='textbox'][aria-label*='Message']",
-      "div[contenteditable='true'][role='textbox'][aria-label*='Prompt']",
-      "div[contenteditable='true'][data-testid='textbox']",
-      "div[contenteditable='true'][role='textbox']",
-      "div[contenteditable='true']",
-      "main textarea",
-      "textarea"
-    ],
-    sendButtonSelectors: [
-      "button[data-testid='send-button']",
-      "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
-      "button svg[data-icon='paper-plane']",
-      "button:has(svg[data-icon='paper-plane'])",
-      "button:has(path[d*='M.5 1.163A1'])",
-      // "button[type='submit']", // Too generic, causes false positives
-      "button[aria-label*='发送消息']",
-      "button[aria-label*='发送对话']"
-    ],
-    inputType: "contenteditable"
-  },
-  claude: {
-    inputSelectors: [
-      "div[contenteditable='true'][data-testid='chat-input']",
-      "div[contenteditable='true'][data-placeholder]",
-      "div[contenteditable='true'][aria-label*='Message']",
-      "div[contenteditable='true'][aria-label*='消息']",
-      "div[contenteditable='true'][role='textbox']",
-      "div[contenteditable='true'][data-placeholder*='Reply']",
-      "div[contenteditable='true'][data-placeholder*='回复']",
-      "section textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='Send']",
-      "button[data-testid='send-button']",
-      "button[aria-label*='发送']",
-      "button:has(svg path[d*='M15.854'])",
-      "button[type='submit']",
-      "button[data-testid='composer-send-button']"
-    ],
-    inputType: "contenteditable"
-  },
-  gemini: {
-    inputSelectors: [
-      "div[contenteditable='true'][role='textbox'][aria-label*='Gemini']",
-      "div[contenteditable='true'][role='textbox'][data-placeholder]",
-      "textarea[aria-label*='prompt']",
-      "textarea[aria-label*='输入']",
-      "textarea[placeholder*='Enter']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button.send-button[aria-label='发送']",
-      "button.send-button[aria-label='Send']",
-      "button.send-button",
-      "button[aria-label='发送']",
-      "button[aria-label='Send']",
-      "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
-      "button:has(svg)",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  copilot: {
-    inputSelectors: [
-      "div[contenteditable='true'][role='textbox']",
-      "div[contenteditable='true'][data-testid*='input']",
-      "div[contenteditable='true']",
-      "textarea[placeholder*='Ask']",
-      "textarea[aria-label]",
-      "textarea"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
-      "button[aria-label*='Submit']",
-      "button[title*='Submit']",
-      "button[type='submit']",
-      "button[data-testid='send-button']",
-      "button[data-testid*='send']"
-    ],
-    inputType: "contenteditable"
-  },
-  grok: {
-    inputSelectors: [
-      "textarea[placeholder*='Ask Grok']",
-      "textarea[placeholder*='Ask']",
-      "textarea[aria-label*='Ask Grok']",
-      "textarea[aria-label*='Ask']",
-      "textarea[placeholder*='Chat']",
-      "textarea[placeholder*='聊天']",
-      "textarea[aria-label*='message']",
-      "textarea[aria-label*='Message']",
-      "textarea[id*='message']",
-      "div[contenteditable='true'][role='textbox']",
-      "div[contenteditable='true'][aria-label*='Ask']",
-      "div[contenteditable='true'][aria-label*='message']",
-      "div[contenteditable='true'][data-testid*='input']",
-      "div[contenteditable='true'][data-testid*='composer']",
-      "main textarea",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='Send message']",
-      "button[aria-label*='Send']",
-      "button[aria-label*='Submit']",
-      "button[aria-label*='提交']",
-      "button[aria-label*='发送']",
-      "button[title*='Send']",
-      "button[title*='Submit']",
-      "button[title*='提交']",
-      "button[title*='发送']",
-      "button[data-testid*='send']",
-      "button[type='submit']",
-      "div[role='button'][aria-label*='Send']",
-      "div[role='button'][aria-label*='Submit']",
-      "div[role='button'][aria-label*='提交']"
-    ],
-    inputType: "contenteditable",
-    useShadow: true
-  },
-  doubao: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  kimi: {
-    inputSelectors: [
-      "div[contenteditable='true'][data-lexical-editor='true']",
-      "div.chat-input-editor-container div[contenteditable='true']",
-      "div[class*='chat-input-editor-container'] div[contenteditable='true']",
-      "div[contenteditable='true'][id*='chat-input']",
-      "div[class*='chat-input'] div[contenteditable='true']",
-      "div.editor-content[contenteditable='true']",
-      "div[contenteditable='true']",
-      "textarea[placeholder*='输入']",
-      "textarea"
-    ],
-    sendButtonSelectors: [
-      "button[data-testid='send-button']",
-      "button[data-testid*='send']",
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "[role='button'][aria-label*='发送']",
-      "[role='button'][aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "contenteditable"
-  },
-  ima: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea[placeholder*='请']",
-      "textarea[aria-label*='输入']",
-      "textarea",
-      "div[contenteditable='true'][role='textbox']",
-      "div[role='textbox'][contenteditable='true']",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[type='submit']",
-      "button[data-testid='send-button']",
-      "button[data-testid*='send']",
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "[role='button'][aria-label*='发送']",
-      "[role='button'][aria-label*='Send']"
-    ],
-    inputType: "contenteditable"
-  },
-  deepseek: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea[placeholder*='发送消息']",
-      "textarea[placeholder*='DeepSeek']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  tongyi: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  yuanbao: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  zhipu: {
-    inputSelectors: [
-      "textarea[placeholder*='输入']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[aria-label*='发送']",
-      "button[aria-label*='Send']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  },
-  you: {
-    inputSelectors: [
-      "textarea[data-testid='search-input']",
-      "textarea[placeholder*='Ask']",
-      "textarea[placeholder*='问']",
-      "textarea",
-      "div[contenteditable='true']"
-    ],
-    sendButtonSelectors: [
-      "button[data-testid='search-button']",
-      "button[aria-label*='Send']",
-      "button[aria-label*='发送']",
-      "button[type='submit']"
-    ],
-    inputType: "textarea"
-  }
-};
-
-const HOST_MAP = [
-  { match: "openai", id: "chatgpt" },
-  { match: "chatgpt", id: "chatgpt" },
-  { match: "claude", id: "claude" },
-  { match: "gemini", id: "gemini" },
-  { match: "copilot", id: "copilot" },
-  { match: "grok", id: "grok" },
-  { match: "doubao", id: "doubao" },
-  { match: "moonshot", id: "kimi" },
-  { match: "kimi.com", id: "kimi" },
-  { match: "deepseek", id: "deepseek" },
-  { match: "tongyi", id: "tongyi" },
-  { match: "qianwen", id: "tongyi" },
-  { match: "yuanbao", id: "yuanbao" },
-  { match: "chatglm", id: "zhipu" },
-  { match: "you.com", id: "you" },
-  { match: "ima.qq.com", id: "ima" }
-];
-
-function getProviderFromHost() {
-  const host = location.host;
-  const found = HOST_MAP.find((entry) => host.includes(entry.match));
-  return found ? found.id : null;
-}
-
-const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin;
-
-// DEBUG, log, findElement, deepQueryAll, deepFindElement → send-handlers.js
 
 // Destructure functions from send-handlers.js namespace
 // Fallback defaults ensure content.js remains functional if send-handlers.js fails to load
 const SH = globalThis.__MAI_Send || {};
 const RD = globalThis.__MAI_Response || {};
 const TC = globalThis.__MAI_Transcript || {};
+const PC = globalThis.__MAI_ProviderConfigs || {};
+const SS = globalThis.__MAI_SessionSync || {};
+const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin;
 const {
   findElement, deepQueryAll,
   waitForElement, waitForElementDeep,
@@ -584,121 +292,8 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
 
 
 
-const _sessionSyncCleanupHandlers = [];
 const _miscCleanupHandlers = [];
 
-const CHILD_SESSION_SYNC_PROVIDERS = new Set([
-  "chatgpt",
-  "claude",
-  "copilot",
-  "deepseek",
-  "doubao",
-  "gemini",
-  "grok",
-  "ima",
-  "kimi",
-  "tongyi",
-  "you",
-  "yuanbao",
-  "zhipu"
-]);
-const CHILD_SESSION_SYNC_DEBOUNCE_MS = 2000;
-let childSessionSyncStarted = false;
-let lastSyncedFingerprint = "";
-
-function createDebouncedSync(fn, delay) {
-  let timer = null;
-  return () => {
-    if (timer) {
-      clearTimeout(timer);
-    }
-    timer = setTimeout(() => {
-      timer = null;
-      fn();
-    }, delay);
-  };
-}
-
-function sendChildSessionSync(provider) {
-  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
-  const url = window.location.href;
-  const title = document.title || "";
-  const fingerprint = `${provider}::${url}::${title}`;
-  const hasFingerprintChanged = fingerprint !== lastSyncedFingerprint;
-
-  if (hasFingerprintChanged) {
-    lastSyncedFingerprint = fingerprint;
-  }
-
-  const payload = {
-    type: "session:sync-child",
-    provider,
-    url,
-    title,
-    lastActiveAt: new Date().toISOString()
-  };
-
-  try {
-    if (chrome?.runtime?.sendMessage) {
-      const result = chrome.runtime.sendMessage(payload);
-      if (result && typeof result.catch === "function") {
-        result.catch((err) => console.warn(`[MultiAI Content] sendChildSessionSync (${provider}):`, err));
-      }
-    }
-  } catch (error) {
-    console.warn(`[MultiAI Content] Failed to sync child session for ${provider}:`, error);
-  }
-}
-
-function startChildSessionSync(provider) {
-  if (!provider || !CHILD_SESSION_SYNC_PROVIDERS.has(provider)) return;
-  if (childSessionSyncStarted) return;
-  childSessionSyncStarted = true;
-
-  const debouncedSync = createDebouncedSync(() => sendChildSessionSync(provider), CHILD_SESSION_SYNC_DEBOUNCE_MS);
-
-  sendChildSessionSync(provider);
-
-  window.addEventListener("popstate", debouncedSync);
-  window.addEventListener("hashchange", debouncedSync);
-
-  registerCleanup(_sessionSyncCleanupHandlers,
-    () => window.removeEventListener("popstate", debouncedSync));
-  registerCleanup(_sessionSyncCleanupHandlers,
-    () => window.removeEventListener("hashchange", debouncedSync));
-
-  const titleObserver = new MutationObserver(() => debouncedSync());
-  const bodyObserver = new MutationObserver(() => debouncedSync());
-  const headObserver = new MutationObserver(() => {
-    const titleEl = document.querySelector("title");
-    if (titleEl) {
-      titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
-    }
-  });
-
-  const titleEl = document.querySelector("title");
-  if (titleEl) {
-    titleObserver.observe(titleEl, { childList: true, subtree: true, characterData: true });
-  }
-
-  if (document.head) {
-    headObserver.observe(document.head, { childList: true, subtree: true });
-  }
-
-  if (document.body) {
-    bodyObserver.observe(document.body, { childList: true, subtree: true });
-  } else {
-    document.addEventListener("DOMContentLoaded", () => {
-      if (document.body) {
-        bodyObserver.observe(document.body, { childList: true, subtree: true });
-      }
-    }, { once: true });
-  }
-
-  registerCleanup(_sessionSyncCleanupHandlers, () => titleObserver.disconnect());
-  registerCleanup(_sessionSyncCleanupHandlers, () => bodyObserver.disconnect());
-  registerCleanup(_sessionSyncCleanupHandlers, () => headObserver.disconnect());
-}
 
 log(`Content script loaded for ${window.location.hostname}`);
 
@@ -731,7 +326,7 @@ window.addEventListener("message", (event) => {
 
 async function trySendPrompt(provider, prompt, retryCount = 0) {
   const maxRetries = provider === "grok" ? 0 : 2;
-  const config = PROVIDER_CONFIGS[provider];
+  const config = PC.PROVIDER_CONFIGS ? PC.PROVIDER_CONFIGS[provider] : null;
   if (!config) {
     console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
@@ -938,7 +533,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return undefined;
   }
 
-  const provider = message.provider || getProviderFromHost();
+  const provider = message.provider || (typeof PC.getProviderFromHost === "function" ? PC.getProviderFromHost() : "");
   const prompt = typeof message.prompt === "string" ? message.prompt : "";
 
   trySendPrompt(provider, prompt)
@@ -956,15 +551,15 @@ window.addEventListener("message", (event) => {
   if (data.source !== "multi-ai") return;
   if (data.type !== "sendPrompt" && data.type !== "sendPromptChatroom") return;
 
-  const provider = data.provider || getProviderFromHost();
+  const provider = data.provider || (typeof PC.getProviderFromHost === "function" ? PC.getProviderFromHost() : "");
   const prompt = typeof data.prompt === "string" ? data.prompt : "";
   trySendPrompt(provider, prompt).catch((err) => console.warn(`[MultiAI Content] trySendPrompt (${provider}):`, err));
 });
 
 function initializeCustomFixes() {
-  const provider = getProviderFromHost();
+  const provider = (typeof PC.getProviderFromHost === "function" ? PC.getProviderFromHost() : "");
 
-  startChildSessionSync(provider);
+  (typeof SS.startChildSessionSync === "function" ? SS.startChildSessionSync(provider) : undefined);
   if (TC.startManualSendCapture) TC.startManualSendCapture(provider);
   // Start MutationObserver early so the warmup period expires before the user sends a message.
   // Without this, the observer only starts on send and all captures within 2.5s are captureOnly.
@@ -1114,7 +709,7 @@ if (document.readyState === "loading") {
 // Cleanup event listeners and observers on page unload to prevent memory leaks
 window.addEventListener("beforeunload", () => {
   if (TC.cleanupAll) TC.cleanupAll();
-  cleanupAll(_sessionSyncCleanupHandlers);
+  if (typeof SS.cleanupAll === "function") SS.cleanupAll();
   cleanupAll(_miscCleanupHandlers);
 });
 
@@ -1131,7 +726,6 @@ function isEditableCleared(el) {
 }
 
 globalThis.__MAI_ResponseSelectors = RESPONSE_SELECTORS;
-globalThis.__MAI_ProviderConfigs = typeof PROVIDER_CONFIGS !== "undefined" ? PROVIDER_CONFIGS : {};
 
 globalThis.__MAI_Content = {
   sendTranscriptProviderTurn: sendTranscriptProviderTurn,

@@ -1,0 +1,315 @@
+"use strict";
+
+/**
+ * Provider Configs Module
+ *
+ * Extracted from content.js — PROVIDER_CONFIGS (input/send selectors per provider),
+ * HOST_MAP, and getProviderFromHost().
+ *
+ * Exported via globalThis.__MAI_ProviderConfigs for use by content.js and transcript-capture.js.
+ */
+
+var __MAI_ProviderConfigs = (function () {
+  var PC = globalThis.__MAI_ProviderConfigs || {};
+
+  var PROVIDER_CONFIGS = {
+    chatgpt: {
+      inputSelectors: [
+        "#prompt-textarea",
+        "textarea#prompt-textarea",
+        "textarea[data-id='root']",
+        "textarea[id*='prompt']",
+        "textarea[aria-label*='Message']",
+        "textarea[aria-label*='消息']",
+        "textarea[placeholder*='Message']",
+        "textarea[placeholder*='消息']",
+        "textarea[placeholder*='Ask']",
+        "form textarea",
+        "div[contenteditable='true'][role='textbox'][aria-label*='Message']",
+        "div[contenteditable='true'][role='textbox'][aria-label*='Prompt']",
+        "div[contenteditable='true'][data-testid='textbox']",
+        "div[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true']",
+        "main textarea",
+        "textarea"
+      ],
+      sendButtonSelectors: [
+        "button[data-testid='send-button']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='发送']",
+        "button svg[data-icon='paper-plane']",
+        "button:has(svg[data-icon='paper-plane'])",
+        "button:has(path[d*='M.5 1.163A1']",
+        "button[aria-label*='发送消息']",
+        "button[aria-label*='发送对话']"
+      ],
+      inputType: "contenteditable"
+    },
+    claude: {
+      inputSelectors: [
+        "div[contenteditable='true'][data-testid='chat-input']",
+        "div[contenteditable='true'][data-placeholder]",
+        "div[contenteditable='true'][aria-label*='Message']",
+        "div[contenteditable='true'][aria-label*='消息']",
+        "div[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true'][data-placeholder*='Reply']",
+        "div[contenteditable='true'][data-placeholder*='回复']",
+        "section textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='Send']",
+        "button[data-testid='send-button']",
+        "button[aria-label*='发送']",
+        "button:has(svg path[d*='M15.854'])",
+        "button[type='submit']",
+        "button[data-testid='composer-send-button']"
+      ],
+      inputType: "contenteditable"
+    },
+    gemini: {
+      inputSelectors: [
+        "div[contenteditable='true'][role='textbox'][aria-label*='Gemini']",
+        "div[contenteditable='true'][role='textbox'][data-placeholder]",
+        "textarea[aria-label*='prompt']",
+        "textarea[aria-label*='输入']",
+        "textarea[placeholder*='Enter']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button.send-button[aria-label='发送']",
+        "button.send-button[aria-label='Send']",
+        "button.send-button",
+        "button[aria-label='发送']",
+        "button[aria-label='Send']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='发送']",
+        "button:has(svg)",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    copilot: {
+      inputSelectors: [
+        "div[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true'][data-testid*='input']",
+        "div[contenteditable='true']",
+        "textarea[placeholder*='Ask']",
+        "textarea[aria-label]",
+        "textarea"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='Send']",
+        "button[aria-label*='发送']",
+        "button[aria-label*='Submit']",
+        "button[title*='Submit']",
+        "button[type='submit']",
+        "button[data-testid='send-button']",
+        "button[data-testid*='send']"
+      ],
+      inputType: "contenteditable"
+    },
+    grok: {
+      inputSelectors: [
+        "textarea[placeholder*='Ask Grok']",
+        "textarea[placeholder*='Ask']",
+        "textarea[aria-label*='Ask Grok']",
+        "textarea[aria-label*='Ask']",
+        "textarea[placeholder*='Chat']",
+        "textarea[placeholder*='聊天']",
+        "textarea[aria-label*='message']",
+        "textarea[aria-label*='Message']",
+        "textarea[id*='message']",
+        "div[contenteditable='true'][role='textbox']",
+        "div[contenteditable='true'][aria-label*='Ask']",
+        "div[contenteditable='true'][aria-label*='message']",
+        "div[contenteditable='true'][data-testid*='input']",
+        "div[contenteditable='true'][data-testid*='composer']",
+        "main textarea",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='Send message']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='Submit']",
+        "button[aria-label*='提交']",
+        "button[aria-label*='发送']",
+        "button[title*='Send']",
+        "button[title*='Submit']",
+        "button[title*='提交']",
+        "button[title*='发送']",
+        "button[data-testid*='send']",
+        "button[type='submit']",
+        "div[role='button'][aria-label*='Send']",
+        "div[role='button'][aria-label*='Submit']",
+        "div[role='button'][aria-label*='提交']"
+      ],
+      inputType: "contenteditable",
+      useShadow: true
+    },
+    doubao: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    kimi: {
+      inputSelectors: [
+        "div[contenteditable='true'][data-lexical-editor='true']",
+        "div.chat-input-editor-container div[contenteditable='true']",
+        "div[class*='chat-input-editor-container'] div[contenteditable='true']",
+        "div[contenteditable='true'][id*='chat-input']",
+        "div[class*='chat-input'] div[contenteditable='true']",
+        "div.editor-content[contenteditable='true']",
+        "div[contenteditable='true']",
+        "textarea[placeholder*='输入']",
+        "textarea"
+      ],
+      sendButtonSelectors: [
+        "button[data-testid='send-button']",
+        "button[data-testid*='send']",
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "[role='button'][aria-label*='发送']",
+        "[role='button'][aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "contenteditable"
+    },
+    ima: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea[placeholder*='请']",
+        "textarea[aria-label*='输入']",
+        "textarea",
+        "div[contenteditable='true'][role='textbox']",
+        "div[role='textbox'][contenteditable='true']",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[type='submit']",
+        "button[data-testid='send-button']",
+        "button[data-testid*='send']",
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "[role='button'][aria-label*='发送']",
+        "[role='button'][aria-label*='Send']"
+      ],
+      inputType: "contenteditable"
+    },
+    deepseek: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea[placeholder*='发送消息']",
+        "textarea[placeholder*='DeepSeek']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    tongyi: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    yuanbao: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    zhipu: {
+      inputSelectors: [
+        "textarea[placeholder*='输入']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[aria-label*='发送']",
+        "button[aria-label*='Send']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    },
+    you: {
+      inputSelectors: [
+        "textarea[data-testid='search-input']",
+        "textarea[placeholder*='Ask']",
+        "textarea[placeholder*='问']",
+        "textarea",
+        "div[contenteditable='true']"
+      ],
+      sendButtonSelectors: [
+        "button[data-testid='search-button']",
+        "button[aria-label*='Send']",
+        "button[aria-label*='发送']",
+        "button[type='submit']"
+      ],
+      inputType: "textarea"
+    }
+  };
+
+  var HOST_MAP = [
+    { match: "openai", id: "chatgpt" },
+    { match: "chatgpt", id: "chatgpt" },
+    { match: "claude.ai", id: "claude" },
+    { match: "gemini.google", id: "gemini" },
+    { match: "copilot.microsoft", id: "copilot" },
+    { match: "grok.x.ai", id: "grok" },
+    { match: "grok.com", id: "grok" },
+    { match: "doubao.com", id: "doubao" },
+    { match: "kimi.moonshot", id: "kimi" },
+    { match: "kimi.com", id: "kimi" },
+    { match: "deepseek.com", id: "deepseek" },
+    { match: "tongyi.aliyun", id: "tongyi" },
+    { match: "qianwen.com", id: "tongyi" },
+    { match: "yuanbao.tencent", id: "yuanbao" },
+    { match: "chatglm", id: "zhipu" },
+    { match: "you.com", id: "you" },
+    { match: "ima.qq.com", id: "ima" }
+  ];
+
+  function getProviderFromHost() {
+    var host = window.location.hostname;
+    var found = HOST_MAP.find(function (entry) { return host.includes(entry.match); });
+    return found ? found.id : "";
+  }
+
+  // ─── Exports ───────────────────────────────────────────────────────────────
+
+  PC.PROVIDER_CONFIGS = PROVIDER_CONFIGS;
+  PC.HOST_MAP = HOST_MAP;
+  PC.getProviderFromHost = getProviderFromHost;
+
+  globalThis.__MAI_ProviderConfigs = PC;
+  return PC;
+})();

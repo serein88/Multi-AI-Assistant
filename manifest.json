@@ -96,9 +96,11 @@
         "https://challenges.cloudflare.com/*"
       ],
       "js": [
+        "content/provider-configs.js",
         "content/send-handlers.js",
         "content/response-detection.js",
         "content/transcript-capture.js",
+        "content/session-sync.js",
         "content/content.js"
       ],
       "all_frames": true
