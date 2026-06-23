@@ -1,4 +1,4 @@
-﻿const DASHBOARD_MAX_PANELS = 6;
+﻿const DASHBOARD_MAX_PANELS = Infinity;
 
 const SESSION_PROVIDER_IDS = [
   "chatgpt",

@@ -655,7 +655,7 @@
       "name": "内存泄漏修复：添加事件监听器清理机制",
       "category": "fix",
       "priority": "P0",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js 中 startManualSendCapture (line 1175-1209) 的 keydown/click 监听器保存引用并在页面卸载时清理；2. dashboard.js 中所有 addEventListener 保存引用；3. 实现统一的 cleanup 函数在 window.unload 时调用；4. 验证：打开/关闭 dashboard 10 次后，Chrome Task Manager 显示内存回收正常",
       "notes": "高严重度性能问题：67 个 addEventListener vs 5 个 removeEventListener，长时间使用后内存持续增长。需要建立监听器注册表并统一清理。",
       "createdAt": "2026-06-22",
@@ -666,7 +666,7 @@
       "name": "内存泄漏修复：MutationObserver 自动 disconnect",
       "category": "fix",
       "priority": "P0",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js:986-1018 (startManualTurnCapture) 的 observer 在捕获完成后 disconnect；2. content.js:1287-1313 (startChildSessionSync) 的 3 个 observers 保存引用并在页面卸载时 disconnect；3. content.js:3106-3111 (Gemini dark mode) 和 3198-3203 (Cloudflare) observers 添加条件 disconnect；4. 实现全局 observer 注册表；5. 验证：Performance Monitor 显示 DOM Nodes 数量不持续增长",
       "notes": "高严重度性能问题：5+ 个 MutationObserver 永不 disconnect 导致内存泄漏和 CPU 持续占用。需要建立 observer 生命周期管理。",
       "createdAt": "2026-06-22",
@@ -677,7 +677,7 @@
       "name": "错误处理改进：Promise catch 补充日志",
       "category": "refactor",
       "priority": "P1",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js:676 和 847 的 .catch(() => undefined) 改为 .catch(err => console.warn('[Context]', err))；2. 补充上下文信息（provider 名、函数名）；3. 不改变错误处理语义（仍然吞噬错误，不抛出）；4. 实机测试：触发发送失败时 console 有清晰错误日志",
       "notes": "中严重度问题：静默吞噬错误导致调试困难。已在 T-20260605-005 中处理部分，本任务处理剩余的 Promise catch。",
       "createdAt": "2026-06-22",
@@ -890,6 +890,61 @@
       "criteria": "1. manifest.json:63-102 的 content_scripts 添加 run_at: 'document_start' 或 'document_end'（根据需求）；2. 验证早期 DOM 事件不再被错过；3. 功能不变：所有 provider 发送和转录功能正常",
       "notes": "低优先级优化：未指定 run_at 默认为 document_idle，可能错过早期 DOM 事件。需要评估各 provider 实际需求。",
       "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260623-001",
+      "name": "DNR 精确域名匹配：改用 requestDomains 替代 urlFilter 子字符串",
+      "category": "fix",
+      "priority": "P0",
+      "status": "完成",
+      "criteria": "1. rules.json 全部规则改用 condition.requestDomains 替代 urlFilter；2. 每条规则的 requestDomains 严格对应 providers.js 中该 provider 的域名；3. 覆盖 Kimi (www.kimi.com + kimi.moonshot.cn) 和通义 (www.qianwen.com + tongyi.com) 等多域名 provider；4. 新增测试：从 PROVIDERS 提取 hostname 校验每个 provider 都有对应 DNR 覆盖；5. 新增负例测试：evil-gemini.google.com.example、notyou.com 等不命中",
+      "notes": "T-20260622-001 review 发现：urlFilter 是子字符串匹配，gemini.google.com 可能误匹配非目标 URL。requestDomains 是 Manifest V3 推荐的精确域名匹配方式。",
+      "createdAt": "2026-06-23",
+      "archived": false
+    },
+    {
+      "id": "T-20260623-002",
+      "name": "dashboard event.source 与 provider iframe 绑定校验",
+      "category": "fix",
+      "priority": "P1",
+      "status": "完成",
+      "criteria": "1. 主消息处理器 (dashboard.js:2265) 增加 event.source 与 provider iframe.contentWindow 绑定校验；2. pageUrl 一次性监听也增加同样校验；3. 同 origin 但错误 iframe source 的消息被拒绝；4. 新增测试覆盖该逻辑；5. 明确登录域消息处理策略并记录",
+      "notes": "T-20260622-002 review 发现：dashboard 只校验 event.origin 不校验 event.source，同一允许 origin 的其他 iframe 可伪造 provider 字段。需根据 data.provider 找到对应面板 iframe 要求 event.source === iframe.contentWindow。",
+      "createdAt": "2026-06-23",
+      "archived": false
+    },
+    {
+      "id": "T-20260623-003",
+      "name": "cleanup helper 提取与 window/document 监听器审计",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "完成",
+      "criteria": "1. 提取 registerCleanup(cleanup) / cleanupAll(registry) helper 函数；2. 所有 cleanup 注册改用统一 helper；3. 测试直接覆盖 helper 逻辑；4. 审计 content.js 所有 window/document 级监听器，明确哪些需要清理、哪些可接受不清理，记录于 progress.md",
+      "notes": "T-20260622-003 review 发现：测试是模拟注册表不测试真实代码；content.js 中 window/document 级监听器未完全统一策略。",
+      "createdAt": "2026-06-23",
+      "archived": false
+    },
+    {
+      "id": "T-20260623-004",
+      "name": "manualTurnObserver 清理闭包捕获局部变量",
+      "category": "fix",
+      "priority": "P2",
+      "status": "完成",
+      "criteria": "1. startManualTurnCapture 清理闭包捕获局部 observer 变量而非引用全局 manualTurnObserver；2. 清理逻辑：observer.disconnect() + 若 manualTurnObserver === observer 则置 null；3. Gemini/Cloudflare observer 清理同样使用统一 helper 注册",
+      "notes": "T-20260622-004 review 发现：当前闭包读取全局 manualTurnObserver，若未来允许多次启动 observer，旧 observer 可能被错误清理或遗漏。应捕获本次创建的局部变量。",
+      "createdAt": "2026-06-23",
+      "archived": false
+    },
+    {
+      "id": "T-20260623-005",
+      "name": "解除 dashboard 最多 6 个分屏 AI 的限制",
+      "category": "feat",
+      "priority": "P1",
+      "status": "完成",
+      "criteria": "1. DASHBOARD_MAX_PANELS 从 6 改为 Infinity；2. settings 副标题移除限制数量文案；3. 所有 13 个 AI 可同时分屏显示",
+      "notes": "用户直接要求解除限制。providers.js DASHBOARD_MAX_PANELS=6 → Infinity，dashboard.js 移除中英文副标题中的数量限制文案。",
+      "createdAt": "2026-06-23",
       "archived": false
     }
   ]
