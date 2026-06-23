@@ -12,7 +12,12 @@
       ]
     },
     "condition": {
-      "urlFilter": "gemini.google.com",
+      "requestDomains": [
+        "gemini.google.com",
+        "accounts.google.com",
+        "myaccount.google.com",
+        "apis.google.com"
+      ],
       "resourceTypes": ["sub_frame", "xmlhttprequest", "main_frame"]
     }
   },
@@ -27,7 +32,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "qianwen.com",
+      "requestDomains": ["www.qianwen.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -42,22 +47,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "chatglm.cn",
-      "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 5,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "tongyi.aliyun.com",
+      "requestDomains": ["chatglm.cn"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -72,59 +62,8 @@
       ]
     },
     "condition": {
-      "urlFilter": "you.com",
+      "requestDomains": ["you.com"],
       "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 7,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" },
-        { "header": "cross-origin-opener-policy", "operation": "remove" },
-        { "header": "cross-origin-embedder-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "accounts.google.com",
-      "resourceTypes": ["sub_frame", "xmlhttprequest", "main_frame"]
-    }
-  },
-  {
-    "id": 8,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" },
-        { "header": "cross-origin-opener-policy", "operation": "remove" },
-        { "header": "cross-origin-embedder-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "myaccount.google.com",
-      "resourceTypes": ["sub_frame", "xmlhttprequest", "main_frame"]
-    }
-  },
-  {
-    "id": 19,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" },
-        { "header": "cross-origin-opener-policy", "operation": "remove" },
-        { "header": "cross-origin-embedder-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "apis.google.com",
-      "resourceTypes": ["sub_frame", "xmlhttprequest"]
     }
   },
   {
@@ -138,7 +77,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "chatgpt.com",
+      "requestDomains": ["chatgpt.com", "auth0.openai.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -153,7 +92,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "deepseek.com",
+      "requestDomains": ["chat.deepseek.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -170,7 +109,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "grok.com",
+      "requestDomains": ["grok.com", "grok.x.ai"],
       "resourceTypes": ["sub_frame", "xmlhttprequest", "main_frame"]
     }
   },
@@ -185,37 +124,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "copilot.microsoft.com",
-      "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 13,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "login.live.com",
-      "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 14,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "auth0.openai.com",
+      "requestDomains": ["copilot.microsoft.com", "login.live.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -230,7 +139,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "claude.ai",
+      "requestDomains": ["claude.ai", "a.claude.ai"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -245,7 +154,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "kimi.moonshot.cn",
+      "requestDomains": ["www.kimi.com", "kimi.moonshot.cn"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -260,22 +169,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "doubao.com",
-      "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 18,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "grok.x.ai",
+      "requestDomains": ["www.doubao.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -290,7 +184,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "ima.qq.com",
+      "requestDomains": ["ima.qq.com"],
       "resourceTypes": ["sub_frame"]
     }
   },
@@ -304,7 +198,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "gemini.google.com",
+      "requestDomains": ["gemini.google.com"],
       "resourceTypes": ["xmlhttprequest", "sub_frame", "main_frame"]
     }
   },
@@ -318,7 +212,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "accounts.google.com",
+      "requestDomains": ["accounts.google.com"],
       "resourceTypes": ["xmlhttprequest", "sub_frame", "main_frame"]
     }
   },
@@ -332,7 +226,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "copilot.microsoft.com",
+      "requestDomains": ["copilot.microsoft.com"],
       "resourceTypes": ["xmlhttprequest", "sub_frame", "main_frame"]
     }
   },
@@ -346,7 +240,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "login.live.com",
+      "requestDomains": ["login.live.com"],
       "resourceTypes": ["xmlhttprequest", "sub_frame", "main_frame"]
     }
   },
@@ -361,22 +255,7 @@
       ]
     },
     "condition": {
-      "urlFilter": "yuanbao.tencent.com",
-      "resourceTypes": ["sub_frame"]
-    }
-  },
-  {
-    "id": 26,
-    "priority": 1,
-    "action": {
-      "type": "modifyHeaders",
-      "responseHeaders": [
-        { "header": "x-frame-options", "operation": "remove" },
-        { "header": "content-security-policy", "operation": "remove" }
-      ]
-    },
-    "condition": {
-      "urlFilter": "a.claude.ai",
+      "requestDomains": ["yuanbao.tencent.com"],
       "resourceTypes": ["sub_frame"]
     }
   }
