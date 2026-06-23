@@ -201,3 +201,77 @@ test("dashboard.js: handles undefined providers list gracefully", () => {
   assert.equal(origins.size, 0);
   assert.ok(!handler({ origin: "https://chatgpt.com" }));
 });
+
+// --- Tests for event.source binding validation (T-20260623-002) ---
+
+function createSourceBindingHandler(allowedOrigins, panelIframes) {
+  return function handleMessage(event) {
+    if (!allowedOrigins.has(event.origin)) return false;
+    const data = event.data || {};
+    if (data.source !== "multi-ai-content") return false;
+
+    const providerId = data.provider;
+    if (providerId) {
+      const iframe = panelIframes[providerId] || null;
+      if (!iframe || event.source !== iframe.contentWindow) return false;
+    }
+    return true;
+  };
+}
+
+test("dashboard.js source binding: accepts message when source matches provider iframe", () => {
+  const origins = new Set(["https://chatgpt.com"]);
+  const iframeWindow = { postMessage: () => {} };
+  const panelIframes = { chatgpt: { contentWindow: iframeWindow } };
+  const handler = createSourceBindingHandler(origins, panelIframes);
+
+  assert.ok(handler({
+    origin: "https://chatgpt.com",
+    source: iframeWindow,
+    data: { source: "multi-ai-content", type: "sendResult", provider: "chatgpt", success: true }
+  }));
+});
+
+test("dashboard.js source binding: rejects message when source is a different iframe", () => {
+  const origins = new Set(["https://chatgpt.com"]);
+  const correctWindow = { postMessage: () => {} };
+  const wrongWindow = { postMessage: () => {} };
+  const panelIframes = { chatgpt: { contentWindow: correctWindow } };
+  const handler = createSourceBindingHandler(origins, panelIframes);
+
+  assert.ok(!handler({
+    origin: "https://chatgpt.com",
+    source: wrongWindow,
+    data: { source: "multi-ai-content", type: "sendResult", provider: "chatgpt", success: true }
+  }));
+});
+
+test("dashboard.js source binding: rejects message when provider iframe not found", () => {
+  const origins = new Set(["https://chatgpt.com"]);
+  const panelIframes = {}; // no iframe for chatgpt
+  const handler = createSourceBindingHandler(origins, panelIframes);
+
+  assert.ok(!handler({
+    origin: "https://chatgpt.com",
+    source: { postMessage: () => {} },
+    data: { source: "multi-ai-content", type: "sendResult", provider: "chatgpt", success: true }
+  }));
+});
+
+test("dashboard.js source binding: rejects message with wrong provider for the source", () => {
+  const origins = new Set(["https://chatgpt.com", "https://claude.ai"]);
+  const chatgptWindow = { postMessage: () => {} };
+  const claudeWindow = { postMessage: () => {} };
+  const panelIframes = {
+    chatgpt: { contentWindow: chatgptWindow },
+    claude: { contentWindow: claudeWindow }
+  };
+  const handler = createSourceBindingHandler(origins, panelIframes);
+
+  // Message claims to be from chatgpt but source is claude's iframe
+  assert.ok(!handler({
+    origin: "https://chatgpt.com",
+    source: claudeWindow,
+    data: { source: "multi-ai-content", type: "sendResult", provider: "chatgpt", success: true }
+  }));
+});

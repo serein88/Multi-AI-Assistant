@@ -1745,6 +1745,9 @@ function handlePanelAction(panelEl, provider, action, actionButton = null) {
         if (!ALLOWED_IFRAME_ORIGINS.has(event.origin)) return;
         const data = event.data || {};
         if (data.source === "multi-ai-content" && data.type === "pageUrl" && data.provider === provider.id) {
+          // Verify event.source matches the provider's iframe
+          const panelIframe = getPanelIframe(provider.id);
+          if (!panelIframe || event.source !== panelIframe.contentWindow) return;
           if (!resolved) {
             resolved = true;
             clearTimeout(timeoutId);
@@ -2266,6 +2269,14 @@ const _mainMessageHandler = (event) => {
   if (!ALLOWED_IFRAME_ORIGINS.has(event.origin)) return;
   const data = event.data || {};
   if (data.source !== "multi-ai-content") return;
+
+  // Verify event.source matches the claimed provider's iframe to prevent
+  // spoofing from same-origin but different iframes.
+  const providerId = data.provider;
+  if (providerId) {
+    const iframe = getPanelIframe(providerId);
+    if (!iframe || event.source !== iframe.contentWindow) return;
+  }
 
   // Handle forwarded logs for unified debugging
   if (data.type === "log") {
