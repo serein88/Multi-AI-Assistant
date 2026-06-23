@@ -1,5 +1,33 @@
 # Progress.md
 
+## 2026-06-23（记录 24）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-011
+- 任务名：架构优化：拆分 content.js（第 2 阶段）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/response-detection.js`（新增，395 行）— waitForResponseStart/Complete/StreamSignal 等
+  - `content/transcript-capture.js`（新增，629 行）— startManualTurnCapture/SendCapture、recordManualSend 等
+  - `content/content.js`（2175 → 1142 行，-1033 行）
+  - `manifest.json`（content_scripts js 数组添加新文件）
+  - `tasks.json`（状态更新）
+- 验证步骤：
+  - `node -c` 三个文件语法检查通过
+  - `npm run lint` — 0 errors, 11 warnings
+  - `npm test` — 121/121 pass
+- Review 结果：FAIL → 修复后 PASS
+  - BUG 1: registerCleanup 未定义 → 在 transcript-capture.js 本地实现
+  - BUG 2: SH.cleanup 未定义 → cleanupAll() 使用本地 cleanupHandlers()
+  - BUG 3: shouldIgnoreThinkingNode/extractTextExcludingThinking 未导出 → 添加到 TC namespace
+  - NIT: clearInterval → clearTimeout（response-detection.js:88）
+- 关键证据：
+  - content.js 行数 1142（目标 < 1500）✓
+  - 4 个文件加载顺序：send-handlers → response-detection → transcript-capture → content
+  - globalThis `__MAI_Content` / `__MAI_Response` / `__MAI_Transcript` namespace 通信正常
+- 风险与后续：
+  - response-detection.js 的 waitForResponseStart/Complete 签名 (provider, meta, config) 与 content.js 调用方传入的 (provider, responseBaseline) 语义不同，meta 的 observability/kind 快速路径不会被触发（既有问题，非本次引入）
+
 ## 2026-06-23（记录 23）
 
 - 时间：2026-06-23
