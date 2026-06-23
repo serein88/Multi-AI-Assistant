@@ -149,6 +149,8 @@ function ensureTranscriptScaffold() {
   workspace.appendChild(transcriptPanel);
 }
 
+/** @type {HTMLElement|null} cached workspaceLayout */
+let _workspaceLayoutEl = null;
 ensureTranscriptScaffold();
 
 const grid = document.getElementById("panelGrid");
@@ -190,8 +192,6 @@ let _vSplitters = [];
 let _hSplitters = [];
 /** @type {HTMLInputElement[]} picker checkbox elements */
 let _pickerCheckboxes = [];
-/** @type {HTMLElement|null} cached workspaceLayout */
-let _workspaceLayoutEl = null;
 const promptFocusGuard = dashboardFocusApi.createPromptFocusGuard
   ? dashboardFocusApi.createPromptFocusGuard({ promptEl, documentRef: document, windowRef: window })
   : null;
