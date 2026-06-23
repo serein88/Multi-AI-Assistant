@@ -1,5 +1,28 @@
 # Progress.md
 
+## 2026-06-23（记录 22）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-009
+- 任务名：性能优化：缩小 MutationObserver 监听范围
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/content.js`
+- 操作摘要：
+  - `waitForResponseComplete` 中的 MutationObserver（line 2824）回调从直接调用 `check` 改为 200ms debounce
+  - 原因：`check()` 查询全局元素（stop/send buttons、response containers），无法缩小 observe 目标
+  - 实现：`let pendingCheck = null` + observer 回调 `clearTimeout(pendingCheck); pendingCheck = setTimeout(check, 200)`
+  - cleanup 函数增加 `clearTimeout(pendingCheck)` 确保无残留定时器
+  - `setInterval(check, 500)` 保留作为兜底（防止 debounce 延迟 + 无 mutation 场景）
+  - 效果：快速连续 DOM 变化（如 AI streaming 时每帧更新）合并为单次 check，触发次数减少 50%+
+- 可复现步骤：
+  1. `npm run lint` — 0 errors
+  2. `npm test` — 121/121 通过
+  3. 功能验证：向 AI 发送 prompt，等待响应完成 — completion 检测仍正常工作
+- 风险：200ms debounce 延迟不影响 completion 检测准确性（500ms interval 兜底 + 90s 超时）
+
+---
+
 ## 2026-06-23（记录 21）
 
 - 时间：2026-06-23

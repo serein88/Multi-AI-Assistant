@@ -721,7 +721,7 @@
       "name": "性能优化：缩小 MutationObserver 监听范围",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js:2772-2777 的 observer 缩小监听范围（从 document.body 到具体容器）；2. 或添加 debounce（200ms）；3. 性能测试：页面加载时 observer 触发次数减少 50% 以上；4. 功能不变：转录捕获仍正常工作",
       "notes": "中严重度性能问题：{ subtree: true } 监听整个 body 导致每个 DOM 变化都触发回调。",
       "createdAt": "2026-06-22",

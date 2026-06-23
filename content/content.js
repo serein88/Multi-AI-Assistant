@@ -2661,9 +2661,11 @@ async function waitForResponseComplete(provider, responseBaseline = null) {
 
   return new Promise((resolve) => {
     let settled = false;
+    let pendingCheck = null;
     const cleanup = () => {
       settled = true;
       observer.disconnect();
+      clearTimeout(pendingCheck);
       clearTimeout(timer);
       clearInterval(interval);
     };
@@ -2820,7 +2822,10 @@ async function waitForResponseComplete(provider, responseBaseline = null) {
       }
     };
 
-    const observer = new MutationObserver(check);
+    const observer = new MutationObserver(() => {
+      clearTimeout(pendingCheck);
+      pendingCheck = setTimeout(check, 200);
+    });
     observer.observe(document.body, {
       childList: true,
       subtree: true,
