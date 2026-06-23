@@ -1,5 +1,21 @@
 # Progress.md
 
+## 2026-06-23（记录 28）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-011（baseline 语义修复）
+- 状态：修复完成
+- 问题：checkTextStability 用 collectText().join("\n")（所有回答拼接）与 baselineText（单条最新回答）比较
+  - 历史对话多于一条时，old1+old2 !== old2 会误判为新回答
+- 修复：
+  - 新增门控阶段：用 extractLatestResponse(provider) 获取单条最新回答
+  - 仅当 latest !== baselineText 或 responseCount > baselineCount 时才开始稳定性检测
+  - 添加全局超时兜底（默认 120s），避免无新响应时无限轮询
+- 新增单测：2 个（tests/content/response-detection.test.js）
+  - 历史回答不误判完成
+  - 新回答正确触发完成
+- 验证：lint 0 errors + 123/123 tests pass
+
 ## 2026-06-23（记录 27）
 
 - 时间：2026-06-23
