@@ -62,125 +62,8 @@
   ]
 };
 
-const MANUAL_TURN_CAPTURE_PROVIDERS = new Set(["deepseek", "gemini", "grok"]);
-const MANUAL_USER_SELECTORS = {
-  default: [
-    "[data-role='user']",
-    "[data-message-author-role='user']",
-    "[data-testid='user-message']",
-    "[data-testid*='user-message']",
-    "[class*='message-user']",
-    "[class*='user-message']",
-    "[class*='human-message']",
-    "[class*='from-user']"
-  ],
-  deepseek: [
-    ".ds-message:not(:has(.ds-markdown))",
-    "[class*='message-user']",
-    "[data-role='user']",
-    "[data-message-author-role='user']"
-  ],
-  gemini: [
-    "div.query-text.gds-body-l",
-    "div.query-text",
-    "p.query-text-line"
-  ],
-  grok: [
-    "[data-role='user']",
-    "[data-message-author-role='user']",
-    "[class*='message-user']",
-    "[class*='user-message']"
-  ]
-};
-const MANUAL_ASSISTANT_SELECTORS = {
-  default: [
-    "[data-role='assistant']",
-    "[data-message-author-role='assistant']",
-    "[data-testid='bot-message']",
-    "[data-testid*='assistant-message']",
-    "[class*='message-assistant']",
-    "[class*='assistant-message']",
-    "[class*='bot-message']",
-    "[class*='ai-message']"
-  ],
-  deepseek: [
-    ".ds-message:has(.ds-markdown)",
-    "[data-role='assistant']",
-    "[data-message-author-role='assistant']",
-    "[class*='message-assistant']",
-    "[class*='assistant-message']"
-  ],
-  gemini: [
-    "div.markdown.markdown-main-panel",
-    "structured-content-container.model-response-text",
-    ".model-response-text"
-  ],
-  grok: [
-    ".response-content-markdown",
-    ".response-content-markdown.markdown",
-    "[id^='response-'] .response-content-markdown"
-  ]
-};
 
-const THINKING_SELECTORS = {
-  deepseek: [
-    "[class*='ds-think-content']",
-    ".ds-think-content"
-  ],
-  gemini: [
-    "[class*='thinking']",
-    "[class*='reasoning']",
-    "[data-testid*='thinking']",
-    ".thought-content",
-    ".thinking-chip"
-  ],
-  grok: [
-    "[class*='thinking']",
-    "[class*='reasoning']",
-    "[class*='thought']",
-    "[data-testid*='thinking']",
-    "[class*='think-block']"
-  ]
-};
 
-function shouldIgnoreThinkingNode(provider, node) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
-  const selectors = THINKING_SELECTORS[provider];
-  if (!selectors || selectors.length === 0) return false;
-
-  // Check if the node itself matches a thinking selector
-  for (const sel of selectors) {
-    try {
-      if (node.matches(sel)) return true;
-    } catch { /* ignore invalid selector */ }
-  }
-
-  // Check if the node is inside a thinking block
-  for (const sel of selectors) {
-    try {
-      if (node.closest(sel)) return true;
-    } catch { /* ignore invalid selector */ }
-  }
-
-  return false;
-}
-
-function extractTextExcludingThinking(provider, node) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-    return node ? (node.textContent || "") : "";
-  }
-  const selectors = THINKING_SELECTORS[provider];
-  if (!selectors || selectors.length === 0) {
-    return node.innerText || node.textContent || "";
-  }
-  const clone = node.cloneNode(true);
-  for (const sel of selectors) {
-    try {
-      clone.querySelectorAll(sel).forEach((el) => el.remove());
-    } catch { /* ignore */ }
-  }
-  return clone.innerText || clone.textContent || "";
-}
 
 function extractLatestResponse(provider) {
   const selectors = RESPONSE_SELECTORS[provider] || RESPONSE_SELECTORS.chatgpt || [];
@@ -192,10 +75,10 @@ function extractLatestResponse(provider) {
     for (let i = nodes.length - 1; i >= 0; i--) {
       const target = nodes[i];
       // Skip nodes that ARE thinking blocks or are INSIDE thinking blocks
-      if (shouldIgnoreThinkingNode(provider, target)) {
+      if (TC.shouldIgnoreThinkingNode && TC.shouldIgnoreThinkingNode(provider, target)) {
         continue;
       }
-      const text = extractTextExcludingThinking(provider, target);
+      const text = (TC.extractTextExcludingThinking ? TC.extractTextExcludingThinking(provider, target) : "");
       if (text.trim()) {
         latest = text.trim();
         break;
@@ -593,6 +476,8 @@ const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin;
 // Destructure functions from send-handlers.js namespace
 // Fallback defaults ensure content.js remains functional if send-handlers.js fails to load
 const SH = globalThis.__MAI_Send || {};
+const RD = globalThis.__MAI_Response || {};
+const TC = globalThis.__MAI_Transcript || {};
 const {
   findElement, deepQueryAll,
   waitForElement, waitForElementDeep,
@@ -645,19 +530,6 @@ function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
   }
 }
 
-let manualTurnCaptureStarted = false;
-let manualTurnNodeSnapshot = new WeakMap();
-const pendingManualTurnRoots = new Set();
-let manualTurnFlushTimer = null;
-let manualTurnWarmupUntil = 0;
-let manualTurnCapturingActiveResponse = false;
-let manualTurnObserver = null;
-
-let manualSendCaptureStarted = false;
-const _manualSendCleanupHandlers = [];
-const _sessionSyncCleanupHandlers = [];
-const _observerCleanupHandlers = [];
-
 /**
  * Register a cleanup function into the given registry array.
  * The function will be called on page unload to remove listeners or disconnect observers.
@@ -679,141 +551,9 @@ function cleanupAll(registry) {
   }
   registry.length = 0;
 }
-let lastManualSendProvider = "";
-let lastManualSendText = "";
-let lastManualSendAt = 0;
 
-function getManualSelectors(map, provider, fallback = []) {
-  const scoped = Array.isArray(map?.[provider]) ? map[provider] : [];
-  const defaults = Array.isArray(map?.default) ? map.default : fallback;
-  return Array.from(new Set([...scoped, ...defaults]));
-}
 
-function getManualUserSelectors(provider) {
-  return getManualSelectors(MANUAL_USER_SELECTORS, provider);
-}
 
-function getManualAssistantSelectors(provider) {
-  return Array.from(new Set([
-    ...getManualSelectors(MANUAL_ASSISTANT_SELECTORS, provider),
-    ...(Array.isArray(RESPONSE_SELECTORS[provider]) ? RESPONSE_SELECTORS[provider] : [])
-  ]));
-}
-
-function normalizeTurnText(raw) {
-  if (typeof raw !== "string") return "";
-  return raw.replace(/\s+/g, " ").trim();
-}
-
-function normalizeProviderTurnText(provider, role, raw) {
-  let text = normalizeTurnText(raw);
-  if (!text) {
-    return "";
-  }
-
-  if (provider === "gemini") {
-    if (role === "user") {
-      text = text.replace(/^(你说|You said)\s*/i, "");
-    } else if (role === "assistant") {
-      text = text.replace(/^(Gemini 说|Gemini said)\s*/i, "");
-    }
-  }
-
-  return normalizeTurnText(text);
-}
-
-function shouldIgnoreManualTurnNode(node) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-    return true;
-  }
-
-  if (node.getAttribute("aria-hidden") === "true" || node.closest("[aria-hidden='true']")) {
-    return true;
-  }
-
-  const className = typeof node.className === "string" ? node.className : "";
-  if (
-    /\b(?:cdk-visually-hidden|visually-hidden|screen-reader-[^\s]+)\b/.test(className) ||
-    /\bscreen-reader\b/.test(className)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function pruneManualTurnNodes(nodes) {
-  if (!Array.isArray(nodes) || nodes.length === 0) {
-    return [];
-  }
-
-  const unique = Array.from(new Set(nodes)).filter((node) => !shouldIgnoreManualTurnNode(node));
-  return unique.filter((node) => !unique.some((other) => (
-    other !== node &&
-    other.nodeType === Node.ELEMENT_NODE &&
-    node.contains(other)
-  )));
-}
-
-function findRoleFromAttributes(node) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) return "";
-  const roleHint = `${node.getAttribute("data-role") || ""} ${node.getAttribute("data-message-author-role") || ""}`.toLowerCase();
-  if (roleHint.includes("user") || roleHint.includes("human")) return "user";
-  if (roleHint.includes("assistant") || roleHint.includes("bot") || roleHint.includes("model")) return "assistant";
-  return "";
-}
-
-function elementMatchesAnySelector(node, selectors) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors)) return false;
-  for (const selector of selectors) {
-    try {
-      if (node.matches(selector)) {
-        return true;
-      }
-    } catch {
-      // ignore selector mismatch
-    }
-  }
-  return false;
-}
-
-function collectMatchingElements(root, selectors) {
-  if (!root || root.nodeType !== Node.ELEMENT_NODE || !Array.isArray(selectors) || selectors.length === 0) {
-    return [];
-  }
-
-  const nodes = [];
-  if (elementMatchesAnySelector(root, selectors)) {
-    nodes.push(root);
-  }
-
-  for (const selector of selectors) {
-    try {
-      const matches = root.querySelectorAll(selector);
-      if (matches && matches.length > 0) {
-        nodes.push(...matches);
-      }
-    } catch {
-      // ignore selector mismatch
-    }
-  }
-
-  return Array.from(new Set(nodes));
-}
-
-function detectManualTurnRole(provider, node, userSelectors, assistantSelectors) {
-  const fromAttr = findRoleFromAttributes(node);
-  if (fromAttr) {
-    return fromAttr;
-  }
-  if (elementMatchesAnySelector(node, userSelectors)) {
-    return "user";
-  }
-  if (elementMatchesAnySelector(node, assistantSelectors)) {
-    return "assistant";
-  }
-  return "";
-}
 
 function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, extra = null) {
   if (!provider || !role || !content) return;
@@ -841,377 +581,11 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
   }
 }
 
-function isCapturingActiveResponse() {
-  return manualTurnCapturingActiveResponse;
-}
 
-function pauseManualTurnObserver() {
-  if (manualTurnObserver) {
-    manualTurnObserver.disconnect();
-  }
-  if (manualTurnFlushTimer) {
-    clearTimeout(manualTurnFlushTimer);
-    manualTurnFlushTimer = null;
-  }
-  pendingManualTurnRoots.clear();
-}
 
-function resumeManualTurnObserver(provider) {
-  if (manualTurnObserver && document.body) {
-    manualTurnObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true
-    });
-  }
-}
 
-function setCapturingActiveResponse(active) {
-  manualTurnCapturingActiveResponse = active;
-}
-
-function rememberTurnNodeSnapshot(provider, node, role, content, options = {}) {
-  if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-    return;
-  }
-
-  const normalized = normalizeProviderTurnText(provider, role, content);
-  if (!normalized) {
-    return;
-  }
-
-  const previous = manualTurnNodeSnapshot.get(node);
-  if (previous && previous.role === role && previous.content === normalized) {
-    return;
-  }
-
-  manualTurnNodeSnapshot.set(node, { role, content: normalized });
-  if (options.captureOnly) {
-    return;
-  }
-
-  // During active response capture, the waitForResponseComplete path sends the
-  // final turn. Suppress intermediate streaming chunks from the MutationObserver.
-  if (role === "assistant" && isCapturingActiveResponse()) {
-    return;
-  }
-
-  sendTranscriptProviderTurn(provider, role, normalized, new Date().toISOString());
-}
-
-function scanManualTurnRoots(provider, roots, options = {}) {
-  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider) || !document.body) {
-    return;
-  }
-
-  const userSelectors = getManualUserSelectors(provider);
-  const assistantSelectors = getManualAssistantSelectors(provider);
-  const candidates = new Map();
-
-  roots.forEach((root) => {
-    if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
-    collectMatchingElements(root, userSelectors).forEach((node) => candidates.set(node, "user"));
-    collectMatchingElements(root, assistantSelectors).forEach((node) => {
-      if (!candidates.has(node)) {
-        candidates.set(node, "assistant");
-      }
-    });
-  });
-
-  const orderedNodes = pruneManualTurnNodes(Array.from(candidates.keys()));
-  orderedNodes.forEach((node) => {
-    // Skip thinking/reasoning content blocks
-    if (shouldIgnoreThinkingNode(provider, node)) {
-      return;
-    }
-    const fallbackRole = candidates.get(node);
-    const role = detectManualTurnRole(provider, node, userSelectors, assistantSelectors) || fallbackRole;
-    if (role !== "user" && role !== "assistant") {
-      return;
-    }
-    const text = normalizeProviderTurnText(provider, role, extractTextExcludingThinking(provider, node));
-    if (!text) {
-      return;
-    }
-    rememberTurnNodeSnapshot(provider, node, role, text, options);
-  });
-}
-
-function enqueueManualTurnRoot(provider, root) {
-  if (!root || root.nodeType !== Node.ELEMENT_NODE) return;
-  // Walk up to find the nearest message container so querySelectorAll can match
-  // deep selectors like ".ds-message:has(.ds-markdown)". Without this, mutation
-  // targets are often deeply nested text spans that contain no matching children.
-  const MESSAGE_CONTAINER_SELECTORS = [".ds-message", ".response-content-markdown", "[data-message-author-role]"];
-  let container = root;
-  for (const sel of MESSAGE_CONTAINER_SELECTORS) {
-    try {
-      const found = root.closest(sel);
-      if (found) { container = found; break; }
-    } catch { /* ignore */ }
-  }
-  pendingManualTurnRoots.add(container);
-  if (manualTurnFlushTimer) return;
-
-  manualTurnFlushTimer = setTimeout(() => {
-    manualTurnFlushTimer = null;
-    const roots = Array.from(pendingManualTurnRoots);
-    pendingManualTurnRoots.clear();
-    const captureOnly = Date.now() < manualTurnWarmupUntil;
-    scanManualTurnRoots(provider, roots, captureOnly ? { captureOnly: true } : undefined);
-  }, 120);
-}
-
-function startManualTurnCapture(provider) {
-  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
-  if (manualTurnCaptureStarted) return;
-  if (!document.body) return;
-  manualTurnCaptureStarted = true;
-  manualTurnNodeSnapshot = new WeakMap();
-  manualTurnWarmupUntil = Date.now() + 2500;
-
-  scanManualTurnRoots(provider, [document.body], { captureOnly: true });
-
-  const observer = new MutationObserver((mutations) => {
-    for (const mutation of mutations) {
-      if (mutation.type === "characterData") {
-        if (mutation.target?.parentElement) {
-          enqueueManualTurnRoot(provider, mutation.target.parentElement);
-        }
-        continue;
-      }
-
-      if (mutation.target && mutation.target.nodeType === Node.ELEMENT_NODE) {
-        enqueueManualTurnRoot(provider, mutation.target);
-      }
-
-      if (!mutation.addedNodes || mutation.addedNodes.length === 0) {
-        continue;
-      }
-
-      mutation.addedNodes.forEach((node) => {
-        if (node.nodeType === Node.ELEMENT_NODE) {
-          enqueueManualTurnRoot(provider, node);
-        } else if (node.nodeType === Node.TEXT_NODE && node.parentElement) {
-          enqueueManualTurnRoot(provider, node.parentElement);
-        }
-      });
-    }
-  });
-
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-    characterData: true
-  });
-  manualTurnObserver = observer;
-
-  registerCleanup(_observerCleanupHandlers, () => {
-    observer.disconnect();
-    if (manualTurnObserver === observer) {
-      manualTurnObserver = null;
-    }
-  });
-}
-
-function isManualSendSuppressed(provider, prompt) {
-  if (!provider || !prompt) {
-    return false;
-  }
-
-  if (provider !== lastManualSendProvider) {
-    return false;
-  }
-
-  if (prompt !== lastManualSendText) {
-    return false;
-  }
-
-  return Date.now() - lastManualSendAt < 1200;
-}
-
-function rememberManualSend(provider, prompt) {
-  lastManualSendProvider = provider;
-  lastManualSendText = prompt;
-  lastManualSendAt = Date.now();
-}
-
-function isEditableElement(el) {
-  if (!el || el.nodeType !== Node.ELEMENT_NODE) return false;
-  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") return true;
-  return el.isContentEditable === true || el.getAttribute("contenteditable") === "true";
-}
-
-function findClosestEditableTarget(start) {
-  if (!start || start.nodeType !== Node.ELEMENT_NODE) return null;
-  if (isEditableElement(start)) return start;
-  return start.closest("textarea, input, [contenteditable='true'], [role='textbox']");
-}
-
-function extractPromptFromEditable(el) {
-  if (!el) return "";
-  if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
-    return typeof el.value === "string" ? el.value : "";
-  }
-  return getEditableText(el) || el.innerText || el.textContent || "";
-}
-
-function isEditableCleared(el) {
-  try {
-    const text = normalizeTurnText(extractPromptFromEditable(el));
-    return text.length === 0;
-  } catch (error) {
-    console.warn('[MultiAI Content] isEditableCleared: Failed to extract text from editable element:', error);
-    return false;
-  }
-}
-
-function getManualSendButtonSelectors(provider) {
-  const selectors = Array.isArray(PROVIDER_CONFIGS?.[provider]?.sendButtonSelectors)
-    ? PROVIDER_CONFIGS[provider].sendButtonSelectors
-    : [];
-
-  // Some configs intentionally include broad fallbacks for automation (e.g. `button:has(svg)`).
-  // For manual user send detection we must keep it conservative to avoid false positives.
-  return selectors.filter((sel) => sel && sel !== "button:has(svg)");
-}
-
-function findAncestorMatchingAnySelector(node, selectors, maxDepth = 6) {
-  let current = node;
-  let depth = 0;
-  while (current && depth <= maxDepth) {
-    if (elementMatchesAnySelector(current, selectors)) {
-      return current;
-    }
-    current = current.parentElement;
-    depth += 1;
-  }
-  return null;
-}
-
-function recordManualSend(provider, prompt) {
-  const normalized = normalizeProviderTurnText(provider, "user", prompt);
-  if (!normalized) return;
-
-  if (isManualSendSuppressed(provider, normalized)) {
-    return;
-  }
-  rememberManualSend(provider, normalized);
-
-  // Only start DOM-based turn capture when a *real user action* happens.
-  // This avoids restore/load re-ingestion while still making manual-chat capture robust.
-  startManualTurnCapture(provider);
-  // Pause MutationObserver entirely during response capture to prevent interference.
-  // Only the waitForResponseComplete path will send the final turn.
-  setCapturingActiveResponse(true);
-  pauseManualTurnObserver();
-  const responseBaseline = captureResponseBaseline(provider);
-
-  const inputEl = arguments.length >= 3 ? arguments[2] : null;
-  const occurredAt = new Date().toISOString();
-
-  const finishCapture = () => {
-    setCapturingActiveResponse(false);
-    resumeManualTurnObserver(provider);
-  };
-
-  const startResponseFlow = (assumeStarted = false) => {
-    sendTranscriptProviderTurn(provider, "user", normalized, occurredAt);
-
-    const startedPromise = assumeStarted ? Promise.resolve(true) : waitForResponseStart(provider, responseBaseline);
-
-    // Best-effort: detect answering state and capture the final assistant text for manual sends too.
-    startedPromise.then((started) => {
-      if (!started) {
-        finishCapture();
-        sendTranscriptLiveStatus(provider, "interrupted", new Date().toISOString());
-        return;
-      }
-
-      sendTranscriptLiveStatus(provider, "responding", new Date().toISOString());
-
-      waitForResponseComplete(provider, responseBaseline).then(() => {
-        const latest = extractLatestResponse(provider);
-        if (latest) {
-          sendTranscriptProviderTurn(provider, "assistant", latest, new Date().toISOString(), {
-            status: "completed"
-          });
-        }
-        finishCapture();
-        sendTranscriptLiveStatus(provider, "completed", new Date().toISOString());
-      });
-    });
-  };
-
-  // Delay until after the UI has applied the send. This prevents false positives when the user
-  // presses Enter but the message is not actually sent (e.g. blocked by overlays).
-  setTimeout(() => {
-    if (inputEl && !isEditableCleared(inputEl)) {
-      // Fallback: input did not clear, so confirm by observing response start.
-      waitForResponseStart(provider, responseBaseline).then((started) => {
-        if (!started) {
-          finishCapture();
-          return;
-        }
-        startResponseFlow(true);
-      });
-      return;
-    }
-
-    startResponseFlow(false);
-  }, 900);
-}
-
-function startManualSendCapture(provider) {
-  if (!provider || !MANUAL_TURN_CAPTURE_PROVIDERS.has(provider)) return;
-  if (manualSendCaptureStarted) return;
-  if (!document.body) return;
-  manualSendCaptureStarted = true;
-
-  const handleKeydown = (event) => {
-    if (!event || !event.isTrusted) return;
-    if (event.defaultPrevented) return;
-
-    const key = event.key || "";
-    if (key !== "Enter") return;
-    if (event.shiftKey) return;
-
-    const target = findClosestEditableTarget(event.target);
-    if (!target) return;
-    const prompt = extractPromptFromEditable(target);
-    if (!prompt || !String(prompt).trim()) return;
-
-    recordManualSend(provider, prompt, target);
-  };
-
-  const handleClick = (event) => {
-    if (!event || !event.isTrusted) return;
-    if (!event.target || event.target.nodeType !== Node.ELEMENT_NODE) return;
-
-    const selectors = getManualSendButtonSelectors(provider);
-    if (selectors.length === 0) return;
-    const matched = findAncestorMatchingAnySelector(event.target, selectors);
-    if (!matched) return;
-
-    const active = findClosestEditableTarget(document.activeElement) ||
-      findClosestEditableTarget(document.querySelector("textarea, [contenteditable='true'], [role='textbox']")) ||
-      findClosestEditableTarget(findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []));
-    if (!active) return;
-
-    const prompt = extractPromptFromEditable(active);
-    if (!prompt || !String(prompt).trim()) return;
-
-    recordManualSend(provider, prompt, active);
-  };
-
-  document.addEventListener("keydown", handleKeydown, true);
-  document.addEventListener("click", handleClick, true);
-
-  registerCleanup(_manualSendCleanupHandlers,
-    () => document.removeEventListener("keydown", handleKeydown, true));
-  registerCleanup(_manualSendCleanupHandlers,
-    () => document.removeEventListener("click", handleClick, true));
-}
+const _sessionSyncCleanupHandlers = [];
+const _miscCleanupHandlers = [];
 
 const CHILD_SESSION_SYNC_PROVIDERS = new Set([
   "chatgpt",
@@ -1354,436 +728,6 @@ window.addEventListener("message", (event) => {
 // getStopSelectors, countResponseNodes → send-handlers.js
 
 
-function hasStreamingIndicator(provider) {
-  const base = '.result-streaming, .streaming, [data-testid*="stream"], .ds-loading, [class*="result-streaming"]';
-  if (provider === "chatgpt") {
-    return !!document.querySelector(`${base}, [data-message-author-role="assistant"] .result-streaming, .result-streaming, .markdown.result-streaming`);
-  }
-  if (provider === "deepseek") {
-    // DeepSeek retains .ds-think-content in DOM permanently for ALL messages —
-    // it cannot be used as a streaming indicator at all (always returns true).
-    // DeepSeek does have a stop button, but it is not useful as a streaming indicator
-    // is text stability: when the response text stops changing for N seconds.
-    // So hasStreamingIndicator must return false for DeepSeek to let the
-    // waitForResponseComplete code fall through to text stability (Step 3).
-    return false;
-  }
-  return !!document.querySelector(base);
-}
-
-async function waitForResponseStart(provider, responseBaseline = null) {
-  const timeout = 12000;
-  const stopSelectors = getStopSelectors(provider);
-  const baselineCount = Number(responseBaseline?.responseCount) || countResponseNodes(provider);
-  const baselineText = typeof responseBaseline?.text === "string" ? responseBaseline.text.trim() : extractLatestResponse(provider).trim();
-  const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
-  
-  log(`Waiting for response start: ${provider}, baseline=${baselineCount}`);
-
-  // Helper for deep check with visibility
-  const hasElementDeep = (selectors, checkVisibility = true) => {
-    // Fast path: check light DOM first
-    for (const sel of selectors) {
-      const el = document.querySelector(sel);
-      if (el) {
-        if (!checkVisibility) return true;
-        if (isElementVisible(el)) return true;
-      }
-    }
-    // Slow path: deep traversal for Shadow DOM (Copilot etc)
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.shadowRoot) {
-        for (const sel of selectors) {
-          const els = deepQueryAll(node.shadowRoot, sel);
-          if (els.some(el => !checkVisibility || isElementVisible(el))) return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  return new Promise((resolve) => {
-    let settled = false;
-    const cleanup = () => {
-      settled = true;
-      observer.disconnect();
-      clearTimeout(timer);
-    };
-
-    const check = () => {
-      if (settled) return;
-      
-      // 1. Check Stop Button (Strongest signal)
-      // For ChatGPT, we accept even if visibility is tricky, presence is usually enough
-      const strictVis = provider !== 'chatgpt'; 
-      if (hasElementDeep(stopSelectors, strictVis)) {
-        log("Response started: Stop button found");
-        cleanup();
-        resolve(true);
-        return;
-      }
-
-      // 2. Check Streaming Indicator
-      if (hasStreamingIndicator(provider)) {
-        log("Response started: Streaming indicator found");
-        cleanup();
-        resolve(true);
-        return;
-      }
-
-      // 3. Check Response Count Increase
-      const currentCount = countResponseNodes(provider);
-      if (currentCount > baselineCount) {
-        log(`Response started: Count increased ${baselineCount} -> ${currentCount}`);
-        cleanup();
-        resolve(true);
-        return;
-      }
-
-      const latest = extractLatestResponse(provider).trim();
-      if (latest && latest !== baselineText) {
-        log("Response started: Latest response text changed");
-        cleanup();
-        resolve(true);
-        return;
-      }
-
-      // 4. Check Send Button Disappearance or Disabled (Generic)
-      // Only if we have valid send selectors
-      if (sendSelectors.length > 0 && shouldUseGenericResponseStartSignals(provider)) {
-        // If send button is GONE or DISABLED, we assume started.
-        let sendBtnActive = false;
-        
-        // Check Light DOM
-        for (const sel of sendSelectors) {
-          const el = document.querySelector(sel);
-          if (el && isElementVisible(el)) {
-             // It is visible. Is it active?
-             const btn = el.closest('button, [role="button"], input') || el;
-             
-             if (!btn.disabled && !btn.hasAttribute('disabled') && btn.getAttribute('aria-disabled') !== 'true') {
-               sendBtnActive = true;
-               break;
-             }
-          }
-        }
-
-        // Check Shadow DOM if not found in Light DOM (for Copilot etc)
-        if (!sendBtnActive && (provider === 'copilot' || provider === 'gemini')) {
-             // Simple check: if we can't find the send button anymore, it might be gone.
-             // But we need to be careful about "loading" states vs "gone".
-             // For now, let's stick to Light DOM for generic, and only rely on this if we are sure.
-        }
-
-        if (!sendBtnActive) {
-          log("Response started: Send button disappeared or disabled");
-          cleanup();
-          resolve(true);
-          return;
-        }
-      }
-
-      // 5. Check Input Clearance (Generic but powerful)
-      // If input was non-empty and now is empty, response likely started
-      const inputEl = findElement(PROVIDER_CONFIGS[provider]?.inputSelectors || []);
-      if (shouldUseGenericResponseStartSignals(provider) && inputEl) {
-        const val = getEditableText(inputEl).trim();
-        // We don't have the original prompt here easily, but if it's empty, it's a good sign.
-        // But we must be careful not to trigger if it was ALREADY empty (unlikely during sending).
-        // Let's assume if we are "waiting for response", we just sent something.
-        if (!val) {
-           log("Response started: Input cleared");
-           cleanup();
-           resolve(true);
-           return;
-        }
-      }
-    };
-
-    const observer = new MutationObserver(check);
-    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid'] });
-
-    const timer = setTimeout(() => {
-      log("Response wait timed out");
-      cleanup();
-      resolve(false);
-    }, timeout);
-
-    check();
-  });
-}
-
-async function waitForResponseComplete(provider, responseBaseline = null) {
-  const timeout = 90000;
-  const stopSelectors = getStopSelectors(provider);
-  const sendSelectors = PROVIDER_CONFIGS[provider]?.sendButtonSelectors || [];
-  let sawStop = false;
-  let grokStopWasSeen = false;
-  let stopDisappearAt = 0;
-  const baseline = responseBaseline || captureResponseBaseline(provider);
-  const stabilityMs = getProviderStabilityMs(provider);
-  const stabilityTracker = getResponseStateApi().createResponseStabilityTracker({
-    provider,
-    baselineText: baseline.text || "",
-    baselineResponseCount: Number(baseline.responseCount) || 0,
-    stabilityMs,
-    now: Date.now()
-  });
-
-  // Helper for deep check
-  const hasElementDeep = (selectors) => {
-    for (const sel of selectors) {
-      if (document.querySelector(sel)) return true;
-    }
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
-    while (walker.nextNode()) {
-      const node = walker.currentNode;
-      if (node.shadowRoot) {
-        for (const sel of selectors) {
-          if (deepQueryAll(node.shadowRoot, sel).length > 0) return true;
-        }
-      }
-    }
-    return false;
-  };
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let pendingCheck = null;
-    const cleanup = () => {
-      settled = true;
-      observer.disconnect();
-      clearTimeout(pendingCheck);
-      clearTimeout(timer);
-      clearInterval(interval);
-    };
-
-    // --- Provider-specific helpers (based on real DOM investigation 2026-05-06) ---
-
-    // DeepSeek: no reliable stop button during normal streaming.
-    // Primary signal: new assistant response text becoming stable.
-    // NOTE: Send button ariaDisabled follows textarea content, NOT response state — useless for completion.
-
-    // Gemini: "停止回答" (Stop response) button appears during response.
-    // On completion: stop button disappears, send button returns (ariaDisabled=true because input cleared).
-    // NOTE: No position filter — must work inside dashboard iframe (smaller viewport).
-    const geminiStopWasSeen = { current: false };
-    const isGeminiStopVisible = () => {
-      const stopBtns = document.querySelectorAll('button[aria-label*="停止回答"], button[aria-label*="Stop response"]');
-      for (const b of stopBtns) {
-        const r = b.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) return true;
-      }
-      return false;
-    };
-    const isGeminiSendVisible = () => {
-      const sendBtn = document.querySelector('button.send-button, button[aria-label*="发送"], button[aria-label*="Send"]');
-      if (!sendBtn) return false;
-      const r = sendBtn.getBoundingClientRect();
-      return r.width > 0 && r.height > 0;
-    };
-
-    const check = () => {
-      if (settled) return;
-
-      // === Step 1: Provider-specific detection (based on real DOM) ===
-
-      if (provider === "deepseek") {
-        // DeepSeek: has a stop button (detected via getStopSelectors), .ds-think-content lingers permanently in DOM
-        // for ALL historical messages (not usable as streaming indicator).
-        // Primary signal: text stability (Step 3).
-        // Outer 90s timeout serves as the absolute safety net.
-        // No provider-specific logic needed here — fall through to Step 3.
-      }
-
-      if (provider === "gemini") {
-        const gmStopVisible = isGeminiStopVisible();
-        if (gmStopVisible) {
-          geminiStopWasSeen.current = true;
-          log(`[GM] stop visible → still responding`);
-          return; // Still responding
-        }
-        // Stop button gone — if it was seen before, check send button is back
-        if (geminiStopWasSeen.current) {
-          const sendVis = isGeminiSendVisible();
-          if (sendVis) {
-            log(`[GM] stop gone + send visible → COMPLETED`);
-            cleanup();
-            resolve(true);
-            return;
-          }
-          log(`[GM] stop gone but send not visible → wait`);
-        }
-      }
-
-      if (provider === "grok") {
-        // Grok: stop button appears during streaming, send button recovers after completion.
-        // Track stop button lifecycle similar to Gemini.
-        const grokStopVisible = hasElementDeep(stopSelectors);
-        if (grokStopVisible) {
-          grokStopWasSeen = true;
-          log(`[Grok] stop visible → still responding`);
-          return; // Still responding
-        }
-        // Stop button gone — if it was seen before, check send button is back
-        if (grokStopWasSeen && sendSelectors.length > 0) {
-          for (const sel of sendSelectors) {
-            const el = document.querySelector(sel);
-            if (el && isElementVisible(el)) {
-              const btn = el.closest('button, [role="button"], input') || el;
-              if (!isElementDisabled(btn)) {
-                log(`[Grok] stop gone + send enabled → COMPLETED`);
-                cleanup();
-                resolve(true);
-                return;
-              }
-            }
-          }
-        }
-      }
-
-      // === Step 2: Universal stop button tracking (ChatGPT, etc.) ===
-      const stopVisible = hasElementDeep(stopSelectors);
-      if (stopVisible) {
-        sawStop = true;
-        stopDisappearAt = 0;
-        log(`[${provider}] stop button visible → still responding`);
-        return;
-      }
-
-      // Stop just disappeared — record timestamp for grace period
-      if (sawStop && stopDisappearAt === 0) {
-        stopDisappearAt = Date.now();
-        log(`[${provider}] stop just disappeared, grace period started`);
-      }
-
-      // Stop disappeared AND send button is back → completed
-      if (sawStop && sendSelectors.length > 0) {
-        for (const sel of sendSelectors) {
-          const el = document.querySelector(sel);
-          if (el && isElementVisible(el)) {
-            const btn = el.closest('button, [role="button"], input') || el;
-            if (!isElementDisabled(btn)) {
-              log(`[${provider}] stop gone + send enabled → COMPLETED`);
-              cleanup();
-              resolve(true);
-              return;
-            }
-          }
-        }
-      }
-
-      // === Step 3: Fallback — text stability ===
-      const latest = extractLatestResponse(provider);
-      const normalized = typeof latest === "string" ? latest.trim() : "";
-      if (normalized) {
-        const currentResponseCount = countResponseNodes(provider);
-        const sample = stabilityTracker.check({
-          text: normalized,
-          responseCount: currentResponseCount,
-          streaming: hasStreamingIndicator(provider),
-          now: Date.now()
-        });
-        // Diagnostic logging for DeepSeek gate debugging
-        if (provider === "deepseek" && sample.reason !== "stable") {
-          log(`[DS] check: reason=${sample.reason} count=${currentResponseCount} text="${normalized.substring(0, 30)}"`);
-        }
-        if (sample.complete) {
-          log(`[${provider}] text stable ${sample.elapsed}ms → COMPLETED (fallback)`);
-          cleanup();
-          resolve(true);
-          return;
-        }
-      }
-
-      // === Step 4: Grace period fallback ===
-      if (
-        sawStop &&
-        stopDisappearAt > 0 &&
-        !stopVisible &&
-        !hasStreamingIndicator(provider) &&
-        Date.now() - stopDisappearAt >= 3000
-      ) {
-        cleanup();
-        resolve(true);
-        return;
-      }
-    };
-
-    const observer = new MutationObserver(() => {
-      clearTimeout(pendingCheck);
-      pendingCheck = setTimeout(check, 200);
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['disabled', 'class', 'aria-label', 'data-testid']
-    });
-
-    const interval = setInterval(check, 500);
-    const timer = setTimeout(() => {
-      cleanup();
-      resolve(true);
-    }, timeout);
-
-    check();
-  });
-}
-
-async function _waitForResponseStartLegacy(provider) {
-  // Generic waiter for response
-  // Returns promise that resolves when it thinks AI started answering
-  return new Promise(resolve => {
-    // Assume success after a reasonable timeout if we can't detect specifics
-    // The user says "after AI starts answering", so we try to detect that.
-    // But for many providers, it's hard to know exactly when.
-    // We'll look for "stop" buttons or input clearing.
-
-    const start = Date.now();
-    const check = () => {
-      // 1. Check if input is cleared (strong signal)
-      // We can't easily check input value for all types, but let's try
-      // Actually, we shouldn't query input again here easily without selector.
-
-      // 2. Check for "Stop" buttons
-      // Expanded selectors for GPT/Copilot
-      const stopSelectors = [
-        'button[aria-label*="Stop"]',
-        'button[aria-label*="停止"]',
-        'button[data-testid*="stop"]',
-        'button[aria-label*="Pause"]', // Sometimes Pause
-        // ChatGPT specific
-        'button[data-testid="stop-button"]',
-        // Copilot specific
-        'button[title*="Stop"]',
-        'button[title*="停止"]',
-        '.stop-generating',
-        // Generic icon check (square icon usually)
-        'button svg rect',
-        'button svg path[d^="M2 2h20v20H2"]' // roughly a square
-      ];
-
-      for (const sel of stopSelectors) {
-        if (document.querySelector(sel)) {
-          resolve(true);
-          return;
-        }
-      }
-
-      // Timeout fallback (5 seconds - assume success if no error by then)
-      if (Date.now() - start > 5000) {
-        resolve(true);
-        return;
-      }
-
-      requestAnimationFrame(check);
-    };
-    check();
-  });
-}
 
 async function trySendPrompt(provider, prompt, retryCount = 0) {
   const maxRetries = provider === "grok" ? 0 : 2;
@@ -1824,8 +768,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   // Pause MutationObserver entirely during send + response capture.
   // This prevents the observer from capturing streaming chunks during the send
   // process (especially important for Grok which has its own response detection).
-  setCapturingActiveResponse(true);
-  pauseManualTurnObserver();
+  if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(true);
+  if (TC.pauseManualTurnObserver) TC.pauseManualTurnObserver();
   const responseBaseline = captureResponseBaseline(provider);
 
   // Special handlers for complex editors
@@ -1850,8 +794,8 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         await new Promise(resolve => setTimeout(resolve, 50));
         return trySendPrompt(provider, prompt, retryCount + 1);
       }
-      setCapturingActiveResponse(false);
-      resumeManualTurnObserver(provider);
+      if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(false);
+      if (TC.resumeManualTurnObserver) TC.resumeManualTurnObserver(provider);
       postSendResult(provider, false);
       sendTranscriptLiveStatus(provider, "failed");
       return false;
@@ -1935,18 +879,18 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
       console.error(`[Content] Failed to postMessage: sendResult`);
     }
     if (!sendOk) {
-      setCapturingActiveResponse(false);
-      resumeManualTurnObserver(provider);
+      if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(false);
+      if (TC.resumeManualTurnObserver) TC.resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "failed");
     }
 
-    const responseStarted = sendOk ? await waitForResponseStart(provider, responseBaseline) : false;
+    const responseStarted = sendOk ? await (RD.waitForResponseStart ? RD.waitForResponseStart(provider, responseBaseline) : Promise.resolve(false)) : false;
     log(`[Content] Response start detection for ${provider}: ${responseStarted ? "DETECTED" : "NOT DETECTED (or timed out)"}`);
 
     if (provider === "grok" && sendOk && !responseStarted) {
       log("[Content] Grok response start not detected, downgrade sendResult to failed");
-      setCapturingActiveResponse(false);
-      resumeManualTurnObserver(provider);
+      if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(false);
+      if (TC.resumeManualTurnObserver) TC.resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "interrupted");
       sendOk = false;
       postSendResult(provider, false);
@@ -1961,7 +905,7 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
         provider: provider
       });
 
-      waitForResponseComplete(provider, responseBaseline).then(() => {
+      (RD.waitForResponseComplete ? RD.waitForResponseComplete(provider, responseBaseline) : Promise.resolve({})).then(() => {
         // Send final turn BEFORE resuming observer to prevent duplicates
         const latest = extractLatestResponse(provider);
         if (latest) {
@@ -1976,12 +920,12 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
           text: latest
         });
         sendTranscriptLiveStatus(provider, "completed");
-        setCapturingActiveResponse(false);
-        resumeManualTurnObserver(provider);
+        if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(false);
+        if (TC.resumeManualTurnObserver) TC.resumeManualTurnObserver(provider);
       });
     } else if (sendOk) {
-      setCapturingActiveResponse(false);
-      resumeManualTurnObserver(provider);
+      if (TC.setCapturingActiveResponse) TC.setCapturingActiveResponse(false);
+      if (TC.resumeManualTurnObserver) TC.resumeManualTurnObserver(provider);
       sendTranscriptLiveStatus(provider, "interrupted");
     }
   }
@@ -2021,10 +965,10 @@ function initializeCustomFixes() {
   const provider = getProviderFromHost();
 
   startChildSessionSync(provider);
-  startManualSendCapture(provider);
+  if (TC.startManualSendCapture) TC.startManualSendCapture(provider);
   // Start MutationObserver early so the warmup period expires before the user sends a message.
   // Without this, the observer only starts on send and all captures within 2.5s are captureOnly.
-  startManualTurnCapture(provider);
+  if (TC.startManualTurnCapture) TC.startManualTurnCapture(provider);
 
   if (provider === "gemini") {
     const style = document.createElement("style");
@@ -2060,7 +1004,7 @@ function initializeCustomFixes() {
       });
     });
     observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
-    registerCleanup(_observerCleanupHandlers, () => observer.disconnect());
+    registerCleanup(_miscCleanupHandlers, () => observer.disconnect());
 
   }
 
@@ -2154,7 +1098,7 @@ function initializeCustomFixes() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    registerCleanup(_observerCleanupHandlers, () => {
+    registerCleanup(_miscCleanupHandlers, () => {
       clearInterval(verificationIntervalId);
       observer.disconnect();
     });
@@ -2169,7 +1113,30 @@ if (document.readyState === "loading") {
 
 // Cleanup event listeners and observers on page unload to prevent memory leaks
 window.addEventListener("beforeunload", () => {
-  cleanupAll(_manualSendCleanupHandlers);
+  if (TC.cleanupAll) TC.cleanupAll();
   cleanupAll(_sessionSyncCleanupHandlers);
-  cleanupAll(_observerCleanupHandlers);
+  cleanupAll(_miscCleanupHandlers);
 });
+
+// ─── Expose helpers for transcript-capture.js (lazy access) ────────────────
+function isEditableCleared(el) {
+  try {
+    const raw = el ? (el.tagName === "TEXTAREA" || el.tagName === "INPUT" ? (typeof el.value === "string" ? el.value : "") : (el.innerText || el.textContent || "")) : "";
+    const text = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+    return text.length === 0;
+  } catch (error) {
+    console.warn('[MultiAI Content] isEditableCleared: Failed to extract text from editable element:', error);
+    return false;
+  }
+}
+
+globalThis.__MAI_ResponseSelectors = RESPONSE_SELECTORS;
+globalThis.__MAI_ProviderConfigs = typeof PROVIDER_CONFIGS !== "undefined" ? PROVIDER_CONFIGS : {};
+
+globalThis.__MAI_Content = {
+  sendTranscriptProviderTurn: sendTranscriptProviderTurn,
+  sendTranscriptLiveStatus: sendTranscriptLiveStatus,
+  extractLatestResponse: extractLatestResponse,
+  captureResponseBaseline: captureResponseBaseline,
+  isEditableCleared: isEditableCleared
+};

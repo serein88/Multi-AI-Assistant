@@ -97,6 +97,8 @@
       ],
       "js": [
         "content/send-handlers.js",
+        "content/response-detection.js",
+        "content/transcript-capture.js",
         "content/content.js"
       ],
       "all_frames": true

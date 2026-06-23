@@ -743,9 +743,9 @@
       "name": "架构优化：拆分 content.js（第 2 阶段）",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "待确认",
       "criteria": "1. 创建 content/response-detection.js，提取 waitForResponseStart/waitForResponseComplete 等；2. 创建 content/transcript-capture.js，提取 startManualTurnCapture/startManualSendCapture 等；3. 所有功能实机验证通过；4. content.js 行数减少到 1500 行以下",
-      "notes": "依赖 T-20260622-010。继续拆分响应检测和转录捕获逻辑。",
+      "notes": "依赖 T-20260622-010。继续拆分响应检测和转录捕获逻辑。content.js 从 2175 行减少到 1131 行。",
       "createdAt": "2026-06-22",
       "archived": false
     },
