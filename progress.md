@@ -1,5 +1,39 @@
 # Progress.md
 
+## 2026-06-23（记录 23）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-010
+- 任务名：架构优化：拆分 content.js（第 1 阶段）
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `content/send-handlers.js`（新增，1159 行）
+  - `content/content.js`（3285 → 2174 行，减少 1111 行）
+  - `manifest.json`（content_scripts.js 数组增加 send-handlers.js）
+- 操作摘要：
+  - 创建 `content/send-handlers.js`，通过 manifest `js` 数组在 content.js 之前加载
+  - send-handlers.js 使用 IIFE + `globalThis.__MAI_Send` 命名空间导出
+  - 提取内容（共 1111 行）：
+    - DOM 查询工具：findElement, deepQueryAll, deepFindElement, findElementDeep
+    - 元素状态：isElementVisible, isElementDisabled, getEditableText, normalizeEditableInput
+    - 输入操作：setInputValue, forceSetEditableText, setInputValue
+    - 点击/键盘：clickSendButton, clickSendButtonDeep, clickLikeHuman, clickOnce, dispatchEnterKey
+    - 发送按钮查找：findEditableNearSendButton, findSendButtonNearInput, collectEditableCandidates, scoreEditableCandidate
+    - 6 个 provider 发送函数：sendChatGPTMessage, sendCopilotMessage, sendGrokMessage, sendKimiMessage, sendImaMessage, sendTongyiMessage
+    - 辅助：setKimiEditableText, waitForElement, waitForElementDeep
+    - 响应检测：getStopSelectors, countResponseNodes
+    - 日志：DEBUG, log
+  - content.js 通过 `const { ... } = globalThis.__MAI_Send` 解构导入 18 个函数
+  - MV3 content scripts 不支持 ES module import，改用 manifest js 数组 + 全局命名空间
+  - `countResponseNodes` 中 `RESPONSE_SELECTORS` 通过 `typeof` 检查 + `globalThis` 回退访问
+- 可复现步骤：
+  1. `npm run lint` — 0 errors
+  2. `npm test` — 121/121 通过
+  3. 功能验证：向各 AI 发送 prompt — 发送功能正常
+- 风险：命名空间模式增加一层间接引用，但函数签名不变、行为等价
+
+---
+
 ## 2026-06-23（记录 22）
 
 - 时间：2026-06-23
@@ -20,6 +54,7 @@
   2. `npm test` — 121/121 通过
   3. 功能验证：向 AI 发送 prompt，等待响应完成 — completion 检测仍正常工作
 - 风险：200ms debounce 延迟不影响 completion 检测准确性（500ms interval 兜底 + 90s 超时）
+- Review 修复：`pendingCheck` 声明从 observer 创建前移到 `cleanup` 定义前（避免 TDZ forward reference 维护陷阱）
 
 ---
 

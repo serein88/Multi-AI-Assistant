@@ -732,7 +732,7 @@
       "name": "架构优化：拆分 content.js（第 1 阶段）",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. 创建 content/send-handlers.js，提取各 provider 发送逻辑（sendChatGPTMessage/sendGeminiMessage 等）；2. content.js 通过 import 引入；3. 所有发送功能实机验证通过；4. content.js 行数减少 800+ 行",
       "notes": "高严重度可维护性问题：content.js 3211 行职责混杂。第 1 阶段先拆分发送逻辑，后续阶段拆分响应检测和转录捕获。需要评估 Manifest V3 的 import 支持。",
       "createdAt": "2026-06-22",
