@@ -1023,8 +1023,8 @@ function startManualTurnCapture(provider) {
   manualTurnObserver = observer;
 
   _observerCleanupHandlers.push(() => {
-    if (manualTurnObserver) {
-      manualTurnObserver.disconnect();
+    observer.disconnect();
+    if (manualTurnObserver === observer) {
       manualTurnObserver = null;
     }
   });
