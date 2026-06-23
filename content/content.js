@@ -2838,7 +2838,7 @@ async function waitForResponseComplete(provider, responseBaseline = null) {
   });
 }
 
-async function waitForResponseStartLegacy(provider) {
+async function _waitForResponseStartLegacy(provider) {
   // Generic waiter for response
   // Returns promise that resolves when it thinks AI started answering
   return new Promise(resolve => {

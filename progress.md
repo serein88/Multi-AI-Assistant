@@ -1,5 +1,183 @@
 # Progress.md
 
+## 2026-06-23（记录 20）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-007
+- 任务名：工程化：配置 ESLint 规则
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `content/content.js`（waitForResponseStartLegacy → _waitForResponseStartLegacy，消除 unused warning）
+  - `dashboard.js`（colCount → _colCount、isPromptFrameShieldActive → _isPromptFrameShieldActive，消除 unused warnings）
+- 操作摘要：
+  - ESLint 配置已在 T-20260622-006 中完成（eslint.config.js），本任务聚焦修复现有违规
+  - 3 处 no-unused-vars warnings 全部通过 `_` 前缀消除
+  - `npm run lint`：0 errors / 0 code warnings（仅 2 个 expected ignored-file 信息）
+  - `npm test`：121/121 通过
+- Review 结果：PASS_WITH_NOTES（no-console 设为 off 而非 warn，Chrome 扩展合理选择；3 处重命名为死代码可后续清理）
+- 风险与后续：无阻塞风险。3 处 `_` 前缀的死代码可作为后续清理任务
+
+## 2026-06-23（记录 19）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-006
+- 任务名：工程化：添加 package.json 和测试脚本
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `package.json`（新建：4 个脚本 test/test:watch/lint/validate + eslint/web-ext 依赖）
+  - `eslint.config.js`（新建：ESLint 9 flat config，含 Chrome 扩展全局变量配置）
+  - `.gitignore`（追加 node_modules、package-lock.json）
+  - `CLAUDE.md`（新增第 6 节：测试与工程化，含常用命令和文件结构说明）
+  - `dashboard.js`（iframe.src 自赋值添加 eslint-disable 注释）
+- 操作摘要：
+  - 使用 Node.js 内置测试框架 `node --test`，零额外测试依赖
+  - ESLint 9 flat config：providers.js 导出作为 readonly 全局变量声明在 file-specific override 中
+  - `npm test` 运行全部 121 个测试通过；`npm run lint` 0 errors / 3 pre-existing warnings；`npm run validate` manifest.json OK
+- Review 结果：PASS
+- 风险与后续：providers.js 被排除在 lint 之外（已在 CLAUDE.md 中文档化），如需 lint 可单独配置
+
+## 2026-06-23（记录 18）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-005
+- 任务名：错误处理改进：Promise catch 补充日志
+- 状态流转：进行中 -> 待确认（首次 review FAIL） -> 待确认（修复后 PASS） -> 完成
+- 变更文件：
+  - `content/content.js`（5 处 .catch 补充 console.warn 日志）
+  - `dashboard.js`（4 处 .catch 补充 console.warn 日志）
+- 操作摘要：
+  - **问题根因**：9 处 `.catch(() => undefined)` 或 `.catch(() => sendResponse(...))` 静默吞噬错误，导致调试困难
+  - **修复详情**：
+    - 6 处 `.catch(() => undefined)` → `.catch((err) => console.warn("[MultiAI ...] <context>:", err))`
+    - 2 处带副作用的 catch（content.js:3107 sendResponse、dashboard.js:1932 resolvePendingSend）保留副作用并追加日志
+    - 全部日志包含函数名 + provider 名等上下文信息
+  - **首次 review**：FAIL — 发现 2 处遗漏（content.js:3107 和 dashboard.js:1932 的带副作用 catch）
+  - **修复后 re-review**：PASS — 全部 9 处 catch 确认已补充日志，副作用保留，格式一致
+- 风险与后续：无阻塞风险。所有 `.catch(() => undefined)` 已清零
+
+## 2026-06-23（记录 17）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260623-003
+- 任务名：cleanup helper 提取与 window/document 监听器审计
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `content/content.js`（提取 registerCleanup/cleanupAll helper，全部 6 处注册改用 helper，beforeunload 改用 cleanupAll）
+  - `dashboard.js`（提取 registerCleanup/cleanupAll helper，全部 3 处注册改用 helper，beforeunload 改用 cleanupAll）
+  - `tests/listener-cleanup.test.js`（新增 5 个 helper 直接测试：registerCleanup 注册/累积、cleanupAll 调用/错误韧性/空注册表）
+- 操作摘要：
+  - 提取 `registerCleanup(registry, cleanup)` 和 `cleanupAll(registry)` 两个 helper 函数，消除重复的 try/catch + .length = 0 模式
+  - content.js 全部 6 处 cleanup 注册改用 registerCleanup；beforeunload 从 18 行简化为 3 行 cleanupAll 调用
+  - dashboard.js 全部 3 处 cleanup 注册改用 registerCleanup；beforeunload 简化为 cleanupAll 调用
+- **content.js window/document 级监听器审计**：
+
+  | 目标 | 事件 | 清理状态 |
+  | --- | --- | --- |
+  | document | keydown/click (startManualSendCapture) | ✅ 已注册 |
+  | window | popstate/hashchange (startChildSessionSync) | ✅ 已注册 |
+  | window | message (line 1411, 获取 pageUrl) | ❌ 未清理，模块级常驻，可接受 |
+  | window | message (line 3112, sendPrompt 转发) | ❌ 未清理，模块级常驻，可接受 |
+  | document | DOMContentLoaded (startChildSessionSync) | ⚠️ once:true 自动移除 |
+  | document | DOMContentLoaded (initializeCustomFixes 入口) | ⚠️ 入口点，仅 loading 态注册 |
+  | window | beforeunload (清理触发器) | ❌ 清理触发器本身，不需要清理 |
+- Review 结果：PASS（审查发现并修复了 line 1365 残留 `);`，67/67 测试通过）
+- 风险与后续：两个模块级 message 监听器（line 1411, 3112）是页面生命周期常驻的，页面销毁时由浏览器回收，不需要手动清理
+
+## 2026-06-23（记录 16）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260623-002
+- 任务名：dashboard event.source 与 provider iframe 绑定校验
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `dashboard.js`（主消息处理器 + pageUrl 监听器增加 event.source 与 getPanelIframe 绑定校验）
+  - `tests/content/origin-validation.test.js`（新增 4 个 source 绑定测试）
+- 操作摘要：
+  - **问题根因**：dashboard 只校验 event.origin 不校验 event.source，同 origin 的其他 iframe 可伪造 provider 字段
+  - **修复详情**：
+    - 主消息处理器增加 `getPanelIframe(data.provider)` 查找 + `event.source === iframe.contentWindow` 校验
+    - pageUrl 一次性监听增加同样校验
+    - 使用已有的 getPanelIframe helper 查询实时 DOM（非缓存引用），不存在则拒绝（fail closed）
+  - **测试覆盖**：source 匹配通过、不同 iframe 拒绝、iframe 不存在拒绝、provider 冒充拒绝
+- Review 结果：PASS_WITH_NOTES（2 条非阻塞注释：测试为算法模拟、providerId 为空时跳过校验可接受）
+- 风险与后续：无阻塞风险。登录域消息策略已明确——content script 在 provider 主域 iframe 注入，event.source 仍是该 iframe 的 contentWindow，与域名无关
+
+## 2026-06-23（记录 15）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260623-001
+- 任务名：DNR 精确域名匹配：改用 requestDomains 替代 urlFilter 子字符串
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `rules.json`（全部 14 条规则改用 requestDomains，合并冗余规则从 25 条降至 14 条）
+  - `tests/dnr-domain-match.test.js`（新建，28 个测试）
+- 操作摘要：
+  - **问题根因**：urlFilter 是子字符串匹配，gemini.google.com 可能误匹配非目标 URL
+  - **修复详情**：
+    - 全部 urlFilter 替换为 requestDomains（精确域名匹配 + 子域名覆盖）
+    - 合并冗余规则：Google 认证（规则 7+8+19→1）、OpenAI 认证（14→9）、Copilot 认证（13→12）、Grok 子域（18→11）、Claude 子域（26→15）
+    - 删除 tongyi.aliyun.com 规则（providers.js 使用 www.qianwen.com）
+  - **测试覆盖**：13 个正例 + 5 个认证域 + 7 个负例 + 3 个结构检查
+- Review 结果：PASS（无阻塞问题）
+- 风险与后续：无
+
+## 2026-06-23（记录 14）
+
+- 时间：2026-06-23
+- 任务：T-20260622-001 ~ T-20260622-004 review 反馈分析
+- 操作摘要：收到对已完成任务的详细 review 反馈，将 4 组发现拆分为 4 个新任务写入 tasks.json：
+  - T-20260623-001 (P0)：DNR 精确域名匹配，改用 requestDomains 替代 urlFilter 子字符串
+  - T-20260623-002 (P1)：dashboard event.source 与 provider iframe 绑定校验
+  - T-20260623-003 (P2)：cleanup helper 提取 + window/document 监听器审计
+  - T-20260623-004 (P2)：manualTurnObserver 清理闭包改为捕获局部变量
+- 风险与后续：T-20260623-001 是安全修复，优先级最高
+
+## 2026-06-23（记录 13）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-004
+- 任务名：内存泄漏修复：MutationObserver 自动 disconnect
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `content/content.js`（添加 _observerCleanupHandlers 注册表 + manualTurnObserver/Gemini observer/Cloudflare observer+interval 清理注册 + beforeunload 扩展）
+  - `tests/listener-cleanup.test.js`（新增 4 个 observer 清理测试）
+- 操作摘要：
+  - **问题根因**：5+ 个 MutationObserver 永不 disconnect，导致内存泄漏和 CPU 持续占用
+  - **修复详情**：
+    - 添加 `_observerCleanupHandlers` 全局注册表（与 T-20260622-003 的 `_manualSendCleanupHandlers` / `_sessionSyncCleanupHandlers` 并列）
+    - `startManualTurnCapture` 中 `manualTurnObserver` 注册 disconnect + null 清理闭包
+    - Gemini dark mode observer 注册 `observer.disconnect()` 清理
+    - Cloudflare verification observer + `setInterval` 注册 `clearInterval` + `disconnect` 清理
+    - `beforeunload` 处理器扩展为遍历全部 3 个注册表
+- Review 结果：PASS_WITH_NOTES（3 条非阻塞注释）
+  - manualTurnObserver 多次调用时旧闭包变 no-op（无害）
+  - Gemini observer 在 initializeCustomFixes 中无 provider 守卫（预存行为）
+  - 测试为模拟模式（无构建工具限制）
+- 风险与后续：无阻塞风险
+
+## 2026-06-23（记录 12）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-003
+- 任务名：内存泄漏修复：添加事件监听器清理机制
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `content/content.js`（添加清理注册表 + 保存 startManualSendCapture/startChildSessionSync 处理器引用 + beforeunload 清理）
+  - `dashboard.js`（添加 _cleanupHandlers 注册表 + 3 个 window/document 监听器命名化注册 + beforeunload 扩展清理）
+  - `tests/listener-cleanup.test.js`（新建，6 个测试）
+- 操作摘要：
+  - **问题根因**：67 个 addEventListener vs 5 个 removeEventListener，window/document 级监听器永不清理
+  - **修复详情**：
+    - content.js：`_manualSendCleanupHandlers` 保存 keydown/click 的 `removeEventListener` 闭包；`_sessionSyncCleanupHandlers` 保存 popstate/hashchange 的移除闭包和 3 个 MutationObserver 的 `disconnect` 闭包
+    - dashboard.js：`_cleanupHandlers` 注册 settings click、main message、visibilitychange 三个 window/document 级监听器
+    - 两处 beforeunload 处理器遍历注册表并逐个 try/catch 调用，最后 `.length = 0` 清空数组防止闭包滞留
+- Review 结果：PASS_WITH_NOTES（5 条非阻塞注释）
+  - content.js 的 2 个 message 监听器未注册清理（iframe 销毁时由 GC 回收，可接受）
+  - DOMContentLoaded `{ once: true }` 监听器自动移除，无需清理
+  - 拖拽相关的 mousemove/mouseup 在 onUp 中自行移除，无需注册
+  - 测试为模拟模式，验证清理模式正确但非集成测试
+- 风险与后续：无阻塞风险。建议后续添加 lint 规则防止新增 addEventListener 未注册清理
+
 ## 2026-06-23（记录 11）
 
 - 时间：2026-06-23

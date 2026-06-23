@@ -1299,7 +1299,7 @@ function getRowCount(colCount) {
 }
 
 function syncGridInputs() {
-  const colCount = getColumnCount();
+  const _colCount = getColumnCount();
   if (colDisplay) {
     colDisplay.textContent = customGrid.cols > 0 ? customGrid.cols : "Auto";
   }
@@ -1530,7 +1530,7 @@ function restorePromptIfLoadingFrameFocused(iframe) {
   promptFocusGuard.restoreIfFocusMovedToIframe({ allowedActiveElements: [iframe] });
 }
 
-function isPromptFrameShieldActive() {
+function _isPromptFrameShieldActive() {
   return promptCompositionActive || Date.now() < promptFrameShieldUntil;
 }
 

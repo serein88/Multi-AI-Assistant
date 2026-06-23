@@ -699,7 +699,7 @@
       "name": "工程化：配置 ESLint 规则",
       "category": "feat",
       "priority": "P1",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. 创建 .eslintrc.json 配置文件；2. 启用 no-console (warning 级别)、no-unused-vars、no-undef 规则；3. 配置 browser 和 webextensions 环境；4. npm run lint 执行无阻塞性错误；5. 修复现有代码中的明显违规（如未使用变量）",
       "notes": "依赖 T-20260622-006。配置规则建议：强制使用 log wrapper、检测未清理的 listener 引用。",
       "createdAt": "2026-06-22",
