@@ -21,7 +21,7 @@
       "criteria": "输出正式设计文档与可执行实施计划；明确命令面、JSON 协议、错误模型、浏览器运行模型、首批 Provider 范围与实施步骤",
       "notes": "spec 与 plan 均已产出（docs/superpowers/specs/2026-04-02-cli-runtime-design.md + plans/2026-04-02-cli-runtime-implementation-plan.md），CLI Runtime 业务代码未进入主分支",
       "createdAt": "2026-04-02",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260319-001",
@@ -549,7 +549,7 @@
       "criteria": "1. content.js 中只保留一份 response-state 逻辑（通过内联或可靠注入）；2. 删除 _inlineResponseState 或 getResponseStateApi 中的重复 fallback；3. response-state.test.js 仍全部通过；4. 实机验证回答完成检测功能不变",
       "notes": "2026-06-22 已完成：删除 getResponseStateApi 中的第三份 fallback（56 行），保留 _inlineResponseState 作为唯一实现；测试全部通过（4/4）。现在只有两份代码：content/response-state.js（供测试使用）和 _inlineResponseState（运行时使用）。⚠️ 需要实机验证回答完成检测功能",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-003",
@@ -604,7 +604,7 @@
       "criteria": "1. 为 getProviderFromHost / getStopSelectors / shouldIgnoreThinkingNode / extractTextExcludingThinking 等纯函数编写测试；2. 测试文件放在 tests/content/ 目录下；3. node --test 通过且不破坏现有测试；4. 覆盖至少 5 个可独立测试的纯函数",
       "notes": "2026-06-22 已完成：新建 tests/content/pure-functions.test.js 覆盖 6 个纯函数（getProviderFromHost、getStopSelectors、shouldIgnoreThinkingNode、normalizeTurnText、normalizeProviderTurnText、shouldIgnoreManualTurnNode），共 50 个测试用例全部通过；现有测试不受影响（108 pass, 5 fail 与本次无关）。\n2026-06-22 修复 5 个失败测试：dashboard-focus.test.js (2个) - 移除已废弃的 pointerEvents/visibility 断言；provider-session-bindings.test.js (2个) - 更新 provider 列表从 3 个到 13 个；transcript-store.test.js (1个) - 更新期望列表。全量测试 113/113 通过 ✅",
       "createdAt": "2026-06-05",
-      "archived": false
+      "archived": true
     },
     {
       "id": "T-20260605-008",
@@ -627,6 +627,270 @@
       "notes": "方案B：统一图标定义+缓存+AI选择器。改动文件：manage.html(+选择器HTML+3个script)、manage.js(+provider picker+FaviconCache替代硬编码)、manage.css(+选择器样式)、background.js(接收message.providers)、favicon-cache.js(新建统一hostname+API URL)、dashboard.html(+script)、dashboard.js(FaviconCache替代硬编码)。MCP验证：3项验收标准全部通过(无CORS错误、默认复用上次配置、恢复面板显示正确AI)",
       "createdAt": "2026-06-05",
       "archived": true
+    },
+    {
+      "id": "T-20260622-001",
+      "name": "安全修复：限制 CSP 移除范围到已知 AI 站点白名单",
+      "category": "fix",
+      "priority": "P0",
+      "status": "完成",
+      "criteria": "1. rules.json 中的 CSP 移除规则仅对已知 AI 站点（chatgpt.com/claude.ai/gemini.google.com 等 13 个）生效；2. 其他网站保持原有 CSP 保护；3. 使用 condition.requestDomains 白名单或 condition.urlFilter 精确匹配；4. 实机验证：AI 站点可正常嵌入，随机网站 CSP 不受影响",
+      "notes": "2026-06-23 已完成：1) 删除过于宽泛的规则 ID 2（urlFilter: \"google.com\"），保留已有的精确 Google 域名规则（accounts.google.com、apis.google.com、myaccount.google.com）；2) 修复规则 ID 1 的 urlFilter 从 \"gemini.google\" 改为 \"gemini.google.com\"，避免子字符串匹配恶意域名；3) 验证所有 13 个 AI 站点都有对应的精确规则；4) 全量测试 113/113 通过。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-002",
+      "name": "安全修复：postMessage 添加 origin 验证",
+      "category": "fix",
+      "priority": "P0",
+      "status": "完成",
+      "criteria": "1. content.js:1359-1371 的 window.addEventListener('message') 补充 origin 校验；2. 仅接受来自 chrome-extension:// 的消息；3. dashboard.js 中所有 postMessage 监听器补充相同校验；4. 编写测试验证非法 origin 消息被拒绝；5. 实机验证正常消息流不受影响",
+      "notes": "2026-06-23 已完成：1) content.js 添加 EXTENSION_ORIGIN 常量（chrome.runtime.getURL），两个 postMessage 监听器均添加 origin !== EXTENSION_ORIGIN 守卫；2) dashboard.js 添加 ALLOWED_IFRAME_ORIGINS（从 PROVIDERS 构建），两个 postMessage 监听器均添加 !ALLOWED_IFRAME_ORIGINS.has(event.origin) 守卫；3) 新增 tests/content/origin-validation.test.js 12 个测试全部通过；4) 全量测试 125/125 通过。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-003",
+      "name": "内存泄漏修复：添加事件监听器清理机制",
+      "category": "fix",
+      "priority": "P0",
+      "status": "待进行",
+      "criteria": "1. content.js 中 startManualSendCapture (line 1175-1209) 的 keydown/click 监听器保存引用并在页面卸载时清理；2. dashboard.js 中所有 addEventListener 保存引用；3. 实现统一的 cleanup 函数在 window.unload 时调用；4. 验证：打开/关闭 dashboard 10 次后，Chrome Task Manager 显示内存回收正常",
+      "notes": "高严重度性能问题：67 个 addEventListener vs 5 个 removeEventListener，长时间使用后内存持续增长。需要建立监听器注册表并统一清理。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-004",
+      "name": "内存泄漏修复：MutationObserver 自动 disconnect",
+      "category": "fix",
+      "priority": "P0",
+      "status": "待进行",
+      "criteria": "1. content.js:986-1018 (startManualTurnCapture) 的 observer 在捕获完成后 disconnect；2. content.js:1287-1313 (startChildSessionSync) 的 3 个 observers 保存引用并在页面卸载时 disconnect；3. content.js:3106-3111 (Gemini dark mode) 和 3198-3203 (Cloudflare) observers 添加条件 disconnect；4. 实现全局 observer 注册表；5. 验证：Performance Monitor 显示 DOM Nodes 数量不持续增长",
+      "notes": "高严重度性能问题：5+ 个 MutationObserver 永不 disconnect 导致内存泄漏和 CPU 持续占用。需要建立 observer 生命周期管理。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-005",
+      "name": "错误处理改进：Promise catch 补充日志",
+      "category": "refactor",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "1. content.js:676 和 847 的 .catch(() => undefined) 改为 .catch(err => console.warn('[Context]', err))；2. 补充上下文信息（provider 名、函数名）；3. 不改变错误处理语义（仍然吞噬错误，不抛出）；4. 实机测试：触发发送失败时 console 有清晰错误日志",
+      "notes": "中严重度问题：静默吞噬错误导致调试困难。已在 T-20260605-005 中处理部分，本任务处理剩余的 Promise catch。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-006",
+      "name": "工程化：添加 package.json 和测试脚本",
+      "category": "feat",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "1. 创建 package.json，包含 test/test:watch/lint/validate 脚本；2. 配置 eslint 和 web-ext 依赖；3. npm test 可运行所有测试；4. npm run lint 可检查代码规范；5. 文档更新：CLAUDE.md 补充测试运行说明",
+      "notes": "中严重度可维护性问题：无构建工具导致测试无法自动化。建议 package.json 内容见诊断报告第 9 节。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-007",
+      "name": "工程化：配置 ESLint 规则",
+      "category": "feat",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "1. 创建 .eslintrc.json 配置文件；2. 启用 no-console (warning 级别)、no-unused-vars、no-undef 规则；3. 配置 browser 和 webextensions 环境；4. npm run lint 执行无阻塞性错误；5. 修复现有代码中的明显违规（如未使用变量）",
+      "notes": "依赖 T-20260622-006。配置规则建议：强制使用 log wrapper、检测未清理的 listener 引用。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-008",
+      "name": "性能优化：DOM 查询结果缓存",
+      "category": "refactor",
+      "priority": "P1",
+      "status": "待进行",
+      "criteria": "1. content.js:2399-2413 的 countResponseNodes 实现结果缓存（5 秒过期）；2. waitForResponseComplete 轮询中避免重复查询；3. 或改用 IntersectionObserver 替代轮询；4. 性能测试：长时间轮询场景 CPU 占用降低 30% 以上",
+      "notes": "中严重度性能问题：countResponseNodes 在轮询场景中频繁遍历 9 个选择器导致性能下降。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-009",
+      "name": "性能优化：缩小 MutationObserver 监听范围",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. content.js:2772-2777 的 observer 缩小监听范围（从 document.body 到具体容器）；2. 或添加 debounce（200ms）；3. 性能测试：页面加载时 observer 触发次数减少 50% 以上；4. 功能不变：转录捕获仍正常工作",
+      "notes": "中严重度性能问题：{ subtree: true } 监听整个 body 导致每个 DOM 变化都触发回调。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-010",
+      "name": "架构优化：拆分 content.js（第 1 阶段）",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 创建 content/send-handlers.js，提取各 provider 发送逻辑（sendChatGPTMessage/sendGeminiMessage 等）；2. content.js 通过 import 引入；3. 所有发送功能实机验证通过；4. content.js 行数减少 800+ 行",
+      "notes": "高严重度可维护性问题：content.js 3211 行职责混杂。第 1 阶段先拆分发送逻辑，后续阶段拆分响应检测和转录捕获。需要评估 Manifest V3 的 import 支持。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-011",
+      "name": "架构优化：拆分 content.js（第 2 阶段）",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 创建 content/response-detection.js，提取 waitForResponseStart/waitForResponseComplete 等；2. 创建 content/transcript-capture.js，提取 startManualTurnCapture/startManualSendCapture 等；3. 所有功能实机验证通过；4. content.js 行数减少到 1500 行以下",
+      "notes": "依赖 T-20260622-010。继续拆分响应检测和转录捕获逻辑。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-012",
+      "name": "架构优化：拆分 content.js（第 3 阶段）",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 创建 content/session-sync.js，提取 startChildSessionSync 和相关逻辑；2. 创建 content/provider-configs.js，提取 PROVIDER_CONFIGS 配置对象；3. content.js 只保留主流程和消息路由；4. content.js 行数减少到 1000 行以下",
+      "notes": "依赖 T-20260622-011。最后阶段拆分会话同步和配置，完成 content.js 模块化。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-013",
+      "name": "架构优化：拆分 dashboard.js",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 创建 dashboard/state.js（状态管理）、dashboard/ui-renderer.js（UI 渲染）、dashboard/message-handler.js（消息处理）；2. dashboard.js 通过 import 引入；3. 所有 dashboard 功能实机验证通过；4. dashboard.js 行数减少到 1000 行以下",
+      "notes": "高严重度可维护性问题：dashboard.js 2535 行，UI 渲染、状态管理、消息处理混杂。建议与 content.js 拆分同步进行。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-014",
+      "name": "架构优化：Provider 配置外部化",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 将 content.js:297-561 的 PROVIDER_CONFIGS 移至 provider-configs.json；2. content.js 动态加载配置；3. 支持运行时更新配置（无需重新加载扩展）；4. 所有 provider 功能实机验证通过",
+      "notes": "中严重度可维护性问题：13 个 provider × 10+ 选择器 = 130+ 硬编码配置项。外部化后便于维护和更新。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-015",
+      "name": "架构优化：使用 ES Modules 替代 globalThis",
+      "category": "refactor",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. background.js 改用 ES module import/export 替代 importScripts + globalThis；2. 统一模块加载顺序；3. 所有后台功能实机验证通过；4. 调试体验改善（Chrome DevTools 可正确显示模块依赖）",
+      "notes": "中严重度可维护性问题：background.js:24-28 从 globalThis 读取模块导致加载顺序依赖。Manifest V3 支持 type: 'module'。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-016",
+      "name": "测试改进：添加 E2E 测试框架",
+      "category": "test",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 在 tests/e2e/ 目录配置 Puppeteer + Chrome Extension API；2. 编写至少 3 个关键流程 E2E 测试：新建会话、统一发送、恢复会话；3. npm run test:e2e 可执行；4. CI/CD 中集成 E2E 测试",
+      "notes": "中严重度质量问题：缺少 E2E 测试无法验证完整用户流程。依赖 T-20260622-006。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-017",
+      "name": "测试改进：关键路径集成测试",
+      "category": "test",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
+      "notes": "中严重度质量问题：关键发送链路和消息路由缺少测试。依赖 T-20260622-006。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-018",
+      "name": "技术债务：修复 response-state 内联问题根本原因",
+      "category": "fix",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. 调查 content.js:210-271 注释中提到的 Chrome 缓存问题根本原因；2. 确保 response-state.js 正确注入；3. 删除内联逻辑 _inlineResponseState；4. response-state.test.js 全部通过；5. 实机验证回答完成检测功能不变",
+      "notes": "高优先级技术债务：代码重复导致维护困难。T-20260605-002 已减少到两份，本任务彻底解决。需要深入调查 Chrome Extension 缓存机制。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-019",
+      "name": "国际化：使用 Chrome Extension i18n API",
+      "category": "feat",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. 创建 _locales/zh_CN/messages.json 和 _locales/en/messages.json；2. dashboard.js:9-56 硬编码字典改用 chrome.i18n.getMessage()；3. 支持中英文切换；4. 所有界面文本正确显示",
+      "notes": "中优先级改进：当前 i18n 实现简陋，硬编码字典难以维护。使用官方 API 可支持更多语言。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-020",
+      "name": "代码规范：提取魔法数字为命名常量",
+      "category": "refactor",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. content.js 中的魔法数字（1200/5000/8000/25000/90000 等）提取为命名常量；2. 创建 content/constants.js 统一管理；3. 常量命名清晰（如 RESPONSE_STABILITY_MS_DEFAULT = 1200）；4. 功能不变",
+      "notes": "低优先级代码规范问题：魔法数字遍布代码，难以理解和调整。建议与 content.js 拆分同步进行。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-021",
+      "name": "安全加固：Shadow DOM 穿透白名单",
+      "category": "fix",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. content.js:599-613 (deepQueryAll) 添加白名单，仅遍历已知 AI 站点特定组件的 shadowRoot；2. 拒绝遍历密码管理器等敏感组件；3. 编写测试验证白名单生效；4. 功能不变：AI 站点发送按钮仍可正确定位",
+      "notes": "中严重度安全问题：递归遍历所有 shadowRoot 可能访问敏感内容。需要平衡安全性和功能性。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-022",
+      "name": "稳定性改进：background.js Service Worker 状态恢复",
+      "category": "fix",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. background.js:32-54 的 sessionRegistry 改为每次操作时从 chrome.storage.local 重建；2. 或实现单例模式确保 service worker 恢复后状态一致；3. 压力测试：service worker 被回收后功能不受影响；4. 所有 session 测试通过",
+      "notes": "中严重度稳定性问题：Service worker 可能被随时回收，全局变量会丢失。虽然已通过 storage 持久化，但内存实例可能丢失。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-023",
+      "name": "稳定性改进：消息传递超时保护",
+      "category": "fix",
+      "priority": "P2",
+      "status": "待进行",
+      "criteria": "1. content.js:674-682 (sendTranscriptLiveStatus) 和其他 chrome.runtime.sendMessage 调用添加超时逻辑（5 秒）；2. 超时后重试 3 次；3. 重试失败后记录错误；4. 实机测试：service worker 休眠时消息不永久挂起",
+      "notes": "中严重度稳定性问题：chrome.runtime.sendMessage 在 service worker 休眠时可能永久挂起。参考 T-20260605-001 的 waitForTabComplete 超时实现。",
+      "createdAt": "2026-06-22",
+      "archived": false
+    },
+    {
+      "id": "T-20260622-024",
+      "name": "优化：content script 注入时机配置",
+      "category": "refactor",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "1. manifest.json:63-102 的 content_scripts 添加 run_at: 'document_start' 或 'document_end'（根据需求）；2. 验证早期 DOM 事件不再被错过；3. 功能不变：所有 provider 发送和转录功能正常",
+      "notes": "低优先级优化：未指定 run_at 默认为 document_idle，可能错过早期 DOM 事件。需要评估各 provider 实际需求。",
+      "createdAt": "2026-06-22",
+      "archived": false
     }
   ]
 }

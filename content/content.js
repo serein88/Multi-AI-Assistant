@@ -621,6 +621,8 @@ function deepFindElement(selectors) {
   return null;
 }
 
+const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin;
+
 const DEBUG = false; // Set to true for development debugging
 function log(msg, ...args) {
   if (DEBUG) {
@@ -1358,7 +1360,8 @@ function waitForElementDeep(selectors, timeout = 3000) {
 // Listen for messages from dashboard
 window.addEventListener("message", (event) => {
   if (event.source !== window.parent) return;
-  
+  if (event.origin !== EXTENSION_ORIGIN) return;
+
   const data = event.data || {};
   if (data.type === "getPageUrl") {
     window.parent.postMessage({
@@ -3057,6 +3060,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 window.addEventListener("message", (event) => {
+  if (event.origin !== EXTENSION_ORIGIN) return;
   const data = event.data || {};
   if (data.source !== "multi-ai") return;
   if (data.type !== "sendPrompt" && data.type !== "sendPromptChatroom") return;

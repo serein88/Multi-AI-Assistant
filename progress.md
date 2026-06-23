@@ -1,5 +1,74 @@
 # Progress.md
 
+## 2026-06-23（记录 11）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-002
+- 任务名：安全修复：postMessage 添加 origin 验证
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `content/content.js`（添加 EXTENSION_ORIGIN 常量 + 2 处 origin 校验）
+  - `dashboard.js`（添加 ALLOWED_IFRAME_ORIGINS + 2 处 origin 校验）
+  - `tests/content/origin-validation.test.js`（新建，12 个测试）
+- 操作摘要：
+  - **问题根因**：content.js 和 dashboard.js 的 postMessage 监听器只检查 `event.source` 或 `data.source`，不检查 `event.origin`，恶意网页可发送伪造消息
+  - **修复详情**：
+    1. content.js 顶部添加 `const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin`
+    2. content.js 两个消息监听器均添加 `event.origin !== EXTENSION_ORIGIN` 守卫
+    3. dashboard.js 顶部添加 `ALLOWED_IFRAME_ORIGINS`（从 PROVIDERS 构建 13 个 AI 站点 origin）
+    4. dashboard.js 两个消息监听器均添加 `!ALLOWED_IFRAME_ORIGINS.has(event.origin)` 守卫
+    5. 新增 12 个测试覆盖合法/非法/空/null origin 场景
+- 验证步骤：
+  1. 运行 `node --test tests/content/origin-validation.test.js` 验证新增测试
+  2. 运行 `node --test` 验证全部测试通过
+- 验证证据：
+  - **新增测试**：12/12 通过 ✅
+  - **全量测试**：125/125 通过 ✅
+  - **子agent review**：PASS ✅
+- 代码统计：
+  - 修改文件：2 个生产代码 + 1 个测试文件
+  - 新增代码：约 20 行（4 处 origin 校验 + 1 个常量 + 1 个 Set）
+  - 新增测试：12 个
+- 风险/问题：
+  - content.js 的 postMessage 发送端仍使用 `"*"` 目标 origin，后续可收紧为 EXTENSION_ORIGIN（非阻塞）
+- 下一步建议：
+  - 提交代码
+
+---
+
+## 2026-06-23（记录 10）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-001
+- 任务名：安全修复：限制 CSP 移除范围到已知 AI 站点白名单
+- 状态流转：进行中 -> 待确认 -> 完成
+- 变更文件：
+  - `rules.json`（删除规则 ID 2，修复规则 ID 1）
+- 操作摘要：
+  - **问题根因**：rules.json 中规则 ID 2 的 `urlFilter: "google.com"` 使用子字符串匹配，会匹配到所有包含 "google.com" 的域名（包括恶意域名），导致这些网站的 CSP 被意外移除
+  - **修复详情**：
+    1. 删除过于宽泛的规则 ID 2（`urlFilter: "google.com"`），保留已有的精确 Google 域名规则（accounts.google.com、apis.google.com、myaccount.google.com）
+    2. 修复规则 ID 1 的 urlFilter 从 `"gemini.google"` 改为 `"gemini.google.com"`，避免子字符串匹配恶意域名如 `gemini.google.evil.com`
+- 验证步骤：
+  1. 运行 `node -e "const r = require('./rules.json'); console.log('Total rules:', r.length)"` 验证 JSON 语法
+  2. 运行 `node --test` 验证全部测试通过
+  3. 检查所有 urlFilter 都是精确域名匹配
+  4. 确认所有 13 个 AI 站点都有对应的规则
+- 验证证据：
+  - **JSON 语法**：25 条规则，ID 列表：1, 3, 4, 5, 6, 7, 8, 19, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25, 26 ✅
+  - **全量测试**：113/113 通过 ✅
+  - **子agent review**：APPROVED -- Pass with minor advisory ✅
+- 代码统计：
+  - 修改文件：1 个（rules.json）
+  - 删除规则：1 条（ID 2）
+  - 修改规则：1 条（ID 1 的 urlFilter）
+- 风险/问题：
+  - 短域名如 `"you.com"`、`"doubao.com"` 可能产生子字符串误匹配，建议后续任务使用 `"||you.com"` 语法优化（非阻塞）
+- 下一步建议：
+  - 提交代码
+
+---
+
 ## 2026-06-22（记录 9）
 
 - 时间：2026-06-22

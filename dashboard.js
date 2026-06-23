@@ -55,6 +55,12 @@ const I18N_DATA = {
   }
 };
 
+const ALLOWED_IFRAME_ORIGINS = new Set(
+  (typeof PROVIDERS !== "undefined" && Array.isArray(PROVIDERS))
+    ? PROVIDERS.map((p) => new URL(p.url).origin)
+    : []
+);
+
 let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
 let I18N = I18N_DATA[currentLang];
 
@@ -1730,6 +1736,7 @@ function handlePanelAction(panelEl, provider, action, actionButton = null) {
 
       // Listen for one-time response
       const listener = (event) => {
+        if (!ALLOWED_IFRAME_ORIGINS.has(event.origin)) return;
         const data = event.data || {};
         if (data.source === "multi-ai-content" && data.type === "pageUrl" && data.provider === provider.id) {
           if (!resolved) {
@@ -2250,6 +2257,7 @@ function showMessage(text, type = "info") {
 }
 
 window.addEventListener("message", (event) => {
+  if (!ALLOWED_IFRAME_ORIGINS.has(event.origin)) return;
   const data = event.data || {};
   if (data.source !== "multi-ai-content") return;
 
