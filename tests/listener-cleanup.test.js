@@ -208,3 +208,66 @@ test("observer cleanup: registry is emptied after cleanup", () => {
   const result = simulateObserverCleanup();
   assert.equal(result.registryLength, 0, "observer cleanup registry should be empty");
 });
+
+// --- Tests for the real registerCleanup / cleanupAll helpers ---
+
+// Inline the helpers to test them directly (same logic as content.js / dashboard.js)
+function registerCleanup(registry, cleanup) {
+  registry.push(cleanup);
+}
+
+function cleanupAll(registry) {
+  for (const fn of registry) {
+    try { fn(); } catch (_) { /* ignore */ }
+  }
+  registry.length = 0;
+}
+
+test("registerCleanup: adds function to registry", () => {
+  const registry = [];
+  let called = false;
+  registerCleanup(registry, () => { called = true; });
+  assert.equal(registry.length, 1, "registry should have 1 entry");
+  registry[0]();
+  assert.ok(called, "registered function should be callable");
+});
+
+test("registerCleanup: multiple registrations accumulate", () => {
+  const registry = [];
+  registerCleanup(registry, () => {});
+  registerCleanup(registry, () => {});
+  registerCleanup(registry, () => {});
+  assert.equal(registry.length, 3, "registry should have 3 entries");
+});
+
+test("cleanupAll: calls all functions and empties registry", () => {
+  const registry = [];
+  const results = [];
+  registerCleanup(registry, () => results.push("a"));
+  registerCleanup(registry, () => results.push("b"));
+  registerCleanup(registry, () => results.push("c"));
+
+  cleanupAll(registry);
+
+  assert.deepEqual(results, ["a", "b", "c"], "all functions should be called in order");
+  assert.equal(registry.length, 0, "registry should be emptied");
+});
+
+test("cleanupAll: is error-resilient, continues after failure", () => {
+  const registry = [];
+  const results = [];
+  registerCleanup(registry, () => results.push("first"));
+  registerCleanup(registry, () => { throw new Error("boom"); });
+  registerCleanup(registry, () => results.push("third"));
+
+  cleanupAll(registry);
+
+  assert.deepEqual(results, ["first", "third"], "first and third should run despite second throwing");
+  assert.equal(registry.length, 0, "registry should be emptied");
+});
+
+test("cleanupAll: empty registry is a no-op", () => {
+  const registry = [];
+  cleanupAll(registry);
+  assert.equal(registry.length, 0, "empty registry stays empty");
+});

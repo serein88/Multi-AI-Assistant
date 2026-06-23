@@ -65,6 +65,26 @@ const ALLOWED_IFRAME_ORIGINS = new Set(
 // Each entry is a no-arg function that removes the corresponding listener.
 const _cleanupHandlers = [];
 
+/**
+ * Register a cleanup function into the given registry array.
+ * @param {Array<Function>} registry - The cleanup registry array
+ * @param {Function} cleanup - A no-arg function that performs the cleanup
+ */
+function registerCleanup(registry, cleanup) {
+  registry.push(cleanup);
+}
+
+/**
+ * Execute all cleanup functions in the registry and empty the array.
+ * @param {Array<Function>} registry - The cleanup registry array to drain
+ */
+function cleanupAll(registry) {
+  for (const fn of registry) {
+    try { fn(); } catch (_) { /* ignore */ }
+  }
+  registry.length = 0;
+}
+
 let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
 let I18N = I18N_DATA[currentLang];
 
@@ -1705,7 +1725,7 @@ const _settingsClickHandler = (event) => {
     }
 };
 document.addEventListener("click", _settingsClickHandler);
-_cleanupHandlers.push(() => document.removeEventListener("click", _settingsClickHandler));
+registerCleanup(_cleanupHandlers, () => document.removeEventListener("click", _settingsClickHandler));
 
 function handlePanelAction(panelEl, provider, action, actionButton = null) {
   const index = Number(panelEl.dataset.index);
@@ -2326,7 +2346,7 @@ const _mainMessageHandler = (event) => {
   }
 };
 window.addEventListener("message", _mainMessageHandler);
-_cleanupHandlers.push(() => window.removeEventListener("message", _mainMessageHandler));
+registerCleanup(_cleanupHandlers, () => window.removeEventListener("message", _mainMessageHandler));
 
 function ensureDefaultPanels() {
   if (activePanels.length === 0) {
@@ -2487,10 +2507,7 @@ window.addEventListener("beforeunload", () => {
   if (promptProgrammaticFocusUnblockTimerId) {
     clearTimeout(promptProgrammaticFocusUnblockTimerId);
   }
-  for (const cleanup of _cleanupHandlers) {
-    try { cleanup(); } catch (_) { /* ignore */ }
-  }
-  _cleanupHandlers.length = 0;
+  cleanupAll(_cleanupHandlers);
   saveState();
 });
 
@@ -2536,7 +2553,7 @@ const _visibilityChangeHandler = () => {
   }
 };
 document.addEventListener("visibilitychange", _visibilityChangeHandler);
-_cleanupHandlers.push(() => document.removeEventListener("visibilitychange", _visibilityChangeHandler));
+registerCleanup(_cleanupHandlers, () => document.removeEventListener("visibilitychange", _visibilityChangeHandler));
 
 loadState();
 loadPanelsFromStorage()

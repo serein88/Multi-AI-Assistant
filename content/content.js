@@ -695,6 +695,28 @@ let manualSendCaptureStarted = false;
 const _manualSendCleanupHandlers = [];
 const _sessionSyncCleanupHandlers = [];
 const _observerCleanupHandlers = [];
+
+/**
+ * Register a cleanup function into the given registry array.
+ * The function will be called on page unload to remove listeners or disconnect observers.
+ * @param {Array<Function>} registry - The cleanup registry array
+ * @param {Function} cleanup - A no-arg function that performs the cleanup
+ */
+function registerCleanup(registry, cleanup) {
+  registry.push(cleanup);
+}
+
+/**
+ * Execute all cleanup functions in the registry and empty the array.
+ * Each cleanup is wrapped in try/catch so one failure does not block the rest.
+ * @param {Array<Function>} registry - The cleanup registry array to drain
+ */
+function cleanupAll(registry) {
+  for (const fn of registry) {
+    try { fn(); } catch (_) { /* ignore */ }
+  }
+  registry.length = 0;
+}
 let lastManualSendProvider = "";
 let lastManualSendText = "";
 let lastManualSendAt = 0;
@@ -1022,7 +1044,7 @@ function startManualTurnCapture(provider) {
   });
   manualTurnObserver = observer;
 
-  _observerCleanupHandlers.push(() => {
+  registerCleanup(_observerCleanupHandlers, () => {
     observer.disconnect();
     if (manualTurnObserver === observer) {
       manualTurnObserver = null;
@@ -1223,10 +1245,10 @@ function startManualSendCapture(provider) {
   document.addEventListener("keydown", handleKeydown, true);
   document.addEventListener("click", handleClick, true);
 
-  _manualSendCleanupHandlers.push(
-    () => document.removeEventListener("keydown", handleKeydown, true),
-    () => document.removeEventListener("click", handleClick, true)
-  );
+  registerCleanup(_manualSendCleanupHandlers,
+    () => document.removeEventListener("keydown", handleKeydown, true));
+  registerCleanup(_manualSendCleanupHandlers,
+    () => document.removeEventListener("click", handleClick, true));
 }
 
 const CHILD_SESSION_SYNC_PROVIDERS = new Set([
@@ -1304,10 +1326,10 @@ function startChildSessionSync(provider) {
   window.addEventListener("popstate", debouncedSync);
   window.addEventListener("hashchange", debouncedSync);
 
-  _sessionSyncCleanupHandlers.push(
-    () => window.removeEventListener("popstate", debouncedSync),
-    () => window.removeEventListener("hashchange", debouncedSync)
-  );
+  registerCleanup(_sessionSyncCleanupHandlers,
+    () => window.removeEventListener("popstate", debouncedSync));
+  registerCleanup(_sessionSyncCleanupHandlers,
+    () => window.removeEventListener("hashchange", debouncedSync));
 
   const titleObserver = new MutationObserver(() => debouncedSync());
   const bodyObserver = new MutationObserver(() => debouncedSync());
@@ -1337,11 +1359,9 @@ function startChildSessionSync(provider) {
     }, { once: true });
   }
 
-  _sessionSyncCleanupHandlers.push(
-    () => titleObserver.disconnect(),
-    () => bodyObserver.disconnect(),
-    () => headObserver.disconnect()
-  );
+  registerCleanup(_sessionSyncCleanupHandlers, () => titleObserver.disconnect());
+  registerCleanup(_sessionSyncCleanupHandlers, () => bodyObserver.disconnect());
+  registerCleanup(_sessionSyncCleanupHandlers, () => headObserver.disconnect());
 }
 
 log(`Content script loaded for ${window.location.hostname}`);
@@ -3142,7 +3162,7 @@ function initializeCustomFixes() {
       });
     });
     observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
-    _observerCleanupHandlers.push(() => observer.disconnect());
+    registerCleanup(_observerCleanupHandlers, () => observer.disconnect());
 
   }
 
@@ -3236,7 +3256,7 @@ function initializeCustomFixes() {
     });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    _observerCleanupHandlers.push(() => {
+    registerCleanup(_observerCleanupHandlers, () => {
       clearInterval(verificationIntervalId);
       observer.disconnect();
     });
@@ -3251,16 +3271,7 @@ if (document.readyState === "loading") {
 
 // Cleanup event listeners and observers on page unload to prevent memory leaks
 window.addEventListener("beforeunload", () => {
-  for (const cleanup of _manualSendCleanupHandlers) {
-    try { cleanup(); } catch (_) { /* ignore */ }
-  }
-  for (const cleanup of _sessionSyncCleanupHandlers) {
-    try { cleanup(); } catch (_) { /* ignore */ }
-  }
-  for (const cleanup of _observerCleanupHandlers) {
-    try { cleanup(); } catch (_) { /* ignore */ }
-  }
-  _manualSendCleanupHandlers.length = 0;
-  _sessionSyncCleanupHandlers.length = 0;
-  _observerCleanupHandlers.length = 0;
+  cleanupAll(_manualSendCleanupHandlers);
+  cleanupAll(_sessionSyncCleanupHandlers);
+  cleanupAll(_observerCleanupHandlers);
 });
