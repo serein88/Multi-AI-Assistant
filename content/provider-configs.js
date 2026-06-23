@@ -306,16 +306,10 @@ var __MAI_ProviderConfigs = (function () {
 
   // ─── Exports ───────────────────────────────────────────────────────────────
 
-  // PROVIDER_CONFIGS is exposed directly so transcript-capture.js can read cfgs[provider].
-  // HOST_MAP and getProviderFromHost are attached as non-enumerable properties.
-  Object.defineProperty(PROVIDER_CONFIGS, "getProviderFromHost", { value: getProviderFromHost, enumerable: false });
-  Object.defineProperty(PROVIDER_CONFIGS, "HOST_MAP", { value: HOST_MAP, enumerable: false });
-
   PC.PROVIDER_CONFIGS = PROVIDER_CONFIGS;
   PC.HOST_MAP = HOST_MAP;
   PC.getProviderFromHost = getProviderFromHost;
 
-  // Flat exposure: transcript-capture.js reads globalThis.__MAI_ProviderConfigs[provider] directly
-  globalThis.__MAI_ProviderConfigs = PROVIDER_CONFIGS;
+  globalThis.__MAI_ProviderConfigs = PC;
   return PC;
 })();

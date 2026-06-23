@@ -23,6 +23,13 @@ var __MAI_Transcript = (function () {
   var SH = globalThis.__MAI_Send || {};
   var findElement = SH.findElement;
 
+  // ─── Provider config accessor (handles namespace or flat layout) ─────────
+
+  function getProviderConfigs() {
+    var ns = globalThis.__MAI_ProviderConfigs || {};
+    return ns.PROVIDER_CONFIGS || ns;
+  }
+
   // ─── Cleanup helpers (local implementation, same as content.js) ────────────
 
   function registerCleanup(registry, handler) {
@@ -200,8 +207,7 @@ var __MAI_Transcript = (function () {
       }
     }
 
-    // eslint-disable-next-line no-undef
-    var cfgs = (typeof PROVIDER_CONFIGS !== "undefined" ? PROVIDER_CONFIGS : globalThis.__MAI_ProviderConfigs) || {};
+    var cfgs = getProviderConfigs();
     var cfg = cfgs[provider];
     if (cfg && typeof cfg.scrubTurnText === "function") {
       text = cfg.scrubTurnText(role, text);
@@ -439,8 +445,7 @@ var __MAI_Transcript = (function () {
   }
 
   function getManualSendButtonSelectors(provider) {
-    // eslint-disable-next-line no-undef
-    var cfgs = (typeof PROVIDER_CONFIGS !== "undefined" ? PROVIDER_CONFIGS : globalThis.__MAI_ProviderConfigs) || {};
+    var cfgs = getProviderConfigs();
     var selectors = Array.isArray(cfgs?.[provider]?.sendButtonSelectors)
       ? cfgs[provider].sendButtonSelectors
       : [];
@@ -577,7 +582,7 @@ var __MAI_Transcript = (function () {
       if (!matched) return;
 
       // eslint-disable-next-line no-undef
-      const cfgs = (typeof PROVIDER_CONFIGS !== "undefined" ? PROVIDER_CONFIGS : globalThis.__MAI_ProviderConfigs) || {};
+      var cfgs = getProviderConfigs();
       const cfg = cfgs[provider];
       const active = findClosestEditableTarget(document.activeElement) ||
         findClosestEditableTarget(document.querySelector("textarea, [contenteditable='true'], [role='textbox']")) ||

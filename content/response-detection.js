@@ -195,6 +195,9 @@ var __MAI_Response = (function () {
     var textStableMs = 3500;
     if (provider === "deepseek") textStableMs = 1500;
     else if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = 1800;
+    // Baseline: meta is actually responseBaseline from content.js { text, responseCount }
+    var baselineText = (meta && typeof meta.text === "string") ? meta.text.trim() : "";
+    var baselineCount = (meta && typeof meta.responseCount === "number") ? meta.responseCount : 0;
     function collectText() {
       // RESPONSE_SELECTORS is keyed by provider: { chatgpt: [...selectors], deepseek: [...], ... }
       var rs = _rs();
@@ -307,6 +310,16 @@ var __MAI_Response = (function () {
             return;
           }
           var finalText = collectText().join("\n");
+          // Check if a NEW response appeared (text differs from baseline or more nodes)
+          var currentCount = SH.countResponseNodes ? SH.countResponseNodes(provider) : 0;
+          var hasNewContent = (finalText !== baselineText) || (currentCount > baselineCount);
+          if (!hasNewContent && baselineText) {
+            // No new response yet — keep waiting
+            textStableStart = null;
+            lastTextSnapshot = null;
+            setTimeout(function () { checkTextStability(0); }, 800);
+            return;
+          }
           onDone("text-stable", finalText);
           return;
         }
