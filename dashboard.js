@@ -102,6 +102,7 @@ function ensureTranscriptScaffold() {
     panelGrid.replaceWith(workspace);
     workspace.appendChild(panelGrid);
   }
+  _workspaceLayoutEl = workspace;
 
   if (document.getElementById("transcriptPanel")) {
     return;
@@ -178,6 +179,19 @@ const transcriptTimelineCount = document.getElementById("transcriptTimelineCount
 const transcriptProviderList = document.getElementById("transcriptProviderList");
 const transcriptViewModeBtn = document.getElementById("transcriptViewMode");
 const dashboardFocusApi = globalThis.MultiAIDashboardFocus || {};
+
+// DOM query caches — rebuilt when renderPanels() / initGridResizers() / buildPicker() run
+/** @type {Map<number, HTMLElement>} data-index → .panel element */
+let _panelByIndex = new Map();
+/** @type {HTMLElement[]} live .panel elements in grid */
+let _panelEls = [];
+/** @type {HTMLElement[]} live splitter elements in grid */
+let _vSplitters = [];
+let _hSplitters = [];
+/** @type {HTMLInputElement[]} picker checkbox elements */
+let _pickerCheckboxes = [];
+/** @type {HTMLElement|null} cached workspaceLayout */
+let _workspaceLayoutEl = null;
 const promptFocusGuard = dashboardFocusApi.createPromptFocusGuard
   ? dashboardFocusApi.createPromptFocusGuard({ promptEl, documentRef: document, windowRef: window })
   : null;
@@ -559,7 +573,7 @@ function setPanelLiveStatus(providerId, providerState) {
     return;
   }
 
-  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  const panel = _panelByIndex.get(index);
   const statusEl = panel?.querySelector(".panel-live-status");
   if (!statusEl) {
     return;
@@ -1170,6 +1184,7 @@ function buildPicker(selected) {
     pickerList.appendChild(item);
     attachPickerDnD(item);
   });
+  _pickerCheckboxes = Array.from(pickerList.querySelectorAll("input[type='checkbox']"));
 }
 
 let draggingPickerItem = null;
@@ -1266,20 +1281,19 @@ function closeSettings() {
 }
 
 function readPickerSelection() {
-  return Array.from(pickerList.querySelectorAll("input[type='checkbox']"))
+  return _pickerCheckboxes
     .filter((input) => input.checked)
     .map((input) => input.value);
 }
 
 function setPickerSelection(checked) {
-  pickerList.querySelectorAll("input[type='checkbox']").forEach((input) => {
+  _pickerCheckboxes.forEach((input) => {
     input.checked = checked;
   });
 }
 
 function isAllSelected() {
-  const inputs = Array.from(pickerList.querySelectorAll("input[type='checkbox']"));
-  return inputs.length > 0 && inputs.every((input) => input.checked);
+  return _pickerCheckboxes.length > 0 && _pickerCheckboxes.every((input) => input.checked);
 }
 
 function getColumnCount() {
@@ -1708,6 +1722,12 @@ function renderPanels() {
     grid.appendChild(node);
   });
 
+  // Rebuild panel index cache (panels are now in DOM)
+  _panelByIndex.clear();
+  for (const el of grid.querySelectorAll(".panel")) {
+    _panelByIndex.set(Number(el.dataset.index), el);
+  }
+
   applyGridLayout();
   updateShortcutHint();
   syncPanelLiveStatuses();
@@ -1848,7 +1868,7 @@ function parseTargetPrompt(text) {
 function getPanelIframe(providerId) {
   const index = activePanels.indexOf(providerId);
   if (index < 0) return null;
-  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  const panel = _panelByIndex.get(index);
   if (!panel) return null;
   return panel.querySelector("iframe");
 }
@@ -1856,7 +1876,7 @@ function getPanelIframe(providerId) {
 function getPanelBadge(providerId) {
   const index = activePanels.indexOf(providerId);
   if (index < 0) return null;
-  const panel = grid.querySelector(`.panel[data-index='${index}']`);
+  const panel = _panelByIndex.get(index);
   if (!panel) return null;
   return panel.querySelector(".panel-badge");
 }
@@ -2057,7 +2077,7 @@ function initGridResizers() {
   const existing = Array.from(grid.querySelectorAll(".grid-splitter"));
   existing.forEach((el) => el.remove());
 
-  const panels = Array.from(grid.querySelectorAll(".panel"));
+  const panels = Array.from(_panelByIndex.values());
   if (panels.length <= 1) {
     colSizes = [];
     rowSizes = [];
@@ -2143,6 +2163,10 @@ function initGridResizers() {
       }
     }
   }
+  // Update DOM caches after splitters are rebuilt
+  _panelEls = panels;
+  _vSplitters = Array.from(grid.querySelectorAll(".grid-splitter-vertical"));
+  _hSplitters = Array.from(grid.querySelectorAll(".grid-splitter-horizontal"));
 }
 
 function onVerticalSplitterMouseDown(event) {
@@ -2239,13 +2263,11 @@ function onHorizontalSplitterMouseDown(event) {
 }
 
 function updateSplitterPositions() {
-  const panels = Array.from(grid.querySelectorAll(".panel"));
   const gridRect = grid.getBoundingClientRect();
 
-  const vSplitters = grid.querySelectorAll(".grid-splitter-vertical");
-  vSplitters.forEach(sp => {
+  _vSplitters.forEach(sp => {
     const idx = Number(sp.dataset.index);
-    const panel = panels[idx];
+    const panel = _panelEls[idx];
     if (panel) {
       const rect = panel.getBoundingClientRect();
       const left = rect.right - gridRect.left;
@@ -2254,13 +2276,12 @@ function updateSplitterPositions() {
     }
   });
 
-  const hSplitters = grid.querySelectorAll(".grid-splitter-horizontal");
-  hSplitters.forEach(sp => {
+  _hSplitters.forEach(sp => {
     const idx = Number(sp.dataset.index);
     const match = grid.className.match(/cols-(\d+)/);
     const cols = customGrid.cols || (match ? Number(match[1]) : 1);
     const panelIndex = idx * cols;
-    const panel = panels[panelIndex];
+    const panel = _panelEls[panelIndex];
     if (panel) {
       const rect = panel.getBoundingClientRect();
       const top = rect.bottom - gridRect.top - HORIZONTAL_SPLITTER_HEIGHT;
@@ -2524,7 +2545,8 @@ const transcriptDockBtn = document.getElementById("transcriptDock");
 function applyTranscriptCollapsed(collapsed) {
   transcriptCollapsed = collapsed;
   localStorage.setItem("multi-ai-transcript-collapsed", collapsed ? "true" : "false");
-  const workspace = document.getElementById("workspaceLayout");
+  if (!_workspaceLayoutEl) _workspaceLayoutEl = document.getElementById("workspaceLayout");
+  const workspace = _workspaceLayoutEl;
   if (workspace) {
     workspace.classList.toggle("transcript-collapsed", collapsed);
   }

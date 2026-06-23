@@ -1,5 +1,29 @@
 # Progress.md
 
+## 2026-06-23（记录 21）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-008
+- 任务名：性能优化：DOM 查询结果缓存
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `dashboard.js`
+- 操作摘要：
+  - 新增 6 个 DOM 查询缓存变量：`_panelByIndex`（Map）、`_panelEls`（Array）、`_vSplitters`/`_hSplitters`（Array）、`_pickerCheckboxes`（Array）、`_workspaceLayoutEl`（Element）
+  - `setPanelLiveStatus`/`getPanelIframe`/`getPanelBadge`：`grid.querySelector('.panel[data-index=...]')` → `_panelByIndex.get(index)`，消除每轮 send 18+ 次属性选择器查询
+  - `updateSplitterPositions`：3 个 `querySelectorAll` → 使用 `_panelEls`/`_vSplitters`/`_hSplitters` 缓存，消除 mousemove 拖拽时每像素 3 次 DOM 查询
+  - `readPickerSelection`/`setPickerSelection`/`isAllSelected`：`pickerList.querySelectorAll("input[type='checkbox']")` → `_pickerCheckboxes` 缓存
+  - `initGridResizers`：`grid.querySelectorAll(".panel")` → `_panelByIndex.values()` 缓存；splitters 重建后更新缓存
+  - `ensureTranscriptScaffold`/`applyTranscriptCollapsed`：`document.getElementById("workspaceLayout")` → `_workspaceLayoutEl` 缓存
+  - 缓存失效时机：`renderPanels()` 重建 `_panelByIndex`，`initGridResizers()` 重建 `_panelEls`/`_vSplitters`/`_hSplitters`，`buildPicker()` 重建 `_pickerCheckboxes`
+- 可复现步骤：
+  1. `npm run lint` — 0 errors
+  2. `npm test` — 121/121 通过
+  3. 手动验证：打开 dashboard，发送 prompt 到多个 AI，拖拽 splitter 调整面板大小，打开 settings picker — 功能正常
+- 风险：无。缓存在 DOM 重建时同步更新，行为与原始 querySelector 等价
+
+---
+
 ## 2026-06-23（记录 20）
 
 - 时间：2026-06-23

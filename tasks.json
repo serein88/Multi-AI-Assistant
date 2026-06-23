@@ -710,7 +710,7 @@
       "name": "性能优化：DOM 查询结果缓存",
       "category": "refactor",
       "priority": "P1",
-      "status": "待进行",
+      "status": "完成",
       "criteria": "1. content.js:2399-2413 的 countResponseNodes 实现结果缓存（5 秒过期）；2. waitForResponseComplete 轮询中避免重复查询；3. 或改用 IntersectionObserver 替代轮询；4. 性能测试：长时间轮询场景 CPU 占用降低 30% 以上",
       "notes": "中严重度性能问题：countResponseNodes 在轮询场景中频繁遍历 9 个选择器导致性能下降。",
       "createdAt": "2026-06-22",
