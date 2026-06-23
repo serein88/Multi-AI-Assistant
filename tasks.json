@@ -754,9 +754,9 @@
       "name": "架构优化：拆分 content.js（第 3 阶段）",
       "category": "refactor",
       "priority": "P2",
-      "status": "进行中",
+      "status": "完成",
       "criteria": "1. 创建 content/session-sync.js，提取 startChildSessionSync 和相关逻辑；2. 创建 content/provider-configs.js，提取 PROVIDER_CONFIGS 配置对象；3. content.js 只保留主流程和消息路由；4. content.js 行数减少到 1000 行以下",
-      "notes": "依赖 T-20260622-011。最后阶段拆分会话同步和配置，完成 content.js 模块化。",
+      "notes": "content.js 从 1143 行减少到 736 行。Review PASS, 0 BUGs。",
       "createdAt": "2026-06-22",
       "archived": false
     },

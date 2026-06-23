@@ -1,5 +1,26 @@
 # Progress.md
 
+## 2026-06-23（记录 25）
+
+- 时间：2026-06-23
+- 任务 ID：T-20260622-012
+- 任务名：架构优化：拆分 content.js（第 3 阶段）
+- 状态流转：进行中 -> 完成
+- 变更文件：
+  - `content/provider-configs.js`（新增，315 行）— PROVIDER_CONFIGS、HOST_MAP、getProviderFromHost
+  - `content/session-sync.js`（新增，176 行）— 会话同步逻辑
+  - `content/content.js`（1143 → 736 行，-407 行）
+  - `manifest.json`（加载顺序更新）
+- 验证：lint 0 errors + 121/121 tests pass
+- Review 结果：PASS，0 BUGs，2 WARNINGs，3 NITs
+- content.js 模块化完成：6 个文件加载顺序
+  1. provider-configs.js（无依赖）
+  2. send-handlers.js（无依赖）
+  3. response-detection.js（依赖 send-handlers）
+  4. transcript-capture.js（依赖 send-handlers + response-detection + content 惰性访问）
+  5. session-sync.js（无依赖）
+  6. content.js（依赖以上全部）
+
 ## 2026-06-23（记录 24）
 
 - 时间：2026-06-23
