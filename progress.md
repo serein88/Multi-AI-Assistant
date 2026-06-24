@@ -1,5 +1,25 @@
 # Progress.md
 
+## 2026-06-24（记录 32）
+
+- 时间：2026-06-24
+- 任务：T-20260622-014 修复：content.js 等待 provider configs 加载
+- 状态：待确认
+- 变更文件：
+  - `content/content.js` — 新增 `ensureConfigsReady()` helper，`trySendPrompt()` 和 `initializeCustomFixes()` 等待 configs 加载
+  - `tests/content/provider-configs.test.js` — 新增 2 个 timing 测试
+- 修复内容：
+  1. `ensureConfigsReady(timeoutMs)` — race readyPromise vs timeout，返回 boolean
+  2. `trySendPrompt()` 开头 `await ensureConfigsReady()`，失败则 early return with explicit error
+  3. `initializeCustomFixes()` 调用包装为 `ensureConfigsReady().then(initializeCustomFixes)`
+  4. CONFIG_READY_TIMEOUT_MS = 5000ms，超时后 console.warn
+- 验证证据：
+  - `npm test` → 183 pass / 0 fail（含 2 个新 timing 测试）
+  - `npm run lint` → 0 errors
+  - `node --check content/content.js content/provider-configs.js` → SYNTAX OK
+  - `git diff --check` → 0 trailing whitespace
+- commit: `5894a26`
+
 ## 2026-06-24（记录 31）
 
 - 时间：2026-06-24
