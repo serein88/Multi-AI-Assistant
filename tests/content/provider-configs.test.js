@@ -183,6 +183,64 @@ describe("provider-configs.js helpers", () => {
   });
 });
 
+// ── Async timing tests ──────────────────────────────────────────────────────
+
+describe("provider-configs.js timing", () => {
+  beforeEach(() => {
+    delete globalThis.__MAI_ProviderConfigs;
+    globalThis.chrome = {
+      runtime: {
+        getURL: (p) => "chrome-extension://fake/" + p
+      }
+    };
+  });
+
+  it("readyPromise blocks until fetch resolves (simulates slow network)", async () => {
+    const jsonData = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
+    let resolveFetch;
+    // Simulate 50ms network delay
+    globalThis.fetch = () => new Promise((resolve) => {
+      resolveFetch = () => resolve({ ok: true, json: () => jsonData });
+    });
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+
+    // Configs should be empty while fetch is pending
+    assert.equal(PC.ready, false);
+    assert.deepEqual(PC.PROVIDER_CONFIGS, {});
+
+    // Resolve the fetch
+    resolveFetch();
+
+    // Await readyPromise — should resolve with configs populated
+    const result = await PC.readyPromise;
+    assert.equal(result, true);
+    assert.equal(PC.ready, true);
+    assert.ok(Object.keys(PC.PROVIDER_CONFIGS).length > 0, "configs should be populated after fetch");
+    assert.ok(PC.HOST_MAP.length > 0, "hostMap should be populated after fetch");
+  });
+
+  it("ensureConfigsReady-like race resolves false on timeout", async () => {
+    // Simulate fetch that never resolves
+    globalThis.fetch = () => new Promise(() => {});
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+
+    // Race readyPromise against a short timeout
+    const result = await Promise.race([
+      PC.readyPromise,
+      new Promise((resolve) => setTimeout(() => resolve(false), 30))
+    ]);
+    assert.equal(result, false);
+    assert.equal(PC.ready, false);
+    assert.deepEqual(PC.PROVIDER_CONFIGS, {});
+  });
+});
+
 // ── Reload simulation tests ──────────────────────────────────────────────────
 
 describe("provider-configs.js reload", () => {

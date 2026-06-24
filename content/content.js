@@ -185,6 +185,29 @@ const RD = globalThis.__MAI_Response || {};
 const TC = globalThis.__MAI_Transcript || {};
 const PC = globalThis.__MAI_ProviderConfigs || {};
 const SS = globalThis.__MAI_SessionSync || {};
+
+// ── Provider config readiness ────────────────────────────────────────────────
+// JSON is loaded async by provider-configs.js; all config-dependent paths must
+// call ensureConfigsReady() before reading PROVIDER_CONFIGS or HOST_MAP.
+
+const CONFIG_READY_TIMEOUT_MS = 5000;
+
+function ensureConfigsReady(timeoutMs = CONFIG_READY_TIMEOUT_MS) {
+  if (PC.ready) return Promise.resolve(true);
+  if (!PC.readyPromise) return Promise.resolve(false);
+
+  return Promise.race([
+    PC.readyPromise,
+    new Promise((resolve) => {
+      setTimeout(() => resolve(false), timeoutMs);
+    })
+  ]).then((loaded) => {
+    if (!loaded) {
+      console.warn("[MultiAI Content] Provider configs not ready after " + timeoutMs + "ms — commands may fail");
+    }
+    return loaded;
+  });
+}
 const EXTENSION_ORIGIN = new URL(chrome.runtime.getURL("")).origin;
 const {
   findElement, deepQueryAll,
@@ -326,7 +349,17 @@ window.addEventListener("message", (event) => {
 
 async function trySendPrompt(provider, prompt, retryCount = 0) {
   const maxRetries = provider === "grok" ? 0 : 2;
-  const config = PC.PROVIDER_CONFIGS ? PC.PROVIDER_CONFIGS[provider] : null;
+
+  // Wait for async JSON load before reading config
+  const configsLoaded = await ensureConfigsReady();
+  if (!configsLoaded) {
+    console.error(`[MultiAI Content] Provider configs not loaded — cannot send to ${provider}`);
+    postSendResult(provider, false);
+    sendTranscriptLiveStatus(provider, "failed");
+    return false;
+  }
+
+  const config = PC.getProviderConfig ? PC.getProviderConfig(provider) : (PC.PROVIDER_CONFIGS ? PC.PROVIDER_CONFIGS[provider] : null);
   if (!config) {
     console.error(`未找到配置 ${provider}`);
     postSendResult(provider, false);
@@ -701,9 +734,11 @@ function initializeCustomFixes() {
 }
 
 if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", initializeCustomFixes);
+  document.addEventListener("DOMContentLoaded", () => {
+    ensureConfigsReady().then(() => initializeCustomFixes());
+  });
 } else {
-  initializeCustomFixes();
+  ensureConfigsReady().then(() => initializeCustomFixes());
 }
 
 // Cleanup event listeners and observers on page unload to prevent memory leaks
