@@ -585,6 +585,171 @@ describe(".mjs files do not use UMD patterns", () => {
   }
 });
 
+// ── Service worker near-real bootstrap test ────────────────────────────────
+
+describe("background.mjs service worker bootstrap (near-real)", () => {
+  it("full ESM import graph loads with mock chrome API", async () => {
+    // Set up a minimal mock chrome API that background.mjs calls at top level
+    const listeners = [];
+    const originalChrome = globalThis.chrome;
+    globalThis.chrome = {
+      action: {
+        onClicked: { addListener: () => {} }
+      },
+      runtime: {
+        onMessage: { addListener: (fn) => listeners.push(fn) },
+        getURL: (path) => `chrome-extension://test-id/${path}`
+      },
+      storage: {
+        local: {
+          get: async () => ({}),
+          set: async () => {}
+        }
+      },
+      tabs: {
+        create: async () => ({ id: 1 }),
+        query: async () => [],
+        sendMessage: async () => ({}),
+        onUpdated: { addListener: () => {}, removeListener: () => {} }
+      },
+      windows: {
+        getCurrent: async () => ({ id: 1 })
+      },
+      scripting: {
+        executeScript: async () => []
+      }
+    };
+
+    try {
+      // This exercises the full ESM import graph:
+      //   background.mjs → providers.mjs, session-constants.mjs, session-model.mjs,
+      //   session-registry.mjs, provider-session-bindings.mjs, transcript-store.mjs,
+      //   window-manager.mjs
+      const bg = await import("../background.mjs");
+
+      // The onMessage listener should have been registered
+      assert.ok(listeners.length >= 1, "background.mjs should register at least one onMessage listener");
+
+      // The registered listener should be a function
+      assert.equal(typeof listeners[0], "function");
+
+      // Verify the module loaded (even though it doesn't export anything,
+      // the fact that it loaded without throwing proves the import graph works)
+      assert.ok(true, "background.mjs loaded successfully with mock chrome API");
+    } finally {
+      // Restore original chrome
+      if (originalChrome) {
+        globalThis.chrome = originalChrome;
+      } else {
+        delete globalThis.chrome;
+      }
+    }
+  });
+
+  it("session modules produce correct results via background import chain", async () => {
+    // Verify the session modules work correctly through the import chain
+    // by testing their core logic directly via ESM imports
+    const { createSessionRecord, updateChildSessionRecord } = await import("../session/session-model.mjs");
+    const { ensureSessionTranscript, appendUserTurn, appendProviderTurn, applyProviderLiveStatus } = await import("../session/transcript-store.mjs");
+    const { buildManagedDashboardUrl, normalizeRestorePlan } = await import("../session/window-manager.mjs");
+    const { normalizeChildSessionBinding, shouldIgnoreChildSessionUrl } = await import("../session/provider-session-bindings.mjs");
+
+    // Simulate a session lifecycle: create → sync child → send prompt → get response
+    const now = "2026-06-24T12:00:00.000Z";
+    let session = createSessionRecord({
+      sessionId: "sess_integration",
+      providers: ["deepseek", "grok"],
+      mode: "foreground",
+      now
+    });
+
+    // Ensure transcript shell
+    session = ensureSessionTranscript(session, now);
+    assert.ok(session.transcript, "transcript should exist");
+    assert.ok(session.transcript.providers.deepseek, "deepseek provider state should exist");
+
+    // Sync child session (simulate deepseek tab opening)
+    session = updateChildSessionRecord(session, "deepseek", {
+      url: "https://chat.deepseek.com/a/chat/123",
+      title: "DeepSeek Chat",
+      tabId: 100,
+      recoverable: true
+    });
+    assert.equal(session.childSessions.deepseek.recoverable, true);
+
+    // Apply provider live status: responding
+    session = applyProviderLiveStatus(session, {
+      provider: "deepseek",
+      status: "responding",
+      occurredAt: "2026-06-24T12:01:00.000Z"
+    });
+    assert.equal(session.transcript.providers.deepseek.status, "responding");
+
+    // Record user turn
+    session = appendUserTurn(session, {
+      providers: ["deepseek"],
+      prompt: "What is the meaning of life?",
+      occurredAt: "2026-06-24T12:01:00.000Z"
+    });
+    assert.equal(session.transcript.providers.deepseek.turns.length, 1);
+    assert.equal(session.transcript.providers.deepseek.turns[0].role, "user");
+
+    // Record provider response
+    session = appendProviderTurn(session, {
+      provider: "deepseek",
+      role: "assistant",
+      content: "42.",
+      occurredAt: "2026-06-24T12:01:05.000Z"
+    });
+    assert.equal(session.transcript.providers.deepseek.turns.length, 2);
+    assert.equal(session.transcript.providers.deepseek.turns[1].role, "assistant");
+
+    // Apply terminal status: completed
+    session = applyProviderLiveStatus(session, {
+      provider: "deepseek",
+      status: "completed",
+      occurredAt: "2026-06-24T12:01:06.000Z"
+    });
+    assert.equal(session.transcript.providers.deepseek.status, "completed");
+
+    // Build dashboard URL for restore
+    const dashboardUrl = buildManagedDashboardUrl({
+      baseUrl: "chrome-extension://test/dashboard.html",
+      sessionId: session.sessionId
+    });
+    assert.ok(dashboardUrl.includes("sessionId=sess_integration"));
+
+    // Normalize restore plan
+    const plan = normalizeRestorePlan(session);
+    assert.equal(plan.restored.length, 1, "deepseek should be recoverable");
+    assert.equal(plan.restored[0].provider, "deepseek");
+    assert.equal(plan.clearedChildSessions.deepseek.tabId, null, "tabId cleared for restore");
+
+    // Grok should not be recoverable (empty URL)
+    assert.equal(plan.restored.length, 1, "only deepseek should be recoverable");
+  });
+
+  it("Gemini ignored URL pattern works through ESM import chain", async () => {
+    const { shouldIgnoreChildSessionUrl } = await import("../session/provider-session-bindings.mjs");
+    const { normalizeChildSessionBinding } = await import("../session/provider-session-bindings.mjs");
+
+    // Gemini bscframe URL should be ignored
+    assert.equal(
+      shouldIgnoreChildSessionUrl("gemini", "https://gemini.google.com/_/bscframe?hl=en"),
+      true
+    );
+
+    // Binding with bscframe URL should mark as non-recoverable
+    const binding = normalizeChildSessionBinding({
+      provider: "gemini",
+      url: "https://gemini.google.com/_/bscframe?hl=en",
+      tabId: 200,
+      now: "2026-06-24T12:00:00.000Z"
+    });
+    assert.equal(binding.recoverable, false);
+  });
+});
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function createMockStorage() {

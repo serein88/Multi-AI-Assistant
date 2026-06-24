@@ -787,7 +787,7 @@
       "name": "架构优化：使用 ES Modules 替代 globalThis",
       "category": "refactor",
       "priority": "P3",
-      "status": "进行中",
+      "status": "待确认",
       "criteria": "1. background.js 改用 ES module import/export 替代 importScripts + globalThis；2. 统一模块加载顺序；3. 所有后台功能实机验证通过；4. 调试体验改善（Chrome DevTools 可正确显示模块依赖）",
       "notes": "中严重度可维护性问题：background.js:24-28 从 globalThis 读取模块导致加载顺序依赖。Manifest V3 支持 type: 'module'。",
       "createdAt": "2026-06-22",

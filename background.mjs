@@ -8,7 +8,6 @@
  */
 
 import {
-  PROVIDERS,
   PROVIDER_BY_ID,
   SESSION_PROVIDER_IDS
 } from "./providers.mjs";
@@ -26,15 +25,11 @@ import {
   ensureSessionTranscript,
   applyProviderLiveStatus,
   appendUserTurn,
-  appendProviderTurn,
-  createTranscriptStore,
-  createEmptyTranscriptProvider,
-  normalizeTranscriptProvider
+  appendProviderTurn
 } from "./session/transcript-store.mjs";
 import {
   buildManagedDashboardUrl,
   normalizeRestorePlan,
-  normalizeWindowCreatePayload,
   createWindowManager
 } from "./session/window-manager.mjs";
 

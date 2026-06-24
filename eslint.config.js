@@ -28,6 +28,19 @@ module.exports = [
     }
   },
   {
+    // ES Module files (background service worker + session modules)
+    files: ["*.mjs", "session/*.mjs"],
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: "module",
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+        ...globals.node
+      }
+    }
+  },
+  {
     // Files that consume providers.js exports as implicit globals
     files: ["background.js", "dashboard.js", "dashboard/*.js", "manage.js", "popup.js"],
     languageOptions: {

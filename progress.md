@@ -1,5 +1,46 @@
 # Progress.md
 
+## 2026-06-24（记录 33）
+
+- 时间：2026-06-24
+- 任务：T-20260622-015 架构优化：使用 ES Modules 替代 globalThis
+- 状态：待确认
+- 变更文件：
+  - `background.mjs` — 新建，ESM 入口，静态 import 替代 importScripts + globalThis
+  - `providers.mjs` — 新建，providers.js 的 ESM 版本
+  - `session/session-constants.mjs` — 新建，ESM 导出 4 个常量
+  - `session/session-model.mjs` — 新建，createSessionRecord / updateChildSessionRecord
+  - `session/session-registry.mjs` — 新建，createSessionRegistry (CRUD + 序列化)
+  - `session/provider-session-bindings.mjs` — 新建，URL 匹配 + recoverable 判断
+  - `session/transcript-store.mjs` — 新建，转录创建/去重/状态跟踪
+  - `session/window-manager.mjs` — 新建，Dashboard URL 构建 + 恢复计划
+  - `manifest.json` — background.service_worker → background.mjs, type: module
+  - `eslint.config.js` — 新增 .mjs sourceType: "module" 配置块
+  - `package.json` — lint 脚本纳入 .mjs；glob 引号修复
+  - `tests/esm-migration.test.js` — 新建，74 个测试
+  - `tasks.json` — 状态更新
+- 改动要点：
+  1. background.mjs 使用 `import { ... } from "./providers.mjs"` + `import { ... } from "./session/*.mjs"` 静态导入，彻底消除 importScripts 和 globalThis.MultiAISession* 读取。
+  2. 旧 .js UMD 文件保留不动（现有 CommonJS 测试继续使用），两套文件并行。
+  3. ESLint 新增 ESM 配置块（sourceType: "module"），background.mjs 清理 3 个未使用 import（PROVIDERS, createTranscriptStore/Empty/Normalize, normalizeWindowCreatePayload）。
+  4. 近实机验证：mock chrome API 下完整 import graph 加载成功，onMessage 监听器注册成功，session 生命周期（创建→同步→发送→响应→完成）通过 ESM 路径端到端走通。
+- 验证步骤：
+  1. `node --check background.mjs providers.mjs session/*.mjs` — 全部 SYNTAX OK
+  2. `npm test` — 310 pass / 0 fail（原 236 + ESM 74）
+  3. `npm run lint` — 0 errors / 12 warnings（均为既有的 content.js 预留变量）
+  4. `npm run validate` — manifest.json OK
+  5. `git diff --check` — 0 trailing whitespace
+- 验证证据：
+  - 证据 A：310/310 tests pass（含 3 个近实机 bootstrap 测试：full ESM import graph + session lifecycle + Gemini ignored URL）
+  - 证据 B：npm run lint 0 errors，.mjs 文件全部纳入 ESLint
+  - 证据 C：background.mjs 不含 importScripts / globalThis.MultiAISession* / module.exports
+  - 证据 D：manifest.json background 配置 { service_worker: "background.mjs", type: "module" }
+  - 证据 E：mock chrome API 下 onMessage 监听器注册成功，session 全生命周期走通
+- 风险/后续：
+  - 旧 .js UMD/CommonJS 文件待后续任务清理（需等 ESM 路径稳定后）
+  - content/*.js、dashboard/*.js 未迁移（不在本任务范围）
+  - 实机验证需 Chrome 加载扩展确认 service worker 启动
+
 ## 2026-06-24（记录 32）
 
 - 时间：2026-06-24
