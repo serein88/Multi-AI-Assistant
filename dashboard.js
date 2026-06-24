@@ -79,16 +79,17 @@ let sessionChildUrls = {};
 const DEBUG = false; // Set to true for development debugging
 
 /**
- * Sync all mutable local state to the globalThis.MultiAI namespace.
- * Call after every reassignment of activePanels/customGrid/colSizes/rowSizes/I18N/sessionChildUrls.
+ * Sync mutable local state to the globalThis.MultiAI namespace.
+ *
+ * colSizes/rowSizes are NOT synced here — grid-resizer.js owns them
+ * as the single source of truth via the namespace. They are only
+ * written once, from loadState(), immediately after localStorage restore.
  */
 function syncSharedState() {
   const s = globalThis.MultiAI;
   if (!s) return;
   s.activePanels = activePanels;
   s.customGrid = customGrid;
-  s.colSizes = colSizes;
-  s.rowSizes = rowSizes;
   s.I18N = I18N;
   s.sessionChildUrls = sessionChildUrls;
   s.panelByIndex = _panelByIndex;
@@ -154,6 +155,13 @@ function loadState() {
   } catch (error) {
     console.warn('[MultiAI Dashboard] loadState: Failed to parse stored state:', error);
     activePanels = [];
+  }
+  // Write grid sizes to namespace — the ONLY place local colSizes/rowSizes
+  // are synced, since grid-resizer.js owns them after this point.
+  const s = globalThis.MultiAI;
+  if (s) {
+    s.colSizes = colSizes;
+    s.rowSizes = rowSizes;
   }
 }
 

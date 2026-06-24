@@ -683,7 +683,7 @@
   ```javascript
   // 示例 1: 转录实时状态
   console.warn(`[MultiAI Content] Failed to send transcript live-status for ${provider}:`, error);
-  
+
   // 示例 2: dashboard 状态解析
   console.warn('[MultiAI Dashboard] loadState: Failed to parse stored state:', error);
   ```
@@ -771,9 +771,9 @@
 - 变更文件：
 - 操作摘要：
 - 验证步骤：
-1. 
-2. 
-3. 
+1.
+2.
+3.
 - 验证证据：
 - 风险/问题：
 - 下一步建议：
@@ -2973,14 +2973,14 @@
     2. 成功后立即 setPendingState(false) 重置按钮状态。
     3. 成功后 loadSessions({ preserveStatus: true }) 刷新会话列表。
 - 验证步骤：
-1. 执行 
+1. 执行
 ode --check manage.js。
 2. 在 chrome://extensions 重载扩展。
 3. 点击扩展图标打开 manage.html，选择会话 A 点击"恢复会话"。
 4. 确认 dashboard 在新标签页打开，manage.html 保持原位。
 5. 在 manage 页切换到会话 B，确认"恢复会话"按钮可点击。
 - 验证证据：
-  - 
+  -
 ode --check manage.js 通过，无语法错误。
   - 代码 diff：chrome.tabs.update → chrome.tabs.create + setPendingState(false) + loadSessions。
 - 风险/问题：
@@ -3003,12 +3003,12 @@ ode --check manage.js 通过，无语法错误。
   - 根因：background.js 的 handleSessionRestore 已通过 sessionWindowManager.createManagedSessionWindow() 打开 dashboard 标签页，manage.js 又调用 chrome.tabs.create 打开了第二个。
   - 修复：移除 manage.js 中 createSession 和 estoreSession 里的 chrome.tabs.create 调用，让 background.js 统一管理标签页打开。成功后保留 setPendingState(false) + loadSessions() 刷新列表。
 - 验证步骤：
-1. 执行 
+1. 执行
 ode --check manage.js。
 2. 在 manage 页点击"恢复会话"，确认只打开一个 dashboard 标签页。
 3. 回到 manage 页，切换到其他会话，确认"恢复会话"按钮可点击。
 - 验证证据：
-  - 
+  -
 ode --check manage.js 通过，无语法错误。
   - 用户确认：修复点击"恢复对话"打开两个一样的窗口。成功。
 - 风险/问题：无。
