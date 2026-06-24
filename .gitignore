@@ -9,10 +9,16 @@
 .opencode.json
 /.superpowers
 /.temp
-/tests
+tests/session/
+tests/content/
+tests/dashboard-focus.test.js
+tests/dnr-domain-match.test.js
+tests/listener-cleanup.test.js
+tests/esm-migration.test.js
 /.mindfs
 /docs
 claude.md
+.tmp-chrome-profile-*/
 node_modules
 package-lock.json
 # Added by code-review-graph

@@ -1,5 +1,39 @@
 # Progress.md
 
+## 2026-06-24（记录 34）
+
+- 时间：2026-06-24
+- 任务：T-20260622-016 测试改进：添加 E2E 测试框架
+- 状态：待确认
+- 变更文件：
+  - `tests/e2e/helpers/extension-harness.mjs` — 新建，Puppeteer CDP 连接 harness
+  - `tests/e2e/session-flows.e2e.mjs` — 新建，3 个关键 E2E 流程测试
+  - `.github/workflows/ci.yml` — 新建，GitHub Actions CI
+  - `package.json` — 新增 puppeteer devDep + test:e2e 脚本
+  - `.gitignore` — 修正 tests/e2e 跟踪规则 + temp profile 排除
+  - `tasks.json` — 状态更新
+  - `progress.md`
+- 改动要点：
+  1. E2E 框架：Puppeteer + `node:test`，CDP 连接已有 Chrome（本地）或 `puppeteer.launch`（CI）。
+  2. Harness（extension-harness.mjs）：自动连接 CDP → 发现 service worker → 提取 extensionId → 开 manage.html 作为 control page → sendRuntimeMessage 通过 chrome.runtime.sendMessage 发送消息。
+  3. 三个 E2E 流程均通过真实扩展加载验证（非 mock）：
+     - Test 1：新建会话 → 验证 sessionId/providers/windowId/dashboard 面板数
+     - Test 2：统一发送 → stub iframe srcdoc 模拟 content script → 验证 transcript user turn 写入
+     - Test 3：恢复会话 → 关闭 dashboard → session:restore → 验证同一 sessionId + 面板数 + lastActiveAt 更新
+  4. CI workflow：ubuntu-latest + Node 20 + xvfb-run for headed Chrome
+  5. .gitignore 修正：`/tests` 改为精确子目录忽略，`tests/e2e/` 正常跟踪
+- 验证证据：
+  - `npm run lint` → 0 errors / 12 warnings（均既有）
+  - `npm test` → 310 pass / 0 fail
+  - `npm run test:e2e` → 3 pass / 0 fail（真实扩展加载，约 3s）
+  - `npm run validate` → manifest.json OK
+  - `git diff --check` → 0 trailing whitespace
+  - `git status --ignored tests/e2e/` → e2e 文件正常跟踪，不被忽略
+- 风险/后续：
+  - E2E 依赖 Chrome 调试端口（本地）或 Puppeteer 下载的 Chrome for Testing（CI）
+  - 统一发送测试用 srcdoc stub 替代真实 AI 站，验证的是 dashboard→background 链路
+  - 旧 Playwright 测试文件（t-20260413-014-cdp-regress.mjs）未纳入新框架
+
 ## 2026-06-24（记录 33）
 
 - 时间：2026-06-24
