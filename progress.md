@@ -1,5 +1,32 @@
 # Progress.md
 
+## 2026-06-24（记录 29）
+
+- 时间：2026-06-24
+- 任务：T-20260622-013 架构优化：拆分 dashboard.js
+- 状态：待确认
+- 变更文件：
+  - `dashboard.js` — 从 2613 行精简至 919 行（-65%）
+  - `dashboard/shared-state.js` — 新建，121 行，共享状态命名空间（I18N_DATA、LIVE_STATUS_META、currentSessionId、currentLang）
+  - `dashboard/transcript.js` — 新建，1008 行，会话记录渲染、刷新、轮询
+  - `dashboard/grid-resizer.js` — 新建，341 行，网格布局、分割线拖拽
+  - `dashboard/send.js` — 新建，424 行，发送逻辑、目标解析、badge 状态
+  - `dashboard.html` — 新增 4 个 `<script>` 标签（加载顺序：shared-state → transcript → grid-resizer → send → dashboard）
+- 验证证据：
+  - `npm test` → 123 pass / 0 fail
+  - `npm run lint` → 0 errors（dashboard.js）
+  - `node -c dashboard.js` → SYNTAX OK
+  - `code-review-graph detect-changes` → risk score 0.60
+- 子 agent review 发现的问题及修复：
+  1. **CRITICAL** — `colSizes`/`rowSizes` 引用同步：grid-resizer 替换命名空间引用后，dashboard.js 本地变量指向旧数组。修复：`saveState()` 读取 `globalThis.MultiAI` 最新值
+  2. **HIGH** — `activePanels` 引用同步：dashboard.js 重新赋值后命名空间失效。修复：每次 `activePanels = ...` 后同步 `globalThis.MultiAI.activePanels`
+  3. **LOW** — 移除死代码 `_isPromptFrameShieldActive()`
+- 架构说明：
+  - 模块通过 `globalThis.MultiAI` / `MultiAISend` / `MultiAIGridResizer` / `MultiAITranscript` 命名空间通信
+  - 子模块使用 `getState()` 惰性读取共享状态，避免加载时依赖
+  - 无构建工具，纯 script 标签加载，与项目现有模式一致
+- 风险：需实机验证面板切换、发送、网格拖拽、会话记录等功能正常
+
 ## 2026-06-23（记录 28）
 
 - 时间：2026-06-23
