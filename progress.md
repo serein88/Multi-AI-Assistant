@@ -1,5 +1,29 @@
 # Progress.md
 
+## 2026-06-24（记录 31）
+
+- 时间：2026-06-24
+- 任务：T-20260622-014 架构优化：Provider 配置外部化
+- 状态：待确认
+- 变更文件：
+  - `content/provider-configs.json` — 新建，纯数据文件：13 个 provider 的 selectors/hostMap
+  - `content/provider-configs.js` — 重写为异步加载器：fetch JSON → ready 机制 → reload API
+  - `manifest.json` — `web_accessible_resources` 声明 `content/provider-configs.json`
+  - `tests/content/provider-configs.test.js` — 新建，58 个测试用例
+- 关键设计：
+  1. PROVIDER_CONFIGS 起始为空对象 `{}`，JSON 加载完成后填充
+  2. `readyPromise` 暴露加载完成 Promise；`ready` 标志位供同步检查
+  3. `reloadProviderConfigs()` 支持运行时刷新配置（无需重新加载扩展）
+  4. `getProviderConfig(provider)` / `getProviderConfigs()` 提供安全读取入口
+  5. 所有现有调用方（content.js / transcript-capture.js）无需修改：它们在用户触发的 handler 中读取配置，远晚于 JSON 加载完成
+  6. 加载失败时保留明确错误日志，PROVIDER_CONFIGS 保持空对象（不静默 fallback）
+- 验证证据：
+  - `npm test` → 181 pass / 0 fail（含 58 个新 provider-configs 测试）
+  - `npm run lint` → 0 errors / 12 warnings（均为既有 warning）
+  - `node --check content/provider-configs.js content/content.js content/transcript-capture.js content/response-detection.js` → SYNTAX OK
+  - `git diff --check` → 0 trailing whitespace
+- commit: `87ec67a`
+
 ## 2026-06-24（记录 30）
 
 - 时间：2026-06-24

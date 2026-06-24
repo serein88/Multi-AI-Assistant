@@ -765,7 +765,7 @@
       "name": "架构优化：拆分 dashboard.js",
       "category": "refactor",
       "priority": "P2",
-      "status": "待确认",
+      "status": "完成",
       "criteria": "1. 创建 dashboard/shared-state.js（共享状态）、dashboard/transcript.js（会话记录）、dashboard/grid-resizer.js（网格布局）、dashboard/send.js（发送逻辑）；2. dashboard.js 通过 globalThis 命名空间通信；3. 所有 dashboard 功能实机验证通过；4. dashboard.js 行数减少到 1000 行以下（2613→919）",
       "notes": "已拆分为 5 个模块：shared-state.js(120行)、transcript.js(1008行)、grid-resizer.js(340行)、send.js(422行)、dashboard.js(932行)。统一 syncSharedState() 同步所有状态到命名空间。123 测试全通过，lint 0 error。",
       "createdAt": "2026-06-22",
@@ -776,9 +776,9 @@
       "name": "架构优化：Provider 配置外部化",
       "category": "refactor",
       "priority": "P2",
-      "status": "待进行",
+      "status": "待确认",
       "criteria": "1. 将 content.js:297-561 的 PROVIDER_CONFIGS 移至 provider-configs.json；2. content.js 动态加载配置；3. 支持运行时更新配置（无需重新加载扩展）；4. 所有 provider 功能实机验证通过",
-      "notes": "中严重度可维护性问题：13 个 provider × 10+ 选择器 = 130+ 硬编码配置项。外部化后便于维护和更新。",
+      "notes": "2026-06-24 完成开发与自测：PROVIDER_CONFIGS/HOST_MAP 外部化为 JSON，异步加载 + ready 机制 + reload API。181/181 tests pass, 0 lint errors.",
       "createdAt": "2026-06-22",
       "archived": false
     },
@@ -945,6 +945,17 @@
       "criteria": "1. DASHBOARD_MAX_PANELS 从 6 改为 Infinity；2. settings 副标题移除限制数量文案；3. 所有 13 个 AI 可同时分屏显示",
       "notes": "用户直接要求解除限制。providers.js DASHBOARD_MAX_PANELS=6 → Infinity，dashboard.js 移除中英文副标题中的数量限制文案。",
       "createdAt": "2026-06-23",
+      "archived": false
+    },
+    {
+      "id": "T-20260624-001",
+      "name": "图标加上",
+      "category": "feat",
+      "priority": "P3",
+      "status": "待进行",
+      "criteria": "图标文件在/icon文件下，但是没有加载，可能是因为尺寸不匹配，修复成在chrome的拓展图标可以正常显示",
+      "notes": "",
+      "createdAt": "2026-06-24",
       "archived": false
     }
   ]
