@@ -1,5 +1,27 @@
 # Progress.md
 
+## 2026-06-24（记录 30）
+
+- 时间：2026-06-24
+- 任务：T-20260622-013 修复状态同步回归
+- 状态：待确认
+- 变更文件：
+  - `dashboard.js` — 新增 `syncSharedState()` 统一同步函数，替换散落的 `globalThis.MultiAI.xxx = xxx` 赋值
+  - `dashboard/shared-state.js` — 移除未使用的 `PROVIDERS`/`PROVIDER_BY_ID` 全局声明
+  - `dashboard/grid-resizer.js` — 移除未使用的 `PROVIDER_BY_ID` 全局声明
+  - `dashboard/send.js` — 移除 `sendPromptToProvider` 中未使用的 `sessionChildUrls` 局部变量
+  - `eslint.config.js` — provider globals 覆盖范围扩展至 `dashboard/*.js`
+- 修复内容：
+  1. `syncSharedState()` 同步 7 个字段：`activePanels/customGrid/colSizes/rowSizes/I18N/sessionChildUrls/panelByIndex`
+  2. 调用点：初始化填充后、`loadState()` 后、`loadPanelsFromStorage()` 两个出口后、语言切换后、picker confirm 后、`.finally()` 初始化后
+  3. `saveState()` 统一从 `globalThis.MultiAI` 读取所有数组状态（消除 `colSizes/rowSizes` 旧引用问题）
+  4. 移除 `dashboard.js` 中未使用的 `currentSessionRecord` 局部变量
+  5. 清理 `dashboard.js` 4 处 trailing whitespace
+- 验证证据：
+  - `npm test` → 123 pass / 0 fail
+  - `npm run lint` → 0 errors（含 dashboard/*.js 覆盖）
+  - `node -c dashboard.js` → SYNTAX OK
+
 ## 2026-06-24（记录 29）
 
 - 时间：2026-06-24

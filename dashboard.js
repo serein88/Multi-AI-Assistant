@@ -76,8 +76,23 @@ let rowSizes = [];
 let customGrid = { rows: 0, cols: 0 }; // 0 means auto
 let sortedProviderIds = []; // Order of providers in settings
 let sessionChildUrls = {};
-let currentSessionRecord = null;
 const DEBUG = false; // Set to true for development debugging
+
+/**
+ * Sync all mutable local state to the globalThis.MultiAI namespace.
+ * Call after every reassignment of activePanels/customGrid/colSizes/rowSizes/I18N/sessionChildUrls.
+ */
+function syncSharedState() {
+  const s = globalThis.MultiAI;
+  if (!s) return;
+  s.activePanels = activePanels;
+  s.customGrid = customGrid;
+  s.colSizes = colSizes;
+  s.rowSizes = rowSizes;
+  s.I18N = I18N;
+  s.sessionChildUrls = sessionChildUrls;
+  s.panelByIndex = _panelByIndex;
+}
 
 function log(msg, ...args) {
   if (DEBUG) {
@@ -105,6 +120,7 @@ function toggleLanguage() {
   currentLang = currentLang === "zh-CN" ? "en-US" : "zh-CN";
   localStorage.setItem("multi-ai-lang", currentLang);
   I18N = I18N_DATA[currentLang];
+  syncSharedState();
   applyI18n();
   renderPanels(); // Re-render panels to translate dynamic content
   if (globalThis.MultiAITranscript) globalThis.MultiAITranscript.renderTranscriptPanel();
@@ -144,8 +160,8 @@ function loadState() {
 function saveState() {
   const s = globalThis.MultiAI || {};
   localStorage.setItem(dashboardStateKey, JSON.stringify({
-    panels: activePanels,
-    grid: customGrid,
+    panels: s.activePanels || activePanels,
+    grid: s.customGrid || customGrid,
     rowSizes: s.rowSizes || rowSizes,
     colSizes: s.colSizes || colSizes,
     sortedProviderIds
@@ -169,11 +185,13 @@ async function loadPanelsFromStorage() {
       activePanels = value.panels.slice();
       log("Seeded activePanels from session storage:", activePanels);
     }
+    syncSharedState();
     return;
   }
   if (Array.isArray(value) && value.length > 0) {
     activePanels = value;
   }
+  syncSharedState();
 }
 
 function buildPicker(selected) {
@@ -223,7 +241,7 @@ function animateDOMMove(parent, moveFunction) {
   const positions = new Map(children.map(c => [c, c.getBoundingClientRect()]));
   moveFunction();
   // Force layout calculation
-  // void parent.offsetWidth; 
+  // void parent.offsetWidth;
   requestAnimationFrame(() => {
     children.forEach(child => {
       const oldPos = positions.get(child);
@@ -250,7 +268,7 @@ function attachPickerDnD(item) {
     draggingPickerItem = item;
     item.classList.add("dragging");
     event.dataTransfer.effectAllowed = "move";
-    // Set a transparent image or similar if we want to hide the ghost, 
+    // Set a transparent image or similar if we want to hide the ghost,
     // but default ghost is fine.
   });
   item.addEventListener("dragend", () => {
@@ -531,8 +549,8 @@ function renderPanels() {
     };
     // 1. Open in New Tab
     actions.appendChild(createActionBtn(
-        I18N.newTab, 
-        `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>`, 
+        I18N.newTab,
+        `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>`,
         "newtab"
     ));
     // 2. Refresh
@@ -744,14 +762,8 @@ if (globalThis.MultiAI) {
   globalThis.MultiAI.log = log;
   globalThis.MultiAI.showMessage = showMessage;
   globalThis.MultiAI.saveState = saveState;
-  globalThis.MultiAI.activePanels = activePanels;
-  globalThis.MultiAI.panelByIndex = _panelByIndex;
-  globalThis.MultiAI.customGrid = customGrid;
-  globalThis.MultiAI.colSizes = colSizes;
-  globalThis.MultiAI.rowSizes = rowSizes;
-  globalThis.MultiAI.I18N = I18N;
-  globalThis.MultiAI.sessionChildUrls = sessionChildUrls;
 }
+syncSharedState();
 
 function notePromptInteraction() {
   if (promptFocusGuard) {
@@ -869,7 +881,7 @@ pickerConfirm.addEventListener("click", () => {
     renderPanels();
   } else {
     activePanels = selection;
-    if (globalThis.MultiAI) globalThis.MultiAI.activePanels = activePanels;
+    syncSharedState();
     saveState();
     renderPanels();
   }
@@ -899,12 +911,13 @@ const _visibilityChangeHandler = () => {
 document.addEventListener("visibilitychange", _visibilityChangeHandler);
 registerCleanup(_cleanupHandlers, () => document.removeEventListener("visibilitychange", _visibilityChangeHandler));
 loadState();
+syncSharedState();
 loadPanelsFromStorage()
   .catch((err) => console.warn("[MultiAI Dashboard] loadPanelsFromStorage:", err))
   .finally(() => {
     ensureDefaultPanels();
     activePanels = normalizeProviders(activePanels, MAX_PANELS);
-    if (globalThis.MultiAI) globalThis.MultiAI.activePanels = activePanels;
+    syncSharedState();
     // Render panels immediately — don't block on favicon preload
     if (promptFocusGuard) {
       promptFocusGuard.focusPrompt();

@@ -192,8 +192,6 @@
   }
 
   function sendPromptToProvider(providerId, prompt) {
-    const state = getState();
-    const sessionChildUrls = state.sessionChildUrls || {};
     if (!providerId || !prompt) {
       return Promise.resolve(false);
     }

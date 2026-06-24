@@ -1,4 +1,3 @@
-/* global PROVIDERS, PROVIDER_BY_ID */
 /**
  * Shared state namespace for dashboard modules.
  * Loaded before transcript.js and grid-resizer.js so they can access

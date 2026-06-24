@@ -767,7 +767,7 @@
       "priority": "P2",
       "status": "待确认",
       "criteria": "1. 创建 dashboard/shared-state.js（共享状态）、dashboard/transcript.js（会话记录）、dashboard/grid-resizer.js（网格布局）、dashboard/send.js（发送逻辑）；2. dashboard.js 通过 globalThis 命名空间通信；3. 所有 dashboard 功能实机验证通过；4. dashboard.js 行数减少到 1000 行以下（2613→919）",
-      "notes": "已拆分为 5 个模块：shared-state.js(121行)、transcript.js(1008行)、grid-resizer.js(341行)、send.js(424行)、dashboard.js(919行)。子 agent review 发现并修复了 activePanels/colSizes/rowSizes 引用同步问题。123 测试全通过，lint 无 error。",
+      "notes": "已拆分为 5 个模块：shared-state.js(120行)、transcript.js(1008行)、grid-resizer.js(340行)、send.js(422行)、dashboard.js(932行)。统一 syncSharedState() 同步所有状态到命名空间。123 测试全通过，lint 0 error。",
       "createdAt": "2026-06-22",
       "archived": false
     },

@@ -1,4 +1,3 @@
-/* global PROVIDER_BY_ID */
 (() => {
   "use strict";
 
