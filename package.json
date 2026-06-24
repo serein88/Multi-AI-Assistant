@@ -4,8 +4,8 @@
   "private": true,
   "description": "Chrome extension: split-screen dashboard for multiple AI providers",
   "scripts": {
-    "test": "node --test tests/**/*.test.js",
-    "test:watch": "node --test --watch tests/**/*.test.js",
+    "test": "node --test 'tests/**/*.test.js'",
+    "test:watch": "node --test --watch 'tests/**/*.test.js'",
     "lint": "eslint *.js content/*.js dashboard/*.js",
     "validate": "node -e \"const m = JSON.parse(require('fs').readFileSync('manifest.json','utf8')); if(!m.manifest_version||!m.name||!m.version) throw new Error('Invalid manifest'); console.log('manifest.json OK: v' + m.version);\""
   },

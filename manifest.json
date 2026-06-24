@@ -7,7 +7,8 @@
     "default_title": "Multi AI"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.mjs",
+    "type": "module"
   },
   "permissions": [
     "tabs",
