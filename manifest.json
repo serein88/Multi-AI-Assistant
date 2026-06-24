@@ -114,6 +114,7 @@
         "dashboard-focus.js",
         "dashboard.js",
         "providers.js",
+        "content/provider-configs.json",
         "manage.html",
         "manage.css",
         "manage.js"
