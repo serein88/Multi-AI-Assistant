@@ -15,3 +15,5 @@
 claude.md
 node_modules
 package-lock.json
+# Added by code-review-graph
+.code-review-graph/

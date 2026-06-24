@@ -735,10 +735,22 @@ function initializeCustomFixes() {
 
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => {
-    ensureConfigsReady().then(() => initializeCustomFixes());
+    ensureConfigsReady().then((ok) => {
+      if (!ok) {
+        console.warn("[MultiAI Content] Skip custom fixes: provider configs not loaded");
+        return;
+      }
+      initializeCustomFixes();
+    });
   });
 } else {
-  ensureConfigsReady().then(() => initializeCustomFixes());
+  ensureConfigsReady().then((ok) => {
+    if (!ok) {
+      console.warn("[MultiAI Content] Skip custom fixes: provider configs not loaded");
+      return;
+    }
+    initializeCustomFixes();
+  });
 }
 
 // Cleanup event listeners and observers on page unload to prevent memory leaks

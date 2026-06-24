@@ -6,19 +6,19 @@
 - 任务：T-20260622-014 修复：content.js 等待 provider configs 加载
 - 状态：待确认
 - 变更文件：
-  - `content/content.js` — 新增 `ensureConfigsReady()` helper，`trySendPrompt()` 和 `initializeCustomFixes()` 等待 configs 加载
-  - `tests/content/provider-configs.test.js` — 新增 2 个 timing 测试
+  - `content/content.js` — 新增 `ensureConfigsReady()` helper；`trySendPrompt()` 等待 configs；`initializeCustomFixes()` 检查 ok 返回值
+  - `tests/content/provider-configs.test.js` — 新增 4 个 timing/gate 测试
 - 修复内容：
-  1. `ensureConfigsReady(timeoutMs)` — race readyPromise vs timeout，返回 boolean
-  2. `trySendPrompt()` 开头 `await ensureConfigsReady()`，失败则 early return with explicit error
-  3. `initializeCustomFixes()` 调用包装为 `ensureConfigsReady().then(initializeCustomFixes)`
-  4. CONFIG_READY_TIMEOUT_MS = 5000ms，超时后 console.warn
+  1. `ensureConfigsReady(timeoutMs)` — race readyPromise vs timeout（5s），返回 boolean
+  2. `trySendPrompt()` 开头 `await ensureConfigsReady()`，失败 early return with explicit error
+  3. `initializeCustomFixes()` 包装为 `ensureConfigsReady().then(ok => { if (ok) ... })`，false 时跳过初始化
+  4. 初始化 gate 测试：ready=false 时不执行 callback，ready=true 时执行
 - 验证证据：
-  - `npm test` → 183 pass / 0 fail（含 2 个新 timing 测试）
-  - `npm run lint` → 0 errors
+  - `npm test` → 185 pass / 0 fail
+  - `npm run lint` → 0 errors / 12 warnings（均为既有）
   - `node --check content/content.js content/provider-configs.js` → SYNTAX OK
   - `git diff --check` → 0 trailing whitespace
-- commit: `5894a26`
+- commits: `5894a26`, `be3ddaa` + 本轮 squash
 
 ## 2026-06-24（记录 31）
 

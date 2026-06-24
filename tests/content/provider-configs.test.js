@@ -239,6 +239,51 @@ describe("provider-configs.js timing", () => {
     assert.equal(PC.ready, false);
     assert.deepEqual(PC.PROVIDER_CONFIGS, {});
   });
+
+  it("initialization gate skips callback when ready resolves false", async () => {
+    // Simulate fetch failure
+    globalThis.fetch = () => Promise.reject(new Error("Network error"));
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+
+    // Simulate the content.js initialization gate pattern:
+    // ensureConfigsReady().then((ok) => { if (ok) initializeCustomFixes(); })
+    let callbackCalled = false;
+    const simulateInitGate = () => {
+      return PC.readyPromise.then((ok) => {
+        if (!ok) return;
+        callbackCalled = true;
+      });
+    };
+
+    await simulateInitGate();
+    assert.equal(callbackCalled, false, "callback should NOT run when configs fail to load");
+    assert.equal(PC.ready, false);
+    assert.deepEqual(PC.PROVIDER_CONFIGS, {});
+  });
+
+  it("initialization gate runs callback when ready resolves true", async () => {
+    const jsonData = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => jsonData });
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+
+    let callbackCalled = false;
+    const simulateInitGate = () => {
+      return PC.readyPromise.then((ok) => {
+        if (!ok) return;
+        callbackCalled = true;
+      });
+    };
+
+    await simulateInitGate();
+    assert.equal(callbackCalled, true, "callback SHOULD run when configs load successfully");
+    assert.equal(PC.ready, true);
+  });
 });
 
 // ── Reload simulation tests ──────────────────────────────────────────────────
