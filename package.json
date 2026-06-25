@@ -8,7 +8,7 @@
     "test:e2e": "node --test 'tests/e2e/**/*.e2e.mjs'",
     "test:coverage": "node --test --experimental-test-coverage 'tests/**/*.test.js' 'tests/**/*.test.mjs'",
     "test:watch": "node --test --watch 'tests/**/*.test.js' 'tests/**/*.test.mjs'",
-    "lint": "eslint *.js *.mjs content/*.js dashboard/*.js session/*.mjs tests/e2e/**/*.mjs tests/content/**/*.test.js tests/session/**/*.test.mjs",
+    "lint": "eslint *.js *.mjs content/*.js dashboard/*.js session/*.mjs tests/e2e/**/*.mjs tests/content/**/*.test.js tests/session/**/*.test.mjs tests/dashboard/**/*.test.mjs tests/*.test.mjs",
     "validate": "node -e \"const m = JSON.parse(require('fs').readFileSync('manifest.json','utf8')); if(!m.manifest_version||!m.name||!m.version) throw new Error('Invalid manifest'); console.log('manifest.json OK: v' + m.version);\""
   },
   "devDependencies": {
