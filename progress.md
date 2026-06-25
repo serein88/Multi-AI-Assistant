@@ -4,21 +4,22 @@
 
 - 时间：2026-06-25
 - 任务：T-20260622-017 测试改进：关键路径集成测试
-- 状态：待确认
+- 状态：进行中（覆盖率 28.74% 未达 60% 阈值，待补覆盖）
 - 变更文件：
   - `tests/content/try-send-prompt.integration.test.js` — 新建，content.js trySendPrompt 集成测试（7 场景）
-  - `tests/session/background-message-routing.test.js` — 新建，background.mjs 消息路由集成测试（14 场景）
-  - `package.json` — 新增 sinon devDep + test:coverage 脚本
+  - `tests/session/background-message-routing.test.mjs` — 新建，background.mjs 消息路由集成测试（14 场景）
+  - `package.json` — sinon devDep + test:coverage 脚本 + lint 纳入集成测试 + test glob 纳入 .test.mjs
+  - `eslint.config.js` — ESM 配置覆盖 tests/session/**/*.test.mjs
   - `package-lock.json` — 更新
   - `tasks.json` — 状态更新
   - `progress.md`
 - 覆盖路径：
   1. **content.js trySendPrompt**（`vm.runInContext` 加载完整 content.js，mock Chrome API + DOM + 全局命名空间）：
      - 配置未加载失败：readyPromise→false → sendResult success=false + live status failed
-     - 缺少 provider config：getProviderConfig→null → 同上
-     - 通用 provider 成功发送：waitForElement→textarea + setInputValue + clickSendButton → sendResult success=true + responseStarted + responseComplete + live status responding→completed + observer pause/resume
-     - 输入框未找到重试后失败：waitForElement→null × 3（initial + 2 retries）→ sendResult false + no click
-     - Grok 特殊失败：sendGrokMessage→true + waitForResponseStart→false → 二次 sendResult（先 true 后 false）+ live status interrupted + observer resume
+     - 缺少 provider config：getProviderConfig→null → sendResult false + live status failed
+     - 通用 provider 成功发送：waitForElement→textarea + setInputValue + clickSendButton → sendResult success=true + responseStarted + responseComplete + live status responding→completed + observer pause→resumeManualTurnObserver(provider)
+     - 输入框未找到重试后失败：waitForElement→null × 3（initial + 2 retries）→ sendResult false + no click + live status failed
+     - Grok 特殊失败：sendGrokMessage→true + waitForResponseStart→false → 二次 sendResult（先 true 后 false）+ live status interrupted + resumeManualTurnObserver("grok")
      - 非 sendPrompt 消息忽略：listener 返回 undefined
      - window message 入口注册：addEventListener("message") 被调用
   2. **background.mjs 消息路由**（cache-busting 动态 import + mock chrome API）：
@@ -32,15 +33,20 @@
      - openProviderTab：已知/未知 provider
      - openProviders：多 provider 批量创建
 - 验证证据：
-  - `npm run lint` → 0 errors / 12 warnings（均既有）
+  - `npm run lint` → 0 errors / 12 warnings（均既有），集成测试文件已纳入
   - `npm test` → 331 pass / 0 fail（原 310 + 新 21）
-  - `npm run test:coverage` → 整体 28.74% line / 51.38% branch，关键模块覆盖显著
+  - `npm run test:coverage` → 整体 28.74% line / 51.38% branch **（未达 60% 阈值）**
   - `npm run validate` → manifest.json OK
   - `git diff --check HEAD` → clean
-- 风险/后续：
-  - background.mjs 覆盖率显示偏低（7.85%），因 cache-busting import 导致 coverage 工具追踪不完整，实际路由测试覆盖了全部 14 个消息类型
-  - content.js 覆盖率依赖 VM mock，不涵盖真实浏览器 DOM 交互
-  - sinon 仅用于测试，不进入 production bundle
+- **覆盖率未达标说明**：
+  - criteria 要求 60%+ line coverage，当前 28.74%
+  - 主要缺口：background.js（47%）、dashboard.js/content.js（未单独测试）、send-handlers.js/response-detection.js/transcript-capture.js
+  - background.mjs 显示 7.85%（cache-busting import 导致 coverage 工具追踪不完整，实际路由测试覆盖了全部 14 个消息类型）
+  - 需要后续补测 dashboard.js 核心渲染/send 流程、content.js 更多 provider 分支、response-detection.js 等模块才能达标
+- 技术要点：
+  - invokeMessageListener / callMessageListener 改为 sendResponse resolve + timeout 兜底模式（不再用固定 setTimeout）
+  - 通用成功路径断言完整链路：sendResult → responseStarted → responseComplete → live status responding→completed → resumeManualTurnObserver(provider)
+  - 路由测试文件后缀 .test.mjs（ESM），npm test glob 已覆盖
 
 ## 2026-06-25（记录 35）
 

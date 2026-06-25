@@ -809,9 +809,9 @@
       "name": "测试改进：关键路径集成测试",
       "category": "test",
       "priority": "P2",
-      "status": "待确认",
+      "status": "进行中",
       "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
-      "notes": "2026-06-25 集成测试覆盖：content.js trySendPrompt 7 场景 + background.mjs 消息路由 14 场景。331 unit tests pass。sinon devDep + test:coverage 脚本。",
+      "notes": "2026-06-25 集成测试 21 场景通过（content.js 7 + background.mjs 14），覆盖率 28.74% 未达 60% 阈值。sinon 已引入。待补 dashboard.js / content.js 更多路径覆盖。",
       "createdAt": "2026-06-22",
       "archived": false
     },

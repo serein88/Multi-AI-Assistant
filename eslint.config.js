@@ -29,7 +29,7 @@ module.exports = [
   },
   {
     // ES Module files (background service worker + session modules)
-    files: ["*.mjs", "session/*.mjs", "tests/e2e/**/*.mjs"],
+    files: ["*.mjs", "session/*.mjs", "tests/e2e/**/*.mjs", "tests/session/**/*.test.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",

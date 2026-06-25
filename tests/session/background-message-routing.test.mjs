@@ -91,21 +91,30 @@ async function importBackground(mockChrome) {
 
 /**
  * Call the registered onMessage listener and return the sendResponse value.
+ * Resolves when sendResponse is called, with a timeout fallback.
  */
-function callMessageListener(messageListeners, message, sender = {}) {
+function callMessageListener(messageListeners, message, sender = {}, { timeoutMs = 3000 } = {}) {
   const listener = messageListeners[0];
   assert.ok(listener, "background.mjs should register onMessage listener");
 
-  let responseValue;
-  const sendResponse = sinon.stub().callsFake((val) => {
-    responseValue = val;
-  });
-
-  const keepChannel = listener(message, sender, sendResponse);
-  assert.equal(keepChannel, true, "listener should return true");
-
   return new Promise((resolve) => {
-    setTimeout(() => resolve(responseValue), 100);
+    let settled = false;
+    const sendResponse = sinon.stub().callsFake((val) => {
+      if (!settled) {
+        settled = true;
+        resolve(val);
+      }
+    });
+
+    const keepChannel = listener(message, sender, sendResponse);
+    assert.equal(keepChannel, true, "listener should return true");
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(undefined);
+      }
+    }, timeoutMs);
   });
 }
 

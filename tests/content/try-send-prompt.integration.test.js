@@ -8,7 +8,7 @@
  * chrome.runtime.onMessage listener → trySendPrompt → postSendResult / live status.
  */
 
-const { describe, it, beforeEach } = require("node:test");
+const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -26,9 +26,6 @@ const CONTENT_SOURCE = fs.readFileSync(CONTENT_JS_PATH, "utf8");
  */
 function loadContentScript(overrides = {}) {
   const messageListeners = [];
-  const sentMessages = [];
-  const postMessages = [];
-  const liveStatusCalls = [];
 
   // Mock chrome API
   const chrome = {
@@ -133,10 +130,8 @@ function loadContentScript(overrides = {}) {
     location: { hostname: "chat.deepseek.com" },
     addEventListener: sinon.stub(),
     removeEventListener: sinon.stub(),
-    parent: parentWindow,
     ...windowOverrides,
   };
-  // Make parent !== window to enable postToDashboard
   Object.defineProperty(windowObj, "parent", {
     value: parentWindow,
     writable: false,
@@ -196,9 +191,6 @@ function loadContentScript(overrides = {}) {
     context,
     chrome,
     messageListeners,
-    sentMessages,
-    postMessages,
-    liveStatusCalls,
     providerConfigs,
     sendHandlers,
     responseDetection,
@@ -252,24 +244,53 @@ function createMockMutationObserver() {
 
 /**
  * Invoke the chrome.runtime.onMessage listener captured from content.js.
- * Returns a promise that resolves with the sendResponse value.
+ * Resolves when sendResponse is called (up to timeoutMs).
  */
-function invokeMessageListener(env, message, sender = {}) {
+function invokeMessageListener(env, message, sender = {}, { timeoutMs = 2000 } = {}) {
   const listener = env.messageListeners[0];
   assert.ok(listener, "content.js should register a runtime.onMessage listener");
 
-  let responseValue;
-  const sendResponse = sinon.stub().callsFake((val) => {
-    responseValue = val;
-  });
-
-  const keepChannel = listener(message, sender, sendResponse);
-  assert.equal(keepChannel, true, "listener should return true to keep channel open");
-
-  // Wait for the async trySendPrompt to complete
-  // (config-not-loaded test needs > 5s for CONFIG_READY_TIMEOUT_MS)
   return new Promise((resolve) => {
-    setTimeout(() => resolve(responseValue), 200);
+    let settled = false;
+    const sendResponse = sinon.stub().callsFake((val) => {
+      if (!settled) {
+        settled = true;
+        resolve(val);
+      }
+    });
+
+    const keepChannel = listener(message, sender, sendResponse);
+    assert.equal(keepChannel, true, "listener should return true to keep channel open");
+
+    // Timeout fallback
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        resolve(undefined);
+      }
+    }, timeoutMs);
+  });
+}
+
+/**
+ * Wait for waitForResponseComplete to resolve (used in success path tests).
+ * Returns a promise that resolves after the mock response chain completes.
+ */
+function waitForResponseChain(env) {
+  // waitForResponseComplete is called after waitForResponseStart returns true
+  // and after responseStarted is posted. The chain resolves in microtasks.
+  // We wait for waitForResponseComplete to have been called.
+  return new Promise((resolve) => {
+    const check = () => {
+      if (env.responseDetection.waitForResponseComplete.callCount > 0) {
+        resolve();
+      } else {
+        setTimeout(check, 10);
+      }
+    };
+    setTimeout(check, 50);
+    // Safety timeout
+    setTimeout(resolve, 3000);
   });
 }
 
@@ -282,7 +303,7 @@ describe("content.js trySendPrompt integration", () => {
     const env = loadContentScript({
       providerConfigs: {
         ready: false,
-        readyPromise: Promise.resolve(false), // resolves false immediately
+        readyPromise: Promise.resolve(false),
         PROVIDER_CONFIGS: {},
         HOST_MAP: [],
         getProviderFromHost: () => "",
@@ -298,13 +319,12 @@ describe("content.js trySendPrompt integration", () => {
 
     assert.equal(response?.ok, false);
     const postMsg = env.parentWindow.postMessage;
-    assert.ok(postMsg.called, "should post to dashboard");
     const sendResultCall = postMsg.getCalls().find(
       (c) => c.args[0]?.type === "sendResult"
     );
     assert.ok(sendResultCall, "should post sendResult");
     assert.equal(sendResultCall.args[0].success, false);
-    // live status = failed
+
     const sendMessage = env.chrome.runtime.sendMessage;
     assert.ok(
       sendMessage.calledWith(
@@ -333,11 +353,17 @@ describe("content.js trySendPrompt integration", () => {
     assert.ok(sendResultCall, "should post sendResult");
     assert.equal(sendResultCall.args[0].success, false);
     assert.equal(sendResultCall.args[0].provider, "nonexistent");
+
+    const sendMessage = env.chrome.runtime.sendMessage;
+    assert.ok(
+      sendMessage.calledWith(sinon.match({ status: "failed" })),
+      "should send live status 'failed'"
+    );
   });
 
   // ── Generic provider success ──
 
-  it("succeeds for generic provider with textarea + button click", async () => {
+  it("succeeds for generic provider: sendResult, responseStarted, responseComplete, live status, observer lifecycle", async () => {
     const mockInput = createMockElement("textarea", "ds-input");
     const mockButton = createMockElement("button", "ds-send");
 
@@ -362,8 +388,15 @@ describe("content.js trySendPrompt integration", () => {
         isElementDisabled: sinon.stub().returns(false),
         getEditableText: sinon.stub().returns(""),
         getStopSelectors: sinon.stub().returns([]),
-        countResponseNodes: sinon.stub().returns(0),
+        countResponseNodes: sinon.stub().returns(1),
         log: sinon.stub(),
+      },
+      responseDetection: {
+        waitForResponseStart: sinon.stub().resolves(true),
+        waitForResponseComplete: sinon.stub().callsFake(() => {
+          return new Promise((resolve) => setTimeout(() => resolve({}), 50));
+        }),
+        extractLatestResponse: sinon.stub().returns("assistant reply"),
       },
     });
 
@@ -375,8 +408,10 @@ describe("content.js trySendPrompt integration", () => {
 
     assert.equal(response?.ok, true);
 
-    // sendResult posted with success=true
     const postMsg = env.parentWindow.postMessage;
+    const sendMessage = env.chrome.runtime.sendMessage;
+
+    // ── sendResult success=true ──
     const sendResultCall = postMsg.getCalls().find(
       (c) => c.args[0]?.type === "sendResult"
     );
@@ -384,22 +419,47 @@ describe("content.js trySendPrompt integration", () => {
     assert.equal(sendResultCall.args[0].success, true);
     assert.equal(sendResultCall.args[0].provider, "deepseek");
 
-    // responseStarted posted
+    // ── responseStarted ──
     const startedCall = postMsg.getCalls().find(
       (c) => c.args[0]?.type === "responseStarted"
     );
     assert.ok(startedCall, "should post responseStarted");
+    assert.equal(startedCall.args[0].provider, "deepseek");
 
-    // live status: responding then completed
-    const sendMessage = env.chrome.runtime.sendMessage;
+    // ── Observer pause before send ──
+    assert.ok(env.transcriptCapture.setCapturingActiveResponse.calledWith(true),
+      "should set capturing active");
+    assert.ok(env.transcriptCapture.pauseManualTurnObserver.calledOnce,
+      "should pause observer");
+
+    // ── live status: responding ──
     const respondingCall = sendMessage.getCalls().find(
       (c) => c.args[0]?.status === "responding"
     );
     assert.ok(respondingCall, "should send live status 'responding'");
 
-    // Observer paused then resumed
-    assert.ok(env.transcriptCapture.setCapturingActiveResponse.calledWith(true));
-    assert.ok(env.transcriptCapture.pauseManualTurnObserver.called);
+    // ── Wait for responseComplete chain ──
+    await waitForResponseChain(env);
+    // Extra tick for the .then() after waitForResponseComplete
+    await new Promise((r) => setTimeout(r, 100));
+
+    // ── responseComplete posted ──
+    const completedCall = postMsg.getCalls().find(
+      (c) => c.args[0]?.type === "responseComplete"
+    );
+    assert.ok(completedCall, "should post responseComplete");
+
+    // ── live status: completed ──
+    const completedStatusCall = sendMessage.getCalls().find(
+      (c) => c.args[0]?.status === "completed"
+    );
+    assert.ok(completedStatusCall, "should send live status 'completed'");
+
+    // ── Observer resumed with provider name ──
+    assert.ok(
+      env.transcriptCapture.resumeManualTurnObserver.calledWith("deepseek"),
+      "should resume observer with provider name"
+    );
   });
 
   // ── Input not found → retry → fail ──
@@ -407,7 +467,7 @@ describe("content.js trySendPrompt integration", () => {
   it("retries when input not found, then fails after max retries", async () => {
     const env = loadContentScript({
       sendHandlers: {
-        waitForElement: sinon.stub().resolves(null), // never finds input
+        waitForElement: sinon.stub().resolves(null),
         waitForElementDeep: sinon.stub().resolves(null),
         setInputValue: sinon.stub().resolves(true),
         clickSendButton: sinon.stub().returns(true),
@@ -430,24 +490,19 @@ describe("content.js trySendPrompt integration", () => {
     });
 
     assert.equal(response?.ok, false);
+    assert.equal(env.sendHandlers.waitForElement.callCount, 3, "should retry 3x (initial + 2)");
+    assert.equal(env.sendHandlers.clickSendButton.callCount, 0, "no click should happen");
 
-    // waitForElement should be called 3 times (initial + 2 retries)
-    assert.equal(env.sendHandlers.waitForElement.callCount, 3);
-
-    // No click should have happened
-    assert.equal(env.sendHandlers.clickSendButton.callCount, 0);
-
-    // Failed status sent
     const sendMessage = env.chrome.runtime.sendMessage;
-    const failedCall = sendMessage.getCalls().find(
-      (c) => c.args[0]?.status === "failed"
+    assert.ok(
+      sendMessage.calledWith(sinon.match({ status: "failed" })),
+      "should send live status 'failed'"
     );
-    assert.ok(failedCall, "should send live status 'failed'");
   });
 
-  // ── Grok special: no retry, response not detected → interrupted ──
+  // ── Grok: response not detected → interrupted ──
 
-  it("grok: no retry, response start not detected → interrupted", async () => {
+  it("grok: response start not detected → interrupted status + observer resume", async () => {
     const mockInput = createMockElement("textarea", "grok-input");
     const mockButton = createMockElement("button", "grok-send");
 
@@ -474,7 +529,7 @@ describe("content.js trySendPrompt integration", () => {
         log: sinon.stub(),
       },
       responseDetection: {
-        waitForResponseStart: sinon.stub().resolves(false), // no response detected
+        waitForResponseStart: sinon.stub().resolves(false),
         waitForResponseComplete: sinon.stub().resolves({}),
         extractLatestResponse: sinon.stub().returns(""),
       },
@@ -488,25 +543,28 @@ describe("content.js trySendPrompt integration", () => {
 
     assert.equal(response?.ok, false);
 
-    // Should have sent two sendResult: first success=true, then success=false
     const postMsg = env.parentWindow.postMessage;
     const sendResults = postMsg.getCalls().filter(
       (c) => c.args[0]?.type === "sendResult"
     );
     assert.ok(sendResults.length >= 2, `expected ≥2 sendResult, got ${sendResults.length}`);
-    assert.equal(sendResults[0].args[0].success, true, "first sendResult should be success");
-    assert.equal(sendResults[sendResults.length - 1].args[0].success, false, "last sendResult should be failure");
+    assert.equal(sendResults[0].args[0].success, true, "first: success");
+    assert.equal(sendResults[sendResults.length - 1].args[0].success, false, "last: failure");
 
-    // live status = interrupted
     const sendMessage = env.chrome.runtime.sendMessage;
-    const interruptedCall = sendMessage.getCalls().find(
-      (c) => c.args[0]?.status === "interrupted"
+    assert.ok(
+      sendMessage.calledWith(sinon.match({ status: "interrupted" })),
+      "should send live status 'interrupted'"
     );
-    assert.ok(interruptedCall, "should send live status 'interrupted'");
 
-    // Observer should be resumed after failure
-    assert.ok(env.transcriptCapture.setCapturingActiveResponse.calledWith(false));
-    assert.ok(env.transcriptCapture.resumeManualTurnObserver.calledWith("grok"));
+    assert.ok(
+      env.transcriptCapture.setCapturingActiveResponse.calledWith(false),
+      "should unset capturing"
+    );
+    assert.ok(
+      env.transcriptCapture.resumeManualTurnObserver.calledWith("grok"),
+      "should resume observer with 'grok'"
+    );
   });
 
   // ── Non-sendPrompt messages are ignored ──
@@ -523,7 +581,6 @@ describe("content.js trySendPrompt integration", () => {
 
   it("registers window message listener for multi-ai sendPrompt", () => {
     const env = loadContentScript();
-    // The window.addEventListener should have been called with "message"
     const msgListener = env.windowObj.addEventListener.getCalls().find(
       (c) => c.args[0] === "message"
     );
