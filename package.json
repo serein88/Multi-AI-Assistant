@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test 'tests/**/*.test.js'",
     "test:e2e": "node --test 'tests/e2e/**/*.e2e.mjs'",
+    "test:coverage": "node --test --experimental-test-coverage 'tests/**/*.test.js'",
     "test:watch": "node --test --watch 'tests/**/*.test.js'",
     "lint": "eslint *.js *.mjs content/*.js dashboard/*.js session/*.mjs tests/e2e/**/*.mjs",
     "validate": "node -e \"const m = JSON.parse(require('fs').readFileSync('manifest.json','utf8')); if(!m.manifest_version||!m.name||!m.version) throw new Error('Invalid manifest'); console.log('manifest.json OK: v' + m.version);\""
@@ -15,6 +16,7 @@
     "eslint": "^9.0.0",
     "globals": "^16.0.0",
     "puppeteer": "^25.2.1",
+    "sinon": "^22.0.0",
     "web-ext": "^8.0.0"
   },
   "engines": {

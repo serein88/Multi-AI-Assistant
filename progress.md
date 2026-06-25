@@ -1,5 +1,47 @@
 # Progress.md
 
+## 2026-06-25（记录 36）
+
+- 时间：2026-06-25
+- 任务：T-20260622-017 测试改进：关键路径集成测试
+- 状态：待确认
+- 变更文件：
+  - `tests/content/try-send-prompt.integration.test.js` — 新建，content.js trySendPrompt 集成测试（7 场景）
+  - `tests/session/background-message-routing.test.js` — 新建，background.mjs 消息路由集成测试（14 场景）
+  - `package.json` — 新增 sinon devDep + test:coverage 脚本
+  - `package-lock.json` — 更新
+  - `tasks.json` — 状态更新
+  - `progress.md`
+- 覆盖路径：
+  1. **content.js trySendPrompt**（`vm.runInContext` 加载完整 content.js，mock Chrome API + DOM + 全局命名空间）：
+     - 配置未加载失败：readyPromise→false → sendResult success=false + live status failed
+     - 缺少 provider config：getProviderConfig→null → 同上
+     - 通用 provider 成功发送：waitForElement→textarea + setInputValue + clickSendButton → sendResult success=true + responseStarted + responseComplete + live status responding→completed + observer pause/resume
+     - 输入框未找到重试后失败：waitForElement→null × 3（initial + 2 retries）→ sendResult false + no click
+     - Grok 特殊失败：sendGrokMessage→true + waitForResponseStart→false → 二次 sendResult（先 true 后 false）+ live status interrupted + observer resume
+     - 非 sendPrompt 消息忽略：listener 返回 undefined
+     - window message 入口注册：addEventListener("message") 被调用
+  2. **background.mjs 消息路由**（cache-busting 动态 import + mock chrome API）：
+     - 未知消息类型：listener 返回 undefined，不调用 sendResponse
+     - openDashboard：tabs.create + storage 写入 panels
+     - sendPromptToProviderTab（已完成 tab）：tabs.sendMessage 发送 sendPrompt
+     - sendPromptToProviderTab（等待 tab complete）：onUpdated 触发后才 sendMessage
+     - executeChatGPTMainWorldSend：scripting.executeScript 透传 + target.frameIds
+     - session:create/list/get/restore：统一 { ok:true, result } 包装
+     - session:transcript-user-turn：transcript 写入 + window mismatch 拒绝
+     - openProviderTab：已知/未知 provider
+     - openProviders：多 provider 批量创建
+- 验证证据：
+  - `npm run lint` → 0 errors / 12 warnings（均既有）
+  - `npm test` → 331 pass / 0 fail（原 310 + 新 21）
+  - `npm run test:coverage` → 整体 28.74% line / 51.38% branch，关键模块覆盖显著
+  - `npm run validate` → manifest.json OK
+  - `git diff --check HEAD` → clean
+- 风险/后续：
+  - background.mjs 覆盖率显示偏低（7.85%），因 cache-busting import 导致 coverage 工具追踪不完整，实际路由测试覆盖了全部 14 个消息类型
+  - content.js 覆盖率依赖 VM mock，不涵盖真实浏览器 DOM 交互
+  - sinon 仅用于测试，不进入 production bundle
+
 ## 2026-06-25（记录 35）
 
 - 时间：2026-06-25
