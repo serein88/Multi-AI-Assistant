@@ -1,5 +1,82 @@
 # Progress.md
 
+## 2026-06-25（记录 40）
+
+- 时间：2026-06-25
+- 任务：T-20260622-017 覆盖率改进：transcript-store 单元测试
+- 状态：进行中（已新增 83 项测试，覆盖率 28.81%，距目标 60% 仍有 31.19%）
+- 变更文件：
+  - `tests/session/transcript-store-units.test.mjs` — 新建，transcript-store.mjs 纯函数测试（28 场景）
+  - `package.json` — 修正 lint 脚本覆盖 tests/dashboard/**/*.test.mjs 和 tests/*.test.mjs
+  - `eslint.config.js` — 扩展 ES Module 规则支持新增测试文件路径
+- 覆盖路径：
+  1. **createEmptyTranscriptProvider**（2 场景）：
+     - 创建空 provider，初始状态为 idle
+     - 接受任意 provider 字符串
+  2. **normalizeLiveStatus**（4 场景）：
+     - 空字符串/非字符串/未知状态返回 idle
+     - 有效状态（idle/responding/completed/failed/interrupted）原样返回
+  3. **normalizeTranscriptProvider**（5 场景）：
+     - 从空输入创建标准化 provider
+     - 保留现有 turns 和 status
+     - 标准化无效 status 为 idle
+     - statusUpdatedAt 回退到 lastStatusAt
+     - 填充缺失字段为 null
+  4. **createTranscriptStore**（4 场景）：
+     - 使用提供的 providers 创建存储
+     - 处理空数组/非数组 providers
+     - 未提供 now 时使用当前时间
+  5. **applyProviderLiveStatus**（8 场景）：
+     - session 为 null 或 provider 为空时返回原 session
+     - responding 状态设置 answerStartedAt 并清空 answerCompletedAt
+     - completed/failed/interrupted 状态设置 answerCompletedAt
+     - 状态已应用时返回原 session（优化）
+     - 自动创建缺失的 transcript
+  6. **applyTranscriptStatus**（5 场景）：
+     - responding 状态设置 answerStartedAt
+     - completed 状态设置 answerCompletedAt
+     - failed 状态保留 answerStartedAt
+     - session 为 null 或 provider 为空时返回原 session
+- 验证证据：
+  - `npm test` → 414 pass / 0 fail（新增 28 项，累计 83 项新测试）
+  - `npm run test:coverage` → 28.81% line coverage（+0.07%，从 28.74%）
+  - `npm run lint` → 0 errors / 19 warnings（预期的未使用变量）
+  - `npm run validate` → manifest.json OK: v0.3.2
+- 覆盖率分析（28.81%）：
+  - **已测模块**（高覆盖）：
+    - session-model.js/mjs: 100%
+    - session-constants.js/mjs: 100%
+    - providers.mjs: 100%
+    - content/provider-configs.js: 96.53%
+    - session-registry.js: 98.25%
+    - content/response-state.js: 93.02%
+    - dashboard-focus.js: 89.00%
+  - **部分覆盖模块**（有提升空间但 DOM 密集）：
+    - transcript-store.mjs: 69.95%（+2.1%，未覆盖 appendUserTurn/appendProviderTurn 复杂去重逻辑）
+    - session/transcript-store.js: 85.31%
+    - content/response-detection.js: 54.46%（多分支异步逻辑 + DOM 查询）
+    - background.js: 47.04%（Chrome API 密集）
+  - **极低覆盖模块**（测试成本极高）：
+    - background.mjs: 7.85%（会话管理 + Chrome tabs/scripting API，994 行）
+    - content/send-handlers.js: 未测试（DOM 操作函数，1159 行）
+    - dashboard/grid-resizer.js: 未测试（拖拽 + ResizeObserver，340 行）
+    - dashboard/transcript.js: 未测试（复杂 DOM 渲染，1007 行）
+- 技术要点：
+  - 直接 import 测试 transcript-store.mjs 纯函数，避免 background.js 集成测试开销
+  - 测试覆盖状态标准化、时间戳处理、transcript 结构初始化
+  - applyProviderLiveStatus 测试验证状态机转换（idle → responding → completed/failed/interrupted）
+- 风险/后续：
+  - **覆盖率提升困难**：本轮新增 28 项测试仅提升 0.07%，边际收益极低
+  - **根本原因**：项目代码以 DOM 操作（querySelector/MutationObserver）和 Chrome API（tabs/scripting/storage）为主，纯逻辑模块少
+  - **剩余可测模块评估**：
+    * transcript-store.mjs appendUserTurn/appendProviderTurn（200+ 行去重逻辑，测试成本高）
+    * background.mjs 函数（Chrome API mock 复杂，收益低）
+    * content/response-detection.js 分支（异步 + 多定时器，测试脆弱）
+  - **建议下一步**：
+    - 继续补充 transcript-store.mjs 的 appendUserTurn/appendProviderTurn 测试（预计 +1-2% 覆盖率）
+    - 或转向 E2E 测试补充关键路径覆盖（发送流程、响应检测、转录抓取）
+    - 或向用户汇报当前困境，评估是否调整覆盖率目标（60% → 35-40%）
+
 ## 2026-06-25（记录 39）
 
 - 时间：2026-06-25
