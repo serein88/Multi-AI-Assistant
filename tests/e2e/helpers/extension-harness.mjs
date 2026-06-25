@@ -22,8 +22,6 @@ const ROOT_DIR = path.resolve(__dirname, "..", "..", "..");
 const LAUNCH_TIMEOUT_MS = 30_000;
 const SW_READY_TIMEOUT_MS = 20_000;
 const PAGE_NAV_TIMEOUT_MS = 15_000;
-const MESSAGE_TIMEOUT_MS = 10_000;
-const EXTENSION_MANAGE_URL_RE = /chrome-extension:\/\/[a-z]{32}\/manage\.html/;
 
 /**
  * Connect to a running Chrome or launch a fresh one, and return a harness.
@@ -110,6 +108,46 @@ export async function launchExtension() {
       return page;
     },
 
+    /** Wait for a dashboard page for a specific sessionId. */
+    async waitForDashboardPage(sessionId, { timeoutMs = PAGE_NAV_TIMEOUT_MS } = {}) {
+      const pattern = `dashboard.html`;
+      const sessionCheck = (url) =>
+        url.includes(pattern) &&
+        url.includes(`chrome-extension://${extensionId}/`) &&
+        url.includes(`sessionId=${sessionId}`);
+
+      // Check existing pages first
+      for (const page of await browser.pages()) {
+        if (sessionCheck(page.url())) return page;
+      }
+
+      // Wait for a new page
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          browser.off("targetcreated", handler);
+          reject(new Error(`timeout: no dashboard page for sessionId=${sessionId} in ${timeoutMs}ms`));
+        }, timeoutMs);
+
+        const handler = async (target) => {
+          if (target.type() !== "page") return;
+          try {
+            const page = await target.page();
+            if (!page) return;
+            await new Promise((r) => setTimeout(r, 500));
+            if (sessionCheck(page.url())) {
+              clearTimeout(timer);
+              browser.off("targetcreated", handler);
+              resolve(page);
+            }
+          } catch {
+            // page() can throw if target is destroyed
+          }
+        };
+
+        browser.on("targetcreated", handler);
+      });
+    },
+
     /** Wait for a page whose URL matches the predicate. */
     async waitForPage(urlMatch, { timeoutMs = PAGE_NAV_TIMEOUT_MS } = {}) {
       const pred = typeof urlMatch === "string"
@@ -174,9 +212,10 @@ export async function launchExtension() {
 
 /**
  * Find the extension's service worker target.
+ * When connecting to an existing Chrome, the SW may be dormant; wake it first.
  */
 async function findServiceWorker(browser, launched) {
-  const deadline = Date.now() + (launched ? SW_READY_TIMEOUT_MS : 5_000);
+  const deadline = Date.now() + (launched ? SW_READY_TIMEOUT_MS : 15_000);
 
   // Check existing targets
   for (const target of browser.targets()) {
@@ -186,7 +225,25 @@ async function findServiceWorker(browser, launched) {
     }
   }
 
-  // Wait for it to appear
+  // Not found — if connecting to existing Chrome, the SW may be dormant.
+  // Try to wake it by sending a message from an existing extension page.
+  if (!launched) {
+    for (const page of await browser.pages()) {
+      const url = page.url();
+      if (url.includes("chrome-extension://") && url.includes("/manage.html")) {
+        try {
+          await page.evaluate(() => new Promise((resolve) => {
+            chrome.runtime.sendMessage({ type: "session:list" }, resolve);
+          }));
+        } catch {
+          // page may have been closed
+        }
+        break;
+      }
+    }
+  }
+
+  // Wait for the SW target to appear
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       browser.off("targetcreated", handler);
@@ -205,6 +262,19 @@ async function findServiceWorker(browser, launched) {
     };
 
     browser.on("targetcreated", handler);
+
+    // Also re-check in case the target appeared between our initial check and now
+    for (const target of browser.targets()) {
+      if (target.type() === "service_worker" && target.url().includes("/background.mjs")) {
+        clearTimeout(timer);
+        browser.off("targetcreated", handler);
+        resolve({
+          extensionId: extractExtensionId(target.url()),
+          serviceWorkerTarget: target,
+        });
+        return;
+      }
+    }
   });
 }
 

@@ -29,7 +29,7 @@ module.exports = [
   },
   {
     // ES Module files (background service worker + session modules)
-    files: ["*.mjs", "session/*.mjs"],
+    files: ["*.mjs", "session/*.mjs", "tests/e2e/**/*.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -67,7 +67,7 @@ module.exports = [
     ignores: [
       "node_modules/**",
       ".worktrees/**",
-      "tests/e2e/**",
+      "tests/e2e/t-*",
       "eslint.config.js",
       "providers.js"
     ]

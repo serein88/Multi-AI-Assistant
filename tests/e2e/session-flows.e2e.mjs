@@ -23,82 +23,19 @@ function sleep(ms) {
 }
 
 /**
- * Replace each provider panel iframe with a srcdoc stub that simulates
- * the content script's postMessage protocol. The stub listens for
- * "sendPrompt" messages and replies with sendResult → responseStarted
- * → responseComplete.
+ * Set the prompt textarea value using the native setter and dispatch input event.
+ * Puppeteer's page.type() does not reliably update value for this dashboard's
+ * textarea; the native setter is more dependable.
  */
-async function stubDashboardIframes(page) {
-  await page.evaluate(() => {
-    const panels = document.querySelectorAll(".panel");
-    for (const panel of panels) {
-      const providerId = panel.dataset.providerId;
-      const oldIframe = panel.querySelector("iframe");
-      if (!oldIframe || !providerId) continue;
-
-      const stub = document.createElement("iframe");
-      stub.className = "panel-frame";
-      stub.dataset.providerId = providerId;
-      stub.dataset.stubbed = "true";
-      stub.style.width = "100%";
-      stub.style.height = "100%";
-      stub.srcdoc = `
-        <html><body>
-        <script>
-        (function() {
-          var provider = ${JSON.stringify(providerId)};
-          window.addEventListener("message", function(event) {
-            var data = event.data;
-            if (!data || data.source !== "multi-ai" || data.type !== "sendPrompt") return;
-            // sendResult
-            window.parent.postMessage({
-              source: "multi-ai-content",
-              type: "sendResult",
-              provider: provider,
-              success: true
-            }, "*");
-            // responseStarted (after small delay)
-            setTimeout(function() {
-              window.parent.postMessage({
-                source: "multi-ai-content",
-                type: "responseStarted",
-                provider: provider
-              }, "*");
-            }, 50);
-            // responseComplete (after answer delay)
-            setTimeout(function() {
-              window.parent.postMessage({
-                source: "multi-ai-content",
-                type: "responseComplete",
-                provider: provider
-              }, "*");
-            }, 200);
-          });
-        })();
-        </script>
-        </body></html>
-      `;
-      oldIframe.replaceWith(stub);
-    }
-  });
-}
-
-/**
- * Wait until a predicate returns truthy, polling at intervalMs.
- */
-async function waitFor(predicate, { timeoutMs = 10_000, intervalMs = 300, label = "" } = {}) {
-  const deadline = Date.now() + timeoutMs;
-  let lastErr;
-  while (Date.now() < deadline) {
-    try {
-      const result = await predicate();
-      if (result) return result;
-    } catch (e) {
-      lastErr = e;
-    }
-    await sleep(intervalMs);
-  }
-  throw new Error(`timeout waiting for: ${label || "condition"}` + (lastErr ? ` (${lastErr.message})` : ""));
+async function setPromptValue(page, text) {
+  await page.evaluate((t) => {
+    const el = document.getElementById("prompt");
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype, "value"
+    ).set;
+    setter.call(el, t);
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  }, text);
 }
 
 // ── Tests ───────────────────────────────────────────────────────────────────
@@ -124,46 +61,35 @@ describe("E2E: Session Flows", () => {
       mode: "foreground",
     });
 
-    // Response should be wrapped by sendResponse: { ok: true, result: { session, windowId } }
     assert.ok(response, "response should not be null");
-    assert.equal(response.ok, true, `response.ok should be true, got: ${JSON.stringify(response)}`);
+    assert.equal(response.ok, true, `response.ok should be true: ${JSON.stringify(response)}`);
     assert.ok(response.result, "response.result should exist");
 
     const { session, windowId } = response.result;
     assert.ok(session.sessionId, "session.sessionId should exist");
-    assert.ok(session.sessionId.startsWith("sess_"), `sessionId should start with "sess_", got: ${session.sessionId}`);
+    assert.ok(session.sessionId.startsWith("sess_"), `sessionId prefix: ${session.sessionId}`);
     assert.deepEqual(session.providers.slice().sort(), providers.sort());
     assert.equal(typeof windowId, "number", "windowId should be a number");
 
-    // Wait for the dashboard page to appear
-    const dashboardPage = await harness.waitForPage("dashboard.html", {
+    const dashboardPage = await harness.waitForDashboardPage(session.sessionId, {
       timeoutMs: 15_000,
     });
     assert.ok(dashboardPage, "dashboard page should open");
 
     const url = dashboardPage.url();
     assert.ok(url.includes("dashboard.html"), `URL should contain dashboard.html: ${url}`);
-    assert.ok(
-      url.includes(`sessionId=${session.sessionId}`),
-      `URL should contain sessionId: ${url}`
-    );
+    assert.ok(url.includes(`sessionId=${session.sessionId}`), `URL should contain sessionId: ${url}`);
 
-    // Wait for panels to render
     await dashboardPage.waitForSelector(".panel", { timeout: 10_000 });
-    const panelCount = await dashboardPage.$$eval(
-      ".panel",
-      (els) => els.length
-    );
+    const panelCount = await dashboardPage.$$eval(".panel", (els) => els.length);
     assert.equal(panelCount, providers.length, `expected ${providers.length} panels, got ${panelCount}`);
 
-    // Clean up: close dashboard page
     await dashboardPage.close();
   }, { timeout: TEST_TIMEOUT_MS });
 
   // ── Test 2: Unified Send ──────────────────────────────────────────────
 
   it("sends a prompt to all panels and records transcript user turn", async () => {
-    // Create a fresh session
     const providers = ["deepseek", "grok"];
     const createRes = await harness.sendRuntimeMessage({
       type: "session:create",
@@ -173,57 +99,58 @@ describe("E2E: Session Flows", () => {
     assert.ok(createRes?.ok, "session:create should succeed");
     const sessionId = createRes.result.session.sessionId;
 
-    // Get the dashboard page
-    const dashboardPage = await harness.waitForPage("dashboard.html", {
+    const dashboardPage = await harness.waitForDashboardPage(sessionId, {
       timeoutMs: 15_000,
     });
     assert.ok(dashboardPage, "dashboard page should open");
-
-    // Wait for panels
     await dashboardPage.waitForSelector(".panel", { timeout: 10_000 });
+    await sleep(1000); // Wait for iframes and send module to initialise
 
-    // Replace iframes with srcdoc stubs to avoid external network dependency
-    await stubDashboardIframes(dashboardPage);
+    // Install chrome.runtime.sendMessage interceptor to verify the full chain
+    await dashboardPage.evaluate(() => {
+      window.__runtimeMsgLog = [];
+      const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
+      chrome.runtime.sendMessage = function (...args) {
+        window.__runtimeMsgLog.push({ type: args[0]?.type, prompt: args[0]?.prompt });
+        return orig(...args);
+      };
+    });
 
-    // Wait a tick for stubs to initialize
-    await sleep(500);
-
-    // Type prompt
+    // Set prompt and trigger send
     const promptText = "Hello from E2E test";
-    await dashboardPage.waitForSelector("#prompt", { timeout: 5_000 });
-    await dashboardPage.type("#prompt", promptText);
-
-    // Click send
-    await dashboardPage.click("#sendAll");
-
-    // Wait for all panels to receive sendResult (stub responds in ~50ms)
+    await setPromptValue(dashboardPage, promptText);
+    await dashboardPage.evaluate(async () => {
+      await globalThis.MultiAISend.sendPrompt();
+    });
     await sleep(1500);
 
-    // Verify transcript recorded the user turn via session:get
-    const getRes = await harness.sendRuntimeMessage({
-      type: "session:get",
-      sessionId,
-    });
+    // ── Verify: session:transcript-user-turn was sent with correct prompt ──
+    const msgLog = await dashboardPage.evaluate(() => window.__runtimeMsgLog);
+    const userTurnMsg = msgLog.find(
+      (m) => m.type === "session:transcript-user-turn" && m.prompt === promptText
+    );
+    assert.ok(
+      userTurnMsg,
+      "sendPrompt should trigger session:transcript-user-turn with correct prompt"
+    );
+
+    // ── Verify: transcript recorded user turn for each provider via background ──
+    const getRes = await harness.sendRuntimeMessage({ type: "session:get", sessionId });
     assert.ok(getRes?.ok, "session:get should succeed");
     const session = getRes.result;
     assert.ok(session.transcript, "session should have transcript");
 
-    // Check that user turns were recorded for both providers
     for (const provider of providers) {
       const providerState = session.transcript.providers?.[provider];
       assert.ok(providerState, `${provider} should have transcript state`);
-      assert.ok(
-        providerState.turns.length > 0,
-        `${provider} should have at least 1 turn`
-      );
       const userTurn = providerState.turns.find((t) => t.role === "user");
       assert.ok(userTurn, `${provider} should have a user turn`);
-      assert.equal(
-        userTurn.content,
-        promptText,
-        `${provider} user turn content should match prompt`
-      );
+      assert.equal(userTurn.content, promptText, `${provider} user turn content matches`);
     }
+
+    // ── Verify: send button recovered ──
+    const btnDisabled = await dashboardPage.$eval("#sendAll", (el) => el.disabled);
+    assert.equal(btnDisabled, false, "send button should be re-enabled after send");
 
     await dashboardPage.close();
   }, { timeout: TEST_TIMEOUT_MS });
@@ -231,7 +158,6 @@ describe("E2E: Session Flows", () => {
   // ── Test 3: Restore Session ──────────────────────────────────────────
 
   it("restores a session and reopens dashboard with same sessionId", async () => {
-    // Create a session
     const providers = ["deepseek", "gemini", "grok"];
     const createRes = await harness.sendRuntimeMessage({
       type: "session:create",
@@ -242,17 +168,15 @@ describe("E2E: Session Flows", () => {
     const originalSession = createRes.result.session;
     const sessionId = originalSession.sessionId;
 
-    // Wait for dashboard
-    const dashboardPage1 = await harness.waitForPage("dashboard.html", {
+    const dashboardPage1 = await harness.waitForDashboardPage(sessionId, {
       timeoutMs: 15_000,
     });
     assert.ok(dashboardPage1, "first dashboard page should open");
 
-    // Close dashboard
     await dashboardPage1.close();
     await sleep(500);
 
-    // Restore session
+    // Restore
     const restoreRes = await harness.sendRuntimeMessage({
       type: "session:restore",
       sessionId,
@@ -263,36 +187,22 @@ describe("E2E: Session Flows", () => {
     const { session: restoredSession, windowId, restored } = restoreRes.result;
     assert.equal(restoredSession.sessionId, sessionId, "sessionId should be preserved");
     assert.equal(typeof windowId, "number", "windowId should be a number");
-
-    // restored array lists recoverable child sessions (their URLs were saved)
-    // Since we didn't navigate iframes to real URLs, restored may be empty — that's OK
     assert.ok(Array.isArray(restored), "restored should be an array");
 
-    // New dashboard page should appear
-    const dashboardPage2 = await harness.waitForPage("dashboard.html", {
+    const dashboardPage2 = await harness.waitForDashboardPage(sessionId, {
       timeoutMs: 15_000,
     });
     assert.ok(dashboardPage2, "restored dashboard page should open");
 
     const url = dashboardPage2.url();
-    assert.ok(
-      url.includes(`sessionId=${sessionId}`),
-      `restored URL should contain same sessionId: ${url}`
-    );
+    assert.ok(url.includes(`sessionId=${sessionId}`), `restored URL should contain sessionId: ${url}`);
 
-    // Wait for panels to render
     await dashboardPage2.waitForSelector(".panel", { timeout: 10_000 });
-    const panelCount = await dashboardPage2.$$eval(
-      ".panel",
-      (els) => els.length
-    );
+    const panelCount = await dashboardPage2.$$eval(".panel", (els) => els.length);
     assert.equal(panelCount, providers.length, `expected ${providers.length} panels, got ${panelCount}`);
 
-    // Verify lastActiveAt was updated
-    const getRes = await harness.sendRuntimeMessage({
-      type: "session:get",
-      sessionId,
-    });
+    // lastActiveAt should be updated
+    const getRes = await harness.sendRuntimeMessage({ type: "session:get", sessionId });
     assert.ok(getRes?.ok, "session:get should succeed");
     const updatedSession = getRes.result;
     assert.ok(

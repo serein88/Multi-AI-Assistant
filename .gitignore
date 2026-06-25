@@ -20,6 +20,6 @@ tests/esm-migration.test.js
 claude.md
 .tmp-chrome-profile-*/
 node_modules
-package-lock.json
+# package-lock.json is committed for reproducible CI installs
 # Added by code-review-graph
 .code-review-graph/
