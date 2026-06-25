@@ -811,7 +811,7 @@
       "priority": "P2",
       "status": "进行中",
       "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
-      "notes": "2026-06-25 覆盖率改进进度：(1) dashboard/send.js 测试 36 项（目标解析、Panel 助手、Badge 状态、发送流程、session 转录、状态管理）；(2) favicon-cache.js 测试 19 项（getFaviconUrl/getFaviconSrc/preloadFavicons + API surface）。累计新增 55 项测试，386/386 通过。剩余难测模块：content/send-handlers.js（1159 行，DOM 密集）、response-detection.js（415 行）、transcript-capture.js（634 行）。建议继续补其他可测模块或转向集成测试补充关键路径覆盖。",
+      "notes": "2026-06-25 覆盖率改进进度：(1) dashboard/send.js 测试 36 项；(2) favicon-cache.js 测试 19 项；(3) transcript-store.mjs 纯函数测试 28 项。累计新增 83 项测试，414/414 通过，覆盖率 28.81%（+0.07%）。**瓶颈分析**：项目代码以 DOM 操作（querySelector/MutationObserver）和 Chrome API（tabs/scripting/storage）为主，纯逻辑模块少。剩余可测模块：transcript-store.mjs appendUserTurn/appendProviderTurn（200+ 行去重逻辑），background.mjs（994 行 Chrome API 密集），content 模块（DOM 密集）。**边际收益极低**：本轮 28 项测试仅提升 0.07%，距 60% 目标仍有 31.19%。建议：(a) 继续补 appendUserTurn/appendProviderTurn 测试（预计 +1-2%）；(b) 转向 E2E 测试补充关键路径；(c) 调整覆盖率目标至 35-40%（更符合项目特性）。",
       "createdAt": "2026-06-22",
       "archived": false
     },
