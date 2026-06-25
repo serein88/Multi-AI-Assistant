@@ -1,10 +1,50 @@
 # Progress.md
 
+## 2026-06-25（记录 38）
+
+- 时间：2026-06-25
+- 任务：T-20260622-017 覆盖率改进：dashboard/send.js 测试
+- 状态：进行中（已新增 36 项测试，367 pass，继续补覆盖）
+- 变更文件：
+  - `tests/dashboard/send.test.mjs` — 新建，dashboard/send.js 单元测试（36 场景）
+- 覆盖路径：
+  1. **目标解析**（8 场景）：
+     - parseTargetPrompt: 无 @ 前缀、单目标（:分隔/：分隔）、多目标、去重、越界索引、首个非目标停止、空 prompt
+     - parseTargetsFromInput: 提取所有 @N、去重、忽略无效索引
+     - stripTargetTokens: 移除 @N（空格边界/保留冒号/中间字符）、折叠空格
+  2. **Panel 助手**（2 场景）：
+     - getPanelIframe/getPanelBadge: 从 panelByIndex 查询匹配 panel，返回 null 场景
+  3. **Badge 状态管理**（4 场景）：
+     - setPanelBadgeStatus: 清除状态类、添加 sending/success/error、success/error 2s 自动清理、清除既有定时器
+  4. **发送流程**（sendPromptToProvider，6 场景）：
+     - providerId/prompt 空时立即返回 false
+     - iframe 不可用时降级到 chrome.runtime.sendMessage（sendPromptToProviderTab）
+     - iframe 可用时 postMessage，resolvePendingSend 手动完成
+     - 超时返回 false
+     - 取消既有 pending send
+  5. **resolvePendingSend**（2 场景）：清除 timeout + resolve，不存在时 no-op
+  6. **recordSessionUserTurn**（4 场景）：发送 session:transcript-user-turn、sessionId 缺失/targetList 空时 no-op、过滤无效 provider id
+  7. **状态管理**（2 场景）：selectedTargets 读写、removeSelectedTarget 移除并触发 renderTargetChips + updateSendButtonState
+- 验证证据：
+  - `npm test` → 367 pass / 0 fail（新增 36 项，无回归）
+  - `npm run lint` → 0 errors / 12 warnings（既有）
+  - `npm run validate` → manifest.json OK: v0.3.2
+- 技术要点：
+  - 使用 `vm.runInContext` 在沙箱中加载 dashboard/send.js，隔离全局状态
+  - Mock PROVIDER_BY_ID, MultiAI, document, chrome.runtime.sendMessage
+  - stripTargetTokens 正则 `(?=[\s:：]|$|[^0-9])` 会匹配 `email@1example` 中的 `@1`（`1e` 不连续）
+  - removeSelectedTarget 调用 updateSendButtonState 需 mock document.getElementById
+  - selectedTargets 在每次 loadSendModule 中是新实例，不能用 deepStrictEqual 比较空数组引用
+- 风险/后续：
+  - dashboard/send.js 核心解析和状态管理已覆盖，但 sendPrompt 主函数、updateSendingState、syncTargetsFromPrompt、renderTargetChips 未测（DOM 密集）
+  - 继续补 content/send-handlers.js（1159 行，DOM 密集）、response-detection.js（415 行）、transcript-capture.js（634 行）较困难
+  - 建议优先补其他可测模块（如 session/、providers.js 相关）或补 dashboard 其他纯逻辑部分
+
 ## 2026-06-25（记录 37）
 
 - 时间：2026-06-25
 - 任务：T-20260622-017 GPT 审查意见修复（2 项补充改进）
-- 状态：进行中（覆盖率 28.74% 未达 60% 阈值，待补覆盖）
+- 状态：已完成
 - 变更文件：
   - `tests/content/try-send-prompt.integration.test.js` — timeout fallback 改为 reject + session:transcript-provider-turn 断言
   - `tests/session/background-message-routing.test.mjs` — timeout fallback 改为 reject
