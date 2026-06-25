@@ -1,10 +1,51 @@
 # Progress.md
 
+## 2026-06-25（记录 39）
+
+- 时间：2026-06-25
+- 任务：T-20260622-017 覆盖率改进：favicon-cache.js 测试
+- 状态：进行中（已新增 55 项测试，386 pass，继续补覆盖）
+- 变更文件：
+  - `tests/favicon-cache.test.mjs` — 新建，favicon-cache.js 单元测试（19 场景）
+- 覆盖路径：
+  1. **getFaviconUrl**（6 场景）：
+     - 已知 provider 返回 Google Favicon API URL
+     - 未知 provider 返回空字符串
+     - 所有 13 个已知 provider 验证
+     - deepseek/grok 域名验证
+  2. **getFaviconSrc**（2 场景）：
+     - 与 getFaviconUrl 返回相同 URL
+     - 未知 provider 返回空字符串
+  3. **preloadFavicons**（8 场景）：
+     - 空数组/非数组参数立即返回
+     - 创建 Image 实例设置 src
+     - provider ID 去重
+     - 过滤未知 provider
+     - 等待所有图片加载
+     - 优雅处理加载错误
+     - 预加载所有 13 个 provider
+  4. **API surface**（3 场景）：
+     - 暴露 getFaviconUrl/getFaviconSrc/preloadFavicons
+     - 不暴露内部 PROVIDER_HOSTS/API_TEMPLATE
+- 验证证据：
+  - `npm test` → 386 pass / 0 fail（新增 19 项，无回归）
+  - `npm run lint` → 0 errors / 12 warnings（既有）
+  - `npm run validate` → manifest.json OK: v0.3.2
+- 技术要点：
+  - 使用 `vm.runInContext` 加载 favicon-cache.js，隔离全局状态
+  - Mock Image 构造函数，自动触发 onload 回调
+  - Image src setter 通过 Object.defineProperty 实现，模拟浏览器行为
+  - 测试覆盖所有 13 个 provider：chatgpt/claude/grok/gemini/copilot/doubao/kimi/deepseek/tongyi/yuanbao/zhipu/you/ima
+- 风险/后续：
+  - favicon-cache.js 已完全覆盖（76 行纯逻辑）
+  - 累计新增 55 项测试（dashboard/send.js 36 + favicon-cache.js 19）
+  - 继续寻找可测模块：content script（DOM 密集难测）、dashboard 其他模块（grid-resizer 340 行、transcript 1007 行）
+
 ## 2026-06-25（记录 38）
 
 - 时间：2026-06-25
 - 任务：T-20260622-017 覆盖率改进：dashboard/send.js 测试
-- 状态：进行中（已新增 36 项测试，367 pass，继续补覆盖）
+- 状态：已完成
 - 变更文件：
   - `tests/dashboard/send.test.mjs` — 新建，dashboard/send.js 单元测试（36 场景）
 - 覆盖路径：

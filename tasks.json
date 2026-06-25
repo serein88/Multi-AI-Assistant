@@ -811,7 +811,7 @@
       "priority": "P2",
       "status": "进行中",
       "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
-      "notes": "2026-06-25 dashboard/send.js 测试新增（36 项）：目标解析 parseTargetPrompt/parseTargetsFromInput/stripTargetTokens、Panel 助手 getPanelIframe/Badge、Badge 状态管理 setPanelBadgeStatus + 自动清理、发送流程 sendPromptToProvider（iframe/tab 双模式 + 超时）、recordSessionUserTurn、状态管理 selectedTargets/removeSelectedTarget。367 测试通过。仍需补 content/send-handlers.js（1159 行）、response-detection.js（415 行）、transcript-capture.js（634 行），但 DOM 密集难测，建议补其他可测模块或补 dashboard 纯逻辑部分。",
+      "notes": "2026-06-25 覆盖率改进进度：(1) dashboard/send.js 测试 36 项（目标解析、Panel 助手、Badge 状态、发送流程、session 转录、状态管理）；(2) favicon-cache.js 测试 19 项（getFaviconUrl/getFaviconSrc/preloadFavicons + API surface）。累计新增 55 项测试，386/386 通过。剩余难测模块：content/send-handlers.js（1159 行，DOM 密集）、response-detection.js（415 行）、transcript-capture.js（634 行）。建议继续补其他可测模块或转向集成测试补充关键路径覆盖。",
       "createdAt": "2026-06-22",
       "archived": false
     },
