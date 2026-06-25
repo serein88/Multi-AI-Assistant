@@ -98,6 +98,10 @@ function loadContentScript(overrides = {}) {
     resumeManualTurnObserver: sinon.stub(),
     startManualSendCapture: sinon.stub(),
     startManualTurnCapture: sinon.stub(),
+    shouldIgnoreThinkingNode: sinon.stub().returns(false),
+    extractTextExcludingThinking: sinon.stub().callsFake((provider, node) => {
+      return node.textContent || "";
+    }),
   };
 
   // Mock session sync
@@ -112,12 +116,13 @@ function loadContentScript(overrides = {}) {
   const documentOverrides = overrides.document || {};
   const document = {
     readyState: documentOverrides.readyState || "complete",
-    querySelector: sinon.stub().callsFake((selector) => {
+    body: documentOverrides.body || null,
+    querySelector: documentOverrides.querySelector || sinon.stub().callsFake((selector) => {
       if (selector === "#ds-input" || selector === "#grok-input") return mockInput;
       if (selector === "#ds-send" || selector === "#grok-send") return mockSendButton;
-      return documentOverrides.querySelector?.(selector) || null;
+      return null;
     }),
-    querySelectorAll: sinon.stub().returns([]),
+    querySelectorAll: documentOverrides.querySelectorAll || sinon.stub().returns([]),
     addEventListener: sinon.stub(),
     createElement: sinon.stub().returns(createMockElement("div")),
   };
@@ -250,7 +255,7 @@ function invokeMessageListener(env, message, sender = {}, { timeoutMs = 2000 } =
   const listener = env.messageListeners[0];
   assert.ok(listener, "content.js should register a runtime.onMessage listener");
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const sendResponse = sinon.stub().callsFake((val) => {
       if (!settled) {
@@ -266,7 +271,7 @@ function invokeMessageListener(env, message, sender = {}, { timeoutMs = 2000 } =
     setTimeout(() => {
       if (!settled) {
         settled = true;
-        resolve(undefined);
+        reject(new Error(`sendResponse timeout after ${timeoutMs}ms for message type: ${message.type}`));
       }
     }, timeoutMs);
   });
@@ -366,10 +371,31 @@ describe("content.js trySendPrompt integration", () => {
   it("succeeds for generic provider: sendResult, responseStarted, responseComplete, live status, observer lifecycle", async () => {
     const mockInput = createMockElement("textarea", "ds-input");
     const mockButton = createMockElement("button", "ds-send");
+    const mockResponseNode = createMockElement("div", "response");
+    mockResponseNode.textContent = "assistant reply";
+
+    const mockBody = {
+      querySelectorAll: sinon.stub().callsFake((selector) => {
+        if (selector === ".ds-markdown") return [mockResponseNode];
+        return [];
+      }),
+    };
 
     const env = loadContentScript({
       mockInput,
       mockSendButton: mockButton,
+      document: {
+        body: mockBody,
+        querySelector: sinon.stub().callsFake((selector) => {
+          if (selector === "#ds-input") return mockInput;
+          if (selector === "#ds-send") return mockButton;
+          return null;
+        }),
+        querySelectorAll: sinon.stub().callsFake((selector) => {
+          if (selector === ".ds-markdown") return [mockResponseNode];
+          return [];
+        }),
+      },
       sendHandlers: {
         waitForElement: sinon.stub().callsFake(async (selectors) => {
           if (selectors.includes("#ds-input")) return mockInput;
@@ -397,6 +423,17 @@ describe("content.js trySendPrompt integration", () => {
           return new Promise((resolve) => setTimeout(() => resolve({}), 50));
         }),
         extractLatestResponse: sinon.stub().returns("assistant reply"),
+      },
+      transcriptCapture: {
+        setCapturingActiveResponse: sinon.stub(),
+        pauseManualTurnObserver: sinon.stub(),
+        resumeManualTurnObserver: sinon.stub(),
+        startManualSendCapture: sinon.stub(),
+        startManualTurnCapture: sinon.stub(),
+        shouldIgnoreThinkingNode: sinon.stub().returns(false),
+        extractTextExcludingThinking: sinon.stub().callsFake((provider, node) => {
+          return node.textContent || "";
+        }),
       },
     });
 
@@ -460,6 +497,16 @@ describe("content.js trySendPrompt integration", () => {
       env.transcriptCapture.resumeManualTurnObserver.calledWith("deepseek"),
       "should resume observer with provider name"
     );
+
+    // ── session:transcript-provider-turn sent ──
+    const providerTurnCall = sendMessage.getCalls().find(
+      (c) => c.args[0]?.type === "session:transcript-provider-turn"
+    );
+    assert.ok(providerTurnCall, "should send provider turn to background");
+    assert.equal(providerTurnCall.args[0].provider, "deepseek");
+    assert.equal(providerTurnCall.args[0].role, "assistant");
+    assert.equal(providerTurnCall.args[0].content, "assistant reply");
+    assert.equal(providerTurnCall.args[0].status, "completed");
   });
 
   // ── Input not found → retry → fail ──

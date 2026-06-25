@@ -1,5 +1,32 @@
 # Progress.md
 
+## 2026-06-25（记录 37）
+
+- 时间：2026-06-25
+- 任务：T-20260622-017 GPT 审查意见修复（2 项补充改进）
+- 状态：进行中（覆盖率 28.74% 未达 60% 阈值，待补覆盖）
+- 变更文件：
+  - `tests/content/try-send-prompt.integration.test.js` — timeout fallback 改为 reject + session:transcript-provider-turn 断言
+  - `tests/session/background-message-routing.test.mjs` — timeout fallback 改为 reject
+- 修复内容：
+  1. **timeout fallback 改为 reject**（invokeMessageListener / callMessageListener）：
+     - 原 `resolve(undefined)` 改为 `reject(new Error(\`sendResponse timeout after \${timeoutMs}ms for message type: \${message.type}\`))`
+     - 提供更清晰的错误信息，便于调试超时场景
+  2. **trySendPrompt 成功路径补充 session:transcript-provider-turn 断言**：
+     - 验证 `chrome.runtime.sendMessage` 发送 provider turn 消息：provider="deepseek", role="assistant", content="assistant reply", status="completed"
+     - Mock document.body.querySelectorAll 返回响应节点，确保 extractLatestResponse 能提取内容
+     - Mock TC.shouldIgnoreThinkingNode / TC.extractTextExcludingThinking，支持 thinking 过滤逻辑
+- 验证证据：
+  - `npm test` → 331 pass / 0 fail（全部通过）
+  - `npm run lint` → 0 errors / 12 warnings（既有）
+  - `npm run test:coverage` → 整体 28.74% line / 51.38% branch（未变，符合预期）
+- 技术要点：
+  - extractLatestResponse 在 content.js 中是全局函数，依赖 document.body.querySelectorAll + TC.extractTextExcludingThinking
+  - sendTranscriptProviderTurn 有 `if (latest)` 条件，需确保 mock 能返回非空内容
+  - timeout reject 提供 message.type 上下文，方便定位哪个消息类型超时
+- 风险/后续：
+  - 覆盖率仍为 28.74%，需补 dashboard/send.js、content/send-handlers.js、response-detection.js、transcript-capture.js 测试才能达 60% 阈值
+
 ## 2026-06-25（记录 36）
 
 - 时间：2026-06-25

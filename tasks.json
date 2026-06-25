@@ -811,7 +811,7 @@
       "priority": "P2",
       "status": "进行中",
       "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
-      "notes": "2026-06-25 集成测试 21 场景通过（content.js 7 + background.mjs 14），覆盖率 28.74% 未达 60% 阈值。sinon 已引入。待补 dashboard.js / content.js 更多路径覆盖。",
+      "notes": "2026-06-25 GPT 审查补充改进：timeout fallback 改为 reject（含 message.type 上下文）+ trySendPrompt 成功路径补 session:transcript-provider-turn 断言（验证 provider/role/content/status 字段）+ mock document.body + TC thinking 过滤函数。331 测试通过，覆盖率 28.74% 未达 60% 阈值。待补 dashboard/send.js、send-handlers.js、response-detection.js、transcript-capture.js 测试。",
       "createdAt": "2026-06-22",
       "archived": false
     },

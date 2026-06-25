@@ -97,7 +97,7 @@ function callMessageListener(messageListeners, message, sender = {}, { timeoutMs
   const listener = messageListeners[0];
   assert.ok(listener, "background.mjs should register onMessage listener");
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     let settled = false;
     const sendResponse = sinon.stub().callsFake((val) => {
       if (!settled) {
@@ -112,7 +112,7 @@ function callMessageListener(messageListeners, message, sender = {}, { timeoutMs
     setTimeout(() => {
       if (!settled) {
         settled = true;
-        resolve(undefined);
+        reject(new Error(`sendResponse timeout after ${timeoutMs}ms for message type: ${message.type}`));
       }
     }, timeoutMs);
   });
