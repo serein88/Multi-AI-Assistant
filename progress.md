@@ -1,5 +1,33 @@
 # Progress.md
 
+## 2026-06-25（记录 35）
+
+- 时间：2026-06-25
+- 任务：T-20260622-016 GPT 审查修复（commit 565d366）
+- 状态：待确认
+- 变更文件：
+  - `.gitignore` — 移除 `package-lock.json` 忽略规则
+  - `package-lock.json` — 提交，CI `npm ci` 可复现安装
+  - `package.json` — lint 脚本加入 `tests/e2e/**/*.mjs`
+  - `eslint.config.js` — ESM 配置块覆盖 `tests/e2e/**/*.mjs`；ESLint ignores 收窄为 `tests/e2e/t-*`
+  - `tests/e2e/helpers/extension-harness.mjs` — 删除未使用常量 `MESSAGE_TIMEOUT_MS`/`EXTENSION_MANAGE_URL_RE`；新增 `waitForDashboardPage(sessionId)` 限定扩展 ID + sessionId；service worker 休眠唤醒机制
+  - `tests/e2e/session-flows.e2e.mjs` — 删除未使用 `waitFor` 函数；统一发送测试改为拦截 `chrome.runtime.sendMessage` 验证完整链路
+- 修复内容（5 项）：
+  1. **package-lock.json 已提交**：CI `npm ci` 可复现安装，不再因缺 lockfile 失败。
+  2. **E2E .mjs 纳入 lint**：`tests/e2e/**/*.mjs` 进入 `npm run lint` 覆盖范围，0 errors。
+  3. **统一发送 E2E 改为拦截 `chrome.runtime.sendMessage`**：验证 `session:transcript-user-turn` 消息正确发送、每个 provider 的 transcript user turn 写入、send 按钮恢复可用。不再依赖 srcdoc stub（chrome-extension:// 页面 srcdoc 不支持 postMessage 回传）。
+  4. **`waitForDashboardPage(sessionId)`**：替代通用 `waitForPage("dashboard.html")`，限定 `chrome-extension://<extensionId>/dashboard.html?sessionId=<id>`，避免命中旧 dashboard 页面。
+  5. **旧 Playwright E2E 文件已移除**：`tests/e2e/t-20260413-014-cdp-regress.mjs` 删除。
+- 验证证据：
+  - `npm run lint` → 0 errors / 12 warnings（均既有）
+  - `npm test` → 310 pass / 0 fail
+  - `CHROME_NO_CONNECT=1 npm run test:e2e` → 3 pass / 0 fail，约 14s
+  - `npm run validate` → manifest.json OK
+  - `git diff --check HEAD` → clean
+- 风险/后续：
+  - E2E 冒烟范围保持当前 3 个流程，不新增真实 AI 供应商登录发送测试
+  - 统一发送验证的是 dashboard → background → storage 链路，不验证 iframe 内容脚本响应
+
 ## 2026-06-24（记录 34）
 
 - 时间：2026-06-24
