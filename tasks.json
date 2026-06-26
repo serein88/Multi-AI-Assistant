@@ -809,9 +809,9 @@
       "name": "测试改进：关键路径集成测试",
       "category": "test",
       "priority": "P2",
-      "status": "进行中",
-      "criteria": "1. 为 content.js:2841-3043 (trySendPrompt) 编写集成测试；2. 为 background.js:937-1063 (消息路由) 编写集成测试；3. 使用 sinon/jest mock Chrome APIs；4. 测试覆盖率达到 60% 以上",
-      "notes": "2026-06-25 验收标准重定义分析：(1) 当前覆盖率 28.81%（414 项测试通过）；(2) 60% 全局 line coverage 不适合当前代码结构（MV3+DOM+Chrome API+ESM/legacy 双文件导致分母失真）；(3) 已完成关键路径集成测试（trySendPrompt、background routing、session create/restore/transcript）；(4) 阻塞原因：验收指标与项目结构不匹配，继续补单元测试边际收益极低。建议三个选项：A) 调整验收标准为关键路径测试+28%基线+E2E；B) 清理coverage scope排除legacy/DOM密集型模块；C) 保持原标准（需5-8轮）。待用户决策。",
+      "status": "待确认",
+      "criteria": "1. 关键路径集成测试覆盖：trySendPrompt、background message routing、session create/send/restore、transcript user/provider turn；2. 覆盖率基线防回退：≥ 28%（当前 28.81%）；3. E2E 核心链路测试（发送→响应→转录）（可选）",
+      "notes": "2026-06-25 用户确认选项 1：调整验收标准。原始标准 '覆盖率达 60%' 与项目代码结构不匹配（MV3+DOM+Chrome API+ESM/legacy 双文件导致分母失真）。新标准：关键路径测试覆盖 + 28% 基线防回退 + E2E（可选）。414 项测试通过，关键路径集成测试已完成（trySendPrompt 36项、background routing 10项、session 7项）。T-017 改为待确认，E2E 核心链路测试作为后续任务。",
       "createdAt": "2026-06-22",
       "archived": false
     },
