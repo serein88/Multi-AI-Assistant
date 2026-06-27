@@ -855,7 +855,7 @@
       "priority": "P3",
       "status": "待确认",
       "criteria": "1. deepQueryAll 仅遍历 shouldTraverseShadowHost 返回 true 的 shadowRoot；2. denylist 拒绝 password/credential/auth/otp/payment 等敏感 host；3. allowlist 仅放行 AI composer/chat/input/editor/textbox/message/send 及已知 provider 组件；4. light DOM 查询不受影响；5. 测试覆盖敏感拒绝/AI 放行/未知拒绝/light DOM 正常/provider 不误拒",
-      "notes": "2026-06-27 实现：isSensitiveShadowHost + shouldTraverseShadowHost 双层过滤，tagName 也纳入匹配。23 项测试全通过。",
+      "notes": "2026-06-27 实现：isSensitiveShadowHost + shouldTraverseShadowHost 双层过滤，tagName 也纳入匹配。denylist 优先，allowlist 不区分 custom element 与标准 HTML 元素。/toolbar/i 已收窄为 send-toolbar/composer-toolbar 组合模式。26 项测试全通过。",
       "createdAt": "2026-06-22",
       "archived": false
     },

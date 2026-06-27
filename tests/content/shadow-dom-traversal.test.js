@@ -260,6 +260,20 @@ describe("T-021 Shadow DOM traversal policy", () => {
       assert.equal(results.length, 0);
     });
 
+    it("rejects plain toolbar class (not AI-input-specific)", () => {
+      const textbox = makeNode({ tagName: "TEXTAREA" });
+      const shadowRoot = makeShadowRoot((sel) => sel === "textarea" ? [textbox] : []);
+      const host = makeNode({ tagName: "DIV", className: "toolbar", shadowRoot });
+      const root = makeNode({ tagName: "BODY", querySelectorAll: () => [] });
+
+      const doc = globalThis.document;
+      const restore = overrideDocument(doc, [host]);
+      const results = mod.deepQueryAll(root, "textarea");
+      restore();
+
+      assert.equal(results.length, 0);
+    });
+
     it("allows standard HTML element with allowlist attribute (chat-input-container)", () => {
       const textbox = makeNode({ tagName: "TEXTAREA" });
       const shadowRoot = makeShadowRoot((sel) => sel === "textarea" ? [textbox] : []);
