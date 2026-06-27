@@ -99,6 +99,7 @@
       "js": [
         "content/provider-configs.js",
         "content/send-handlers.js",
+        "content/response-state.js",
         "content/response-detection.js",
         "content/transcript-capture.js",
         "content/session-sync.js",

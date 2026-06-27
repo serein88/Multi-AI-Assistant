@@ -10,8 +10,8 @@
 
   function getProviderStabilityMs(provider) {
     if (provider === "deepseek") return 1500;
-    if (provider === "grok") return 1500;
-    return 1200;
+    if (provider === "doubao" || provider === "kimi" || provider === "tongyi") return 1800;
+    return 3500;
   }
 
   function createResponseStabilityTracker(options = {}) {

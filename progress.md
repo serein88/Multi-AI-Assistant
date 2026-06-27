@@ -1,5 +1,44 @@
 # Progress.md
 
+## 2026-06-27（记录 43）
+
+- 时间：2026-06-27
+- 任务：T-20260622-018 技术债务：修复 response-state 内联问题根本原因
+- 状态：待确认
+- 变更文件：
+  - `manifest.json` — content_scripts[0].js 新增 `content/response-state.js`（位于 `content/send-handlers.js` 之后、`content/response-detection.js` 之前）
+  - `content/content.js` — 删除 `_inlineResponseState` IIFE（62 行）、误导注释、`getResponseStateApi`/`getProviderStabilityMs`/`shouldUseGenericResponseStartSignals` 三个死代码 wrapper
+  - `content/response-state.js` — `getProviderStabilityMs()` 阈值对齐原 response-detection.js 实际生效值：deepseek=1500, doubao/kimi/tongyi=1800, 默认=3500（含 grok）
+  - `content/response-detection.js` — `waitForResponseComplete` 的 `textStableMs` 从硬编码改为读取 `MultiAIResponseState.getProviderStabilityMs(provider)`；修正注释（response-state.js 在 manifest 中排在 response-detection.js 前面）；fallback 值对齐
+  - `tests/session/response-state.test.js` — 阈值测试从 2 组扩展到 3 组（deepseek / doubao+kimi+tongyi / 默认含 grok 等 10 个 provider）
+  - `tests/content/injection-chain.test.js` — 7 项 guard 测试
+- 根因确认：
+  - `manifest.json` 的 `content_scripts[0].js` 从未声明 `content/response-state.js`
+  - 注释 "Chrome caching" 是误导性归因，实际根因是 manifest 遗漏
+- 架构收口：
+  1. manifest 注入链路打通（response-state.js 在 response-detection.js 之前加载）
+  2. response-detection.js 的 `textStableMs` 从硬编码改为读取 `MultiAIResponseState.getProviderStabilityMs()`
+  3. **阈值对齐**（用户审查后修正）：response-state.js 的 `getProviderStabilityMs()` 调整为原 response-detection.js 实际生效值，**不改变**回答完成检测行为
+  4. content.js 三个死代码 wrapper 删除（从未被调用）
+- 阈值对照（修复后 = 修复前，行为不变）：
+
+  | Provider | 修复前（response-detection.js 硬编码） | 修复后（response-state.js 单一来源） |
+  | --- | --- | --- |
+  | deepseek | 1500ms | 1500ms |
+  | doubao/kimi/tongyi | 1800ms | 1800ms |
+  | grok | 3500ms（默认） | 3500ms（默认） |
+  | chatgpt/claude/gemini/copilot 等 | 3500ms | 3500ms |
+
+- 验证证据：
+  - `npm test` → 423 pass / 0 fail
+  - `npm run lint` → 0 errors / 17 warnings
+  - `npm run validate` → manifest.json OK: v0.3.2
+  - `node --check content/response-state.js` / `content/content.js` / `content/response-detection.js` → OK
+  - `git diff --check` → 0 trailing whitespace
+- 风险/后续：
+  - **需实机验证**：回答完成检测功能不变（优先 DeepSeek/Grok）
+  - grok 阈值优化（3500→1500ms 等）应另开任务，不混入本次行为保持修复
+
 ## 2026-06-25（记录 42）
 
 - 时间：2026-06-25

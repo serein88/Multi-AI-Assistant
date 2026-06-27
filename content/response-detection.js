@@ -192,9 +192,17 @@ var __MAI_Response = (function () {
     var providerStop = getStopSelectors(provider);
     var chatStopSelector = providerStop.join(", ");
     var doc = config.document || document;
-    var textStableMs = 3500;
-    if (provider === "deepseek") textStableMs = 1500;
-    else if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = 1800;
+    // Read stability threshold from MultiAIResponseState (set by response-state.js).
+    // response-state.js loads before response-detection.js in manifest, so it is
+    // available at this point; fallback kept only for defensive completeness.
+    var textStableMs;
+    if (globalThis.MultiAIResponseState && typeof globalThis.MultiAIResponseState.getProviderStabilityMs === "function") {
+      textStableMs = globalThis.MultiAIResponseState.getProviderStabilityMs(provider);
+    } else {
+      textStableMs = 3500;
+      if (provider === "deepseek") textStableMs = 1500;
+      if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = 1800;
+    }
     // Baseline: meta is actually responseBaseline from content.js { text, responseCount }
     var baselineText = (meta && typeof meta.text === "string") ? meta.text.trim() : "";
     var baselineCount = (meta && typeof meta.responseCount === "number") ? meta.responseCount : 0;
