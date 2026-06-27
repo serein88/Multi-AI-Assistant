@@ -1,5 +1,27 @@
 # Progress.md
 
+## 2026-06-27（记录 46）
+
+- 时间：2026-06-27
+- 任务：T-20260622-021 安全加固：Shadow DOM 穿透白名单
+- 状态：待确认
+- 变更文件：
+  - `content/send-handlers.js` — 新增 SHADOW_DENY_PATTERNS（19 条敏感模式）、SHADOW_ALLOW_PATTERNS（17 条 AI 组件模式）、isSensitiveShadowHost()、shouldTraverseShadowHost()；deepQueryAll 和 Copilot 局部 deepQuery 均加入 shouldTraverseShadowHost 守卫；导出到 `globalThis.__MAI_Send`
+  - `tests/content/shadow-dom-traversal.test.js` — 新建，23 项测试
+- 设计决策：
+  - 两层过滤：先 denylist（password/credential/auth/otp/payment/wallet/1password/bitwarden/lastpass 等），再 allowlist（composer/chat-input/editor/textbox/message-input/send-button/lexical/grok/kimi/copilot 等）
+  - 标准 HTML 元素（tagName 无连字符）默认拒绝遍历，仅 custom elements 进入 allowlist 匹配
+  - tagName 也纳入 deny/allow 匹配（不只是 id/class/role/aria-label）
+  - allowlist 模式使用 `[\s_-]?` 分隔符匹配，覆盖 chat-input、chat input、chatInput 等变体
+  - Copilot sendCopilotMessage 内的局部 deepQuery 也加了 shouldTraverseShadowHost 守卫
+- 验证证据：
+  - 新测试：23/23 通过
+  - 全量测试：511/511 通过
+  - Lint：0 errors / 18 warnings
+  - Manifest：OK
+  - Syntax：OK
+  - git diff --check：clean
+
 ## 2026-06-27（记录 45）
 
 - 时间：2026-06-27

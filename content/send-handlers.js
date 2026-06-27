@@ -5,6 +5,98 @@
   "use strict";
   var C_SH = (typeof globalThis !== "undefined" && globalThis.MultiAIContentConstants) || {};
 
+  // --- Shadow DOM traversal security policy ---
+  // Denylist: host attributes matching these patterns are NEVER traversed.
+  // Covers password managers, auth/payment widgets, OTP fields, etc.
+  var SHADOW_DENY_PATTERNS = [
+    /password/i,
+    /passkey/i,
+    /credential/i,
+    /auth[\s_-]?/i,
+    /otp/i,
+    /payment/i,
+    /card[\s_-]?number/i,
+    /wallet/i,
+    /1password/i,
+    /bitwarden/i,
+    /lastpass/i,
+    /dashlane/i,
+    /keeper/i,
+    /proton/i,
+    /keychain/i,
+    /two[\s_-]?factor/i,
+    /2fa/i,
+    /mfa/i,
+    /signin[\s_-]?field/i
+  ];
+
+  // Allowlist: host attributes matching these patterns ARE traversed.
+  // Covers AI chat input, editors, send controls, and known provider components.
+  var SHADOW_ALLOW_PATTERNS = [
+    /composer/i,
+    /chat[\s_-]?input/i,
+    /input[\s_-]?area/i,
+    /textbox/i,
+    /editor/i,
+    /message[\s_-]?input/i,
+    /prompt[\s_-]?area/i,
+    /send[\s_-]?button/i,
+    /send[\s_-]?container/i,
+    /toolbar/i,
+    /lexical/i,
+    /prose[\s_-]?mirror/i,
+    /rich[\s_-]?text/i,
+    /content[\s_-]?editable/i,
+    /grok/i,
+    /kimi/i,
+    /copilot/i
+  ];
+
+  function isSensitiveShadowHost(host) {
+    if (!host) return false;
+    var tag = (host.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea") {
+      var type = (host.getAttribute && host.getAttribute("type") || "").toLowerCase();
+      if (type === "password" || type === "hidden") return true;
+    }
+    var attrStr = [
+      tag,
+      host.id || "",
+      typeof host.className === "string" ? host.className : "",
+      host.getAttribute && host.getAttribute("data-testid") || "",
+      host.getAttribute && host.getAttribute("role") || "",
+      host.getAttribute && host.getAttribute("aria-label") || "",
+      host.getAttribute && host.getAttribute("name") || ""
+    ].join(" ");
+    for (var i = 0; i < SHADOW_DENY_PATTERNS.length; i++) {
+      if (SHADOW_DENY_PATTERNS[i].test(attrStr)) return true;
+    }
+    return false;
+  }
+
+  function shouldTraverseShadowHost(host) {
+    if (!host) return false;
+    if (isSensitiveShadowHost(host)) return false;
+    var tag = (host.tagName || "").toLowerCase();
+    // Standard HTML elements rarely need shadow traversal for AI chat.
+    // Only traverse if the host is a custom element OR matches allowlist.
+    var isCustom = tag.indexOf("-") !== -1;
+    if (!isCustom) return false;
+    var attrStr = [
+      tag,
+      host.id || "",
+      typeof host.className === "string" ? host.className : "",
+      host.getAttribute && host.getAttribute("data-testid") || "",
+      host.getAttribute && host.getAttribute("role") || "",
+      host.getAttribute && host.getAttribute("aria-label") || "",
+      host.getAttribute && host.getAttribute("name") || ""
+    ].join(" ");
+    for (var i = 0; i < SHADOW_ALLOW_PATTERNS.length; i++) {
+      if (SHADOW_ALLOW_PATTERNS[i].test(attrStr)) return true;
+    }
+    return false;
+  }
+
 function findElement(selectors) {
   for (const selector of selectors) {
     const el = document.querySelector(selector);
@@ -24,7 +116,7 @@ function deepQueryAll(root, selector) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
   while (walker.nextNode()) {
     const node = walker.currentNode;
-    if (node.shadowRoot) {
+    if (node.shadowRoot && shouldTraverseShadowHost(node)) {
       results.push(...deepQueryAll(node.shadowRoot, selector));
     }
   }
@@ -628,7 +720,7 @@ async function sendCopilotMessage(input, prompt, config) {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT);
       while (walker.nextNode()) {
         const node = walker.currentNode;
-        if (node.shadowRoot) {
+        if (node.shadowRoot && shouldTraverseShadowHost(node)) {
           found = deepQuery(node.shadowRoot, selector);
           if (found) return found;
         }
@@ -1125,6 +1217,11 @@ async function sendTongyiMessage(input, prompt, config) {
     deepFindElement,
     waitForElement,
     waitForElementDeep,
+    // Shadow DOM traversal policy
+    shouldTraverseShadowHost,
+    isSensitiveShadowHost,
+    SHADOW_DENY_PATTERNS,
+    SHADOW_ALLOW_PATTERNS,
     // Element state
     isElementVisible,
     isElementDisabled,
