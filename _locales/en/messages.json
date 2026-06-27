@@ -1,0 +1,290 @@
+{
+  "extName": {
+    "message": "Multi AI Assistant",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Open multiple AI chat sites and send the same prompt.",
+    "description": "Extension description"
+  },
+  "topbarSubtitle": {
+    "message": "",
+    "description": "Dashboard subtitle under main title"
+  },
+  "settings": {
+    "message": "Settings",
+    "description": "Settings button label"
+  },
+  "settingsTitle": {
+    "message": "Select AI",
+    "description": "Settings panel heading"
+  },
+  "settingsSubtitle": {
+    "message": "Select AI panels to display",
+    "description": "Settings panel subtitle"
+  },
+  "settingsColumns": {
+    "message": "Columns",
+    "description": "Column count control label in settings"
+  },
+  "selectToggle": {
+    "message": "All / None",
+    "description": "Toggle select all / none button"
+  },
+  "cancel": {
+    "message": "Cancel",
+    "description": "Cancel button"
+  },
+  "confirm": {
+    "message": "Confirm",
+    "description": "Confirm button"
+  },
+  "sendAll": {
+    "message": "Send",
+    "description": "Send all button label"
+  },
+  "composerLabel": {
+    "message": "Prompt",
+    "description": "Composer textarea label"
+  },
+  "composerPlaceholder": {
+    "message": "Enter to send, Shift+Enter for new line",
+    "description": "Composer textarea placeholder"
+  },
+  "langBtn": {
+    "message": "中",
+    "description": "Language switch button text (shows target language)"
+  },
+  "langToggleTitle": {
+    "message": "Switch Language",
+    "description": "Language switch button title and aria-label"
+  },
+  "chatroom": {
+    "message": "Chatroom",
+    "description": "Chatroom mode button title (dev feature)"
+  },
+  "refresh": {
+    "message": "Refresh",
+    "description": "Refresh button label"
+  },
+  "newTab": {
+    "message": "New Tab",
+    "description": "Open in new tab button label"
+  },
+  "close": {
+    "message": "Close",
+    "description": "Close panel button label"
+  },
+  "switch": {
+    "message": "Switch AI",
+    "description": "Switch AI button label"
+  },
+  "add": {
+    "message": "Add AI",
+    "description": "Add AI button label"
+  },
+  "remove": {
+    "message": "Remove",
+    "description": "Remove target chip aria-label"
+  },
+  "panelBlocked": {
+    "message": "This site cannot be embedded. Open in a new tab.",
+    "description": "Blocked panel message (iframe embed not allowed)"
+  },
+  "colAuto": {
+    "message": "Auto",
+    "description": "Auto column layout label"
+  },
+  "transcriptDockLabel": {
+    "message": "Sessions ▶",
+    "description": "Transcript dock toggle button label"
+  },
+  "transcriptTitle": {
+    "message": "Session Records",
+    "description": "Transcript panel heading"
+  },
+  "transcriptRefresh": {
+    "message": "Refresh",
+    "description": "Transcript refresh button label"
+  },
+  "transcriptStatusTitle": {
+    "message": "Live Status",
+    "description": "Live status section title"
+  },
+  "transcriptTimelineTitle": {
+    "message": "Merged Timeline",
+    "description": "Merged timeline section title"
+  },
+  "transcriptRawTitle": {
+    "message": "Provider Raw Records",
+    "description": "Provider raw records section title"
+  },
+  "transcriptViewDialogue": {
+    "message": "Dialogue",
+    "description": "Dialogue view mode label"
+  },
+  "transcriptViewMessages": {
+    "message": "Messages",
+    "description": "Messages view mode label"
+  },
+  "transcriptViewToDialogue": {
+    "message": "Switch to dialogue view",
+    "description": "Tooltip: switch to dialogue view"
+  },
+  "transcriptViewToMessages": {
+    "message": "Switch to messages view",
+    "description": "Tooltip: switch to messages view"
+  },
+  "statusIdleShort": {
+    "message": "Idle",
+    "description": "Live status: idle (short)"
+  },
+  "statusIdleLong": {
+    "message": "Idle",
+    "description": "Live status: idle (long)"
+  },
+  "statusRespondingShort": {
+    "message": "Live",
+    "description": "Live status: responding (short)"
+  },
+  "statusRespondingLong": {
+    "message": "Responding",
+    "description": "Live status: responding (long)"
+  },
+  "statusCompletedShort": {
+    "message": "Done",
+    "description": "Live status: completed (short)"
+  },
+  "statusCompletedLong": {
+    "message": "Completed",
+    "description": "Live status: completed (long)"
+  },
+  "statusFailedShort": {
+    "message": "Failed",
+    "description": "Live status: failed (short)"
+  },
+  "statusFailedLong": {
+    "message": "Failed",
+    "description": "Live status: failed (long)"
+  },
+  "statusInterruptedShort": {
+    "message": "Stopped",
+    "description": "Live status: interrupted (short)"
+  },
+  "statusInterruptedLong": {
+    "message": "Interrupted",
+    "description": "Live status: interrupted (long)"
+  },
+  "roleAssistant": {
+    "message": "Assistant",
+    "description": "Assistant role label in transcript"
+  },
+  "roleUser": {
+    "message": "User",
+    "description": "User role label in transcript"
+  },
+  "timestampNone": {
+    "message": "No timestamp",
+    "description": "Shown when a transcript entry has no timestamp"
+  },
+  "timestampWaiting": {
+    "message": "Waiting",
+    "description": "Shown when waiting for first status update"
+  },
+  "timestampJustNow": {
+    "message": "Just now",
+    "description": "Relative time: less than 1 min ago"
+  },
+  "timestampMinutesAgo": {
+    "message": "$MIN$m ago",
+    "description": "Relative time: N minutes ago. $MIN$ is replaced with the count.",
+    "placeholders": {
+      "min": { "content": "$1" }
+    }
+  },
+  "timestampHoursAgo": {
+    "message": "$HOUR$h ago",
+    "description": "Relative time: N hours ago. $HOUR$ is replaced with the count.",
+    "placeholders": {
+      "hour": { "content": "$1" }
+    }
+  },
+  "timestampDaysAgo": {
+    "message": "$DAY$d ago",
+    "description": "Relative time: N days ago. $DAY$ is replaced with the count.",
+    "placeholders": {
+      "day": { "content": "$1" }
+    }
+  },
+  "statusStarted": {
+    "message": "Started $TS$",
+    "description": "Status detail: started at timestamp. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "statusEnded": {
+    "message": "Ended $TS$",
+    "description": "Status detail: ended at timestamp. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "statusUpdatedAt": {
+    "message": "Updated $TS$",
+    "description": "Status detail: updated at relative time. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "transcriptTurnCount": {
+    "message": "$COUNT$ turns",
+    "description": "Number of transcript turns. $COUNT$ is replaced.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "transcriptEmptyProviders": {
+    "message": "No provider status yet.",
+    "description": "Empty state: no provider status"
+  },
+  "transcriptEmptyTimeline": {
+    "message": "No merged timeline entries.",
+    "description": "Empty state: no timeline entries"
+  },
+  "transcriptEmptyRaw": {
+    "message": "No raw provider records.",
+    "description": "Empty state: no raw provider records"
+  },
+  "transcriptEmptyTurns": {
+    "message": "No captured turns yet.",
+    "description": "Empty state: no captured turns for a provider"
+  },
+  "transcriptSessionMeta": {
+    "message": "Session $1",
+    "description": "Session meta label with session ID. $1 is the session ID.",
+    "placeholders": {
+      "1": { "content": "$1" }
+    }
+  },
+  "transcriptWaitingData": {
+    "message": "Waiting for session data",
+    "description": "Shown when session data hasn't loaded yet"
+  },
+  "transcriptNotLoaded": {
+    "message": "Session transcript has not loaded yet.",
+    "description": "Empty state: session transcript not loaded"
+  },
+  "transcriptTimelineNotLoaded": {
+    "message": "Merged timeline will appear here once loaded.",
+    "description": "Empty state: timeline placeholder before load"
+  },
+  "transcriptRawNotLoaded": {
+    "message": "Provider raw records will appear here once loaded.",
+    "description": "Empty state: raw records placeholder before load"
+  },
+  "transcriptLoadFailed": {
+    "message": "Failed to load session transcript",
+    "description": "Error message when loading session transcript fails"
+  }
+}

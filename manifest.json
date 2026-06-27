@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Multi AI Assistant",
+  "name": "__MSG_extName__",
   "version": "0.3.2",
-  "description": "Open multiple AI chat sites and send the same prompt.",
+  "description": "__MSG_extDescription__",
+  "default_locale": "zh_CN",
   "action": {
     "default_title": "Multi AI"
   },

@@ -6,6 +6,12 @@
     return globalThis.MultiAI || {};
   }
 
+  // Localised string helper — delegates to the i18n module via shared state.
+  function t(key) {
+    var fn = getState().t;
+    return fn ? fn.apply(null, arguments) : key;
+  }
+
   // Transcript view mode state (module-local)
   let transcriptViewMode = localStorage.getItem("multi-ai-transcript-view") || "messages";
   let transcriptCollapsed = localStorage.getItem("multi-ai-transcript-collapsed") === "true";
@@ -114,24 +120,14 @@
   }
 
   function getTranscriptViewModeLabel(mode) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
-    const normalized = normalizeTranscriptViewMode(mode);
-    if (currentLang === "zh-CN") {
-      return normalized === "dialogue" ? "对话" : "消息";
-    }
-    return normalized === "dialogue" ? "Dialogue" : "Messages";
+    var normalized = normalizeTranscriptViewMode(mode);
+    return normalized === "dialogue" ? t("transcriptViewDialogue") : t("transcriptViewMessages");
   }
 
   function getTranscriptViewModeTitle(mode) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
-    const normalized = normalizeTranscriptViewMode(mode);
-    const next = normalized === "dialogue" ? "messages" : "dialogue";
-    if (currentLang === "zh-CN") {
-      return next === "dialogue" ? "切换为对话视图" : "切换为消息视图";
-    }
-    return next === "dialogue" ? "Switch to dialogue view" : "Switch to messages view";
+    var normalized = normalizeTranscriptViewMode(mode);
+    var next = normalized === "dialogue" ? "messages" : "dialogue";
+    return next === "dialogue" ? t("transcriptViewToDialogue") : t("transcriptViewToMessages");
   }
 
   function updateTranscriptViewModeButton() {
@@ -146,12 +142,7 @@
   }
 
   function getRoleLabel(role) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
-    if (role === "assistant") {
-      return currentLang === "zh-CN" ? "AI" : "Assistant";
-    }
-    return currentLang === "zh-CN" ? "用户" : "User";
+    return role === "assistant" ? t("roleAssistant") : t("roleUser");
   }
 
   function toProviderLabel(providerId) {
@@ -170,7 +161,7 @@
     const state = getState();
     const currentLang = state.currentLang || "zh-CN";
     if (typeof value !== "string" || value.length === 0) {
-      return currentLang === "zh-CN" ? "暂无时间" : "No timestamp";
+      return t("timestampNone");
     }
 
     const date = new Date(value);
@@ -187,10 +178,8 @@
   }
 
   function formatRelativeTimestamp(value) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
     if (typeof value !== "string" || value.length === 0) {
-      return currentLang === "zh-CN" ? "等待更新" : "Waiting";
+      return t("timestampWaiting");
     }
 
     const timestamp = Date.parse(value);
@@ -201,18 +190,18 @@
     const deltaMs = Date.now() - timestamp;
     const deltaMinutes = Math.floor(deltaMs / 60000);
     if (deltaMinutes < 1) {
-      return currentLang === "zh-CN" ? "刚刚" : "Just now";
+      return t("timestampJustNow");
     }
     if (deltaMinutes < 60) {
-      return currentLang === "zh-CN" ? `${deltaMinutes} 分钟前` : `${deltaMinutes}m ago`;
+      return t("timestampMinutesAgo", String(deltaMinutes));
     }
     const deltaHours = Math.floor(deltaMinutes / 60);
     if (deltaHours < 24) {
-      return currentLang === "zh-CN" ? `${deltaHours} 小时前` : `${deltaHours}h ago`;
+      return t("timestampHoursAgo", String(deltaHours));
     }
     const deltaDays = Math.floor(deltaHours / 24);
     if (deltaDays < 7) {
-      return currentLang === "zh-CN" ? `${deltaDays} 天前` : `${deltaDays}d ago`;
+      return t("timestampDaysAgo", String(deltaDays));
     }
     return formatTimestamp(value);
   }
@@ -424,12 +413,15 @@
   }
 
   function getLocalizedStatusText(status, variant = "long") {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
-    const LIVE_STATUS_META = state.liveStatusMeta || {};
-    const normalized = LIVE_STATUS_META[status] ? status : "idle";
-    const labels = LIVE_STATUS_META[normalized]?.[variant] || LIVE_STATUS_META.idle?.[variant];
-    return labels?.[currentLang] || labels?.["en-US"] || normalized;
+    var STATUS_KEYS = {
+      idle:        { short: "statusIdleShort",        long: "statusIdleLong" },
+      responding:  { short: "statusRespondingShort",  long: "statusRespondingLong" },
+      completed:   { short: "statusCompletedShort",   long: "statusCompletedLong" },
+      failed:      { short: "statusFailedShort",      long: "statusFailedLong" },
+      interrupted: { short: "statusInterruptedShort", long: "statusInterruptedLong" }
+    };
+    var entry = STATUS_KEYS[status] || STATUS_KEYS.idle;
+    return t(entry[variant] || entry.long);
   }
 
   function syncPanelLiveStatuses() {
@@ -445,8 +437,6 @@
   // ── Transcript rendering ─────────────────────────────────────────
 
   function renderTranscriptStatusList(session) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
     if (!_transcriptStatusList) {
       return;
     }
@@ -456,7 +446,7 @@
     const providerOrder = getSessionProviderOrder(session);
     if (providerOrder.length === 0) {
       _transcriptStatusList.appendChild(createTranscriptEmptyState(
-        currentLang === "zh-CN" ? "当前会话还没有 provider 状态。" : "No provider status yet."
+        t("transcriptEmptyProviders")
       ));
       return;
     }
@@ -484,31 +474,15 @@
       meta.className = "transcript-status-meta";
       const detailParts = [];
       if (providerState.answerStartedAt) {
-        detailParts.push(
-          currentLang === "zh-CN"
-            ? `开始 ${formatTimestamp(providerState.answerStartedAt)}`
-            : `Started ${formatTimestamp(providerState.answerStartedAt)}`
-        );
+        detailParts.push(t("statusStarted", formatTimestamp(providerState.answerStartedAt)));
       }
       if (providerState.answerCompletedAt) {
-        detailParts.push(
-          currentLang === "zh-CN"
-            ? `结束 ${formatTimestamp(providerState.answerCompletedAt)}`
-            : `Ended ${formatTimestamp(providerState.answerCompletedAt)}`
-        );
+        detailParts.push(t("statusEnded", formatTimestamp(providerState.answerCompletedAt)));
       }
       if (providerState.lastStatusAt) {
-        detailParts.push(
-          currentLang === "zh-CN"
-            ? `更新于 ${formatRelativeTimestamp(providerState.lastStatusAt)}`
-            : `Updated ${formatRelativeTimestamp(providerState.lastStatusAt)}`
-        );
+        detailParts.push(t("statusUpdatedAt", formatRelativeTimestamp(providerState.lastStatusAt)));
       }
-      detailParts.push(
-        currentLang === "zh-CN"
-          ? `${getProviderTurnCount(providerState)} 条记录`
-          : `${getProviderTurnCount(providerState)} turns`
-      );
+      detailParts.push(t("transcriptTurnCount", String(getProviderTurnCount(providerState))));
       meta.textContent = detailParts.join(" · ");
 
       row.appendChild(top);
@@ -518,8 +492,6 @@
   }
 
   function renderTranscriptTimeline(session) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
     if (!_transcriptTimeline || !_transcriptTimelineCount) {
       return;
     }
@@ -527,13 +499,11 @@
     _transcriptTimeline.innerHTML = "";
     if (normalizeTranscriptViewMode(transcriptViewMode) === "dialogue") {
       const groups = buildTranscriptDialogueGroups(session);
-      _transcriptTimelineCount.textContent = currentLang === "zh-CN"
-        ? `${groups.length} 轮`
-        : `${groups.length} turns`;
+      _transcriptTimelineCount.textContent = t("transcriptTurnCount", String(groups.length));
 
       if (groups.length === 0) {
         _transcriptTimeline.appendChild(createTranscriptEmptyState(
-          currentLang === "zh-CN" ? "当前会话还没有转录内容。" : "No transcript recorded yet."
+          t("transcriptEmptyTimeline")
         ));
         return;
       }
@@ -580,13 +550,11 @@
 
     const mergedTimeline = buildMergedTimelineEntries(session?.transcript?.timeline)
       .filter((entry) => !shouldHideGeminiAssistantWelcome(session, entry));
-    _transcriptTimelineCount.textContent = currentLang === "zh-CN"
-      ? `${mergedTimeline.length} 条`
-      : `${mergedTimeline.length} items`;
+    _transcriptTimelineCount.textContent = t("transcriptTurnCount", String(mergedTimeline.length));
 
     if (mergedTimeline.length === 0) {
       _transcriptTimeline.appendChild(createTranscriptEmptyState(
-        currentLang === "zh-CN" ? "当前会话还没有转录内容。" : "No transcript recorded yet."
+        t("transcriptEmptyTimeline")
       ));
       return;
     }
@@ -629,8 +597,6 @@
   }
 
   function renderTranscriptProviderList(session) {
-    const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
     if (!_transcriptProviderList) {
       return;
     }
@@ -640,7 +606,7 @@
     const providerOrder = getSessionProviderOrder(session);
     if (providerOrder.length === 0) {
       _transcriptProviderList.appendChild(createTranscriptEmptyState(
-        currentLang === "zh-CN" ? "当前会话还没有 provider 记录。" : "No provider transcripts yet."
+        t("transcriptEmptyRaw")
       ));
       return;
     }
@@ -686,9 +652,7 @@
       const count = document.createElement("span");
       count.className = "transcript-provider-count";
       const visibleTurnCount = isDialogueView ? dialogueGroups.length : visibleTurns.length;
-      count.textContent = currentLang === "zh-CN"
-        ? `${visibleTurnCount} 条`
-        : `${visibleTurnCount} turns`;
+      count.textContent = t("transcriptTurnCount", String(visibleTurnCount));
 
       summaryTitle.appendChild(name);
       summaryTitle.appendChild(count);
@@ -708,7 +672,7 @@
         const groups = dialogueGroups.length > 0 ? dialogueGroups.slice().reverse() : [];
         if (groups.length === 0) {
           body.appendChild(createTranscriptEmptyState(
-            currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
+            t("transcriptEmptyTurns")
           ));
         } else {
           groups.forEach((group) => {
@@ -747,7 +711,7 @@
         const turns = visibleTurns.length > 0 ? visibleTurns.slice().reverse() : [];
         if (turns.length === 0) {
           body.appendChild(createTranscriptEmptyState(
-            currentLang === "zh-CN" ? "还没有捕获到消息。" : "No captured turns yet."
+            t("transcriptEmptyTurns")
           ));
         } else {
           turns.forEach((turn) => {
@@ -788,7 +752,6 @@
 
   function renderTranscriptPanel() {
     const state = getState();
-    const currentLang = state.currentLang || "zh-CN";
     const currentSessionId = state.currentSessionId || "";
     const currentSessionRecord = state.currentSessionRecord || null;
 
@@ -804,14 +767,12 @@
     _transcriptPanel.hidden = false;
     updateTranscriptViewModeButton();
     if (_transcriptSessionMeta) {
-      _transcriptSessionMeta.textContent = currentLang === "zh-CN"
-        ? `会话 ${currentSessionId}`
-        : `Session ${currentSessionId}`;
+      _transcriptSessionMeta.textContent = t("transcriptSessionMeta", currentSessionId);
     }
 
     if (!currentSessionRecord?.transcript) {
       if (_transcriptUpdatedAt) {
-        _transcriptUpdatedAt.textContent = currentLang === "zh-CN" ? "等待会话数据" : "Waiting for session data";
+        _transcriptUpdatedAt.textContent = t("transcriptWaitingData");
       }
       if (_transcriptTimelineCount) {
         _transcriptTimelineCount.textContent = "";
@@ -819,28 +780,26 @@
       if (_transcriptStatusList) {
         _transcriptStatusList.innerHTML = "";
         _transcriptStatusList.appendChild(createTranscriptEmptyState(
-          currentLang === "zh-CN" ? "当前会话记录尚未加载。" : "Session transcript has not loaded yet."
+          t("transcriptNotLoaded")
         ));
       }
       if (_transcriptTimeline) {
         _transcriptTimeline.innerHTML = "";
         _transcriptTimeline.appendChild(createTranscriptEmptyState(
-          currentLang === "zh-CN" ? "加载后会在这里显示合并时间线。" : "Merged timeline will appear here once loaded."
+          t("transcriptTimelineNotLoaded")
         ));
       }
       if (_transcriptProviderList) {
         _transcriptProviderList.innerHTML = "";
         _transcriptProviderList.appendChild(createTranscriptEmptyState(
-          currentLang === "zh-CN" ? "加载后会在这里显示 provider 原始记录。" : "Provider raw records will appear here once loaded."
+          t("transcriptRawNotLoaded")
         ));
       }
       return;
     }
 
     if (_transcriptUpdatedAt) {
-      _transcriptUpdatedAt.textContent = currentLang === "zh-CN"
-        ? `更新于 ${formatRelativeTimestamp(currentSessionRecord.transcript.updatedAt)}`
-        : `Updated ${formatRelativeTimestamp(currentSessionRecord.transcript.updatedAt)}`;
+      _transcriptUpdatedAt.textContent = t("statusUpdatedAt", formatRelativeTimestamp(currentSessionRecord.transcript.updatedAt));
     }
 
     renderTranscriptStatusList(currentSessionRecord);
@@ -900,10 +859,7 @@
         state.log("Failed to refresh session transcript", error);
       }
       if (!silent && state.showMessage) {
-        state.showMessage(
-          state.currentLang === "zh-CN" ? "读取会话记录失败" : "Failed to load session transcript",
-          "warning"
-        );
+        state.showMessage(t("transcriptLoadFailed"), "warning");
       }
       return null;
     }
@@ -940,7 +896,9 @@
       workspace.classList.toggle("transcript-collapsed", collapsed);
     }
     if (_transcriptDockBtn) {
-      _transcriptDockBtn.innerHTML = collapsed ? "会话记录 &#9664;" : "&#9654;";
+      _transcriptDockBtn.textContent = collapsed
+        ? t("transcriptDockLabel").replace("▶", "◀")
+        : t("transcriptDockLabel");
     }
   }
 

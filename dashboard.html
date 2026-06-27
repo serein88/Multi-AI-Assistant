@@ -14,7 +14,7 @@
           <p data-i18n="topbarSubtitle"></p>
         </div>
         <div class="topbar-actions">
-          <button id="langToggle" class="icon-btn" title="Switch Language" aria-label="Switch Language" type="button">
+          <button id="langToggle" class="icon-btn" data-i18n="langToggleTitle" data-i18n-attr="title,aria-label" type="button">
             <span data-i18n="langBtn"></span>
           </button>
           <button id="openSettings" data-i18n="settings"></button>
@@ -27,14 +27,14 @@
             <h2 data-i18n="settingsTitle"></h2>
             <div class="settings-controls">
                <div class="setting-control">
-                 <span>Send</span>
+                 <span data-i18n="settingsColumns"></span>
                  <div class="stepper">
                    <button type="button" id="colDec">-</button>
                    <span id="colDisplay">Auto</span>
                    <button type="button" id="colInc">+</button>
                  </div>
                </div>
-               <button id="toggleSelectAll" type="button">全选/全不选</button>
+               <button id="toggleSelectAll" type="button" data-i18n="selectToggle"></button>
             </div>
             <p data-i18n="settingsSubtitle" style="display:none"></p>
           </header>
@@ -85,7 +85,7 @@
           </div>
         </aside>
       </section>
-      <button id="transcriptDock" class="transcript-dock" type="button">会话记录 &#9654;</button>
+      <button id="transcriptDock" class="transcript-dock" type="button" data-i18n="transcriptDockLabel"></button>
 
       <footer class="composer">
         <div class="composer-targets" id="targetChips"></div>
@@ -95,7 +95,6 @@
         </div>
         <div class="composer-right">
           <button id="sendAll" class="primary" data-i18n="sendAll">
-            <span>发送</span>
           </button>
         </div>
       </footer>
@@ -118,6 +117,7 @@
     <script src="providers.js"></script>
     <script src="favicon-cache.js"></script>
     <script src="dashboard-focus.js"></script>
+    <script src="dashboard/i18n.js"></script>
     <script src="dashboard/shared-state.js"></script>
     <script src="dashboard/transcript.js"></script>
     <script src="dashboard/grid-resizer.js"></script>

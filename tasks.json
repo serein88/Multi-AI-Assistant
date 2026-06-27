@@ -831,9 +831,9 @@
       "name": "国际化：使用 Chrome Extension i18n API",
       "category": "feat",
       "priority": "P3",
-      "status": "待进行",
+      "status": "待确认",
       "criteria": "1. 创建 _locales/zh_CN/messages.json 和 _locales/en/messages.json；2. dashboard.js:9-56 硬编码字典改用 chrome.i18n.getMessage()；3. 支持中英文切换；4. 所有界面文本正确显示",
-      "notes": "中优先级改进：当前 i18n 实现简陋，硬编码字典难以维护。使用官方 API 可支持更多语言。",
+      "notes": "统一 i18n 层：_locales 为单一数据源，i18n.js 同步 XHR 加载，t() 闭包活引用，468/468 测试通过，0 错误，17 预存警告。修正轮：消除内嵌字典、修复闭包 bug、修正 tooltip next-mode、补齐 title/aria-label i18n。",
       "createdAt": "2026-06-22",
       "archived": false
     },

@@ -1,5 +1,35 @@
 # Progress.md
 
+## 2026-06-27（记录 44，修正轮）
+
+- 时间：2026-06-27
+- 任务：T-20260622-019 国际化：使用 Chrome Extension i18n API
+- 状态：待确认
+- 变更文件：
+  - `_locales/zh_CN/messages.json` — 64 个 i18n key（+langToggleTitle, chatroom）
+  - `_locales/en/messages.json` — 同构
+  - `dashboard/i18n.js` — **重写**：删除内嵌双语字典，改为同步 XHR 加载 `_locales/<dir>/messages.json`；`t()` 通过闭包读取可变 `messages` 变量；`currentLang`/`messages` 改用 getter/setter 暴露
+  - `manifest.json` — `"default_locale": "zh_CN"`；name/description → `__MSG_*__`
+  - `dashboard/shared-state.js` — 删除 I18N_DATA / LIVE_STATUS_META，getter 引用 i18n.js
+  - `dashboard.js` — I18N_DATA 改从 MultiAI_I18n.LOCALES 读取；toggleLanguage 同步更新 MultiAI_I18n；硬编码文案改用 t()；applyI18n 支持逗号分隔 data-i18n-attr
+  - `dashboard/transcript.js` — 所有内联三元替换为 t()；getTranscriptViewModeTitle next-mode 逻辑修正；getLocalizedStatusText 改用 STATUS_KEYS 映射
+  - `dashboard.html` — settingsColumns/selectToggle/transcriptDockLabel data-i18n 化；langToggle 使用 data-i18n-attr="title,aria-label"
+  - `dashboard-dev.html` — 同上；chatroom 按钮 data-i18n 化；新增 i18n.js + shared-state.js 脚本加载
+  - `eslint.config.js` — ESM 配置新增 `tests/i18n/**/*.test.js`
+  - `package.json` — lint 脚本新增 `tests/i18n/**/*.test.js`
+  - `tests/i18n/i18n-integrity.test.js` — 重写：禁止内嵌字典、校验 _locales 为源数据、校验 t() 闭包为活引用、校验 next-mode tooltip 逻辑
+- 修正轮处理的审查问题：
+  1. i18n.js 不再内嵌字典，_locales 是单一数据源
+  2. t() 通过闭包读取可变 messages，toggleLanguage 后动态文案立即更新
+  3. getTranscriptViewModeTitle next-mode 逻辑修正（dialogue→messages, messages→dialogue）
+  4. langToggle / chatroom 按钮 title/aria-label 纳入 i18n
+  5. 测试从"要求内嵌字典"改为"禁止内嵌、校验 _locales 源数据"
+- 验证证据：
+  - 468/468 测试通过
+  - 0 errors / 17 warnings（均为预存）
+  - manifest validate OK
+  - git diff --check clean
+
 ## 2026-06-27（记录 43）
 
 - 时间：2026-06-27

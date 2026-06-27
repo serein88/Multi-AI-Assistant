@@ -1,0 +1,290 @@
+{
+  "extName": {
+    "message": "Multi AI Assistant",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "打开多个 AI 聊天站点，发送相同提示词。",
+    "description": "Extension description"
+  },
+  "topbarSubtitle": {
+    "message": "",
+    "description": "Dashboard subtitle under main title"
+  },
+  "settings": {
+    "message": "设置",
+    "description": "Settings button label"
+  },
+  "settingsTitle": {
+    "message": "选择 AI",
+    "description": "Settings panel heading"
+  },
+  "settingsSubtitle": {
+    "message": "选择要显示的 AI 分屏",
+    "description": "Settings panel subtitle"
+  },
+  "settingsColumns": {
+    "message": "列数",
+    "description": "Column count control label in settings"
+  },
+  "selectToggle": {
+    "message": "全选/全不选",
+    "description": "Toggle select all / none button"
+  },
+  "cancel": {
+    "message": "取消",
+    "description": "Cancel button"
+  },
+  "confirm": {
+    "message": "确认",
+    "description": "Confirm button"
+  },
+  "sendAll": {
+    "message": "发送",
+    "description": "Send all button label"
+  },
+  "composerLabel": {
+    "message": "提示词",
+    "description": "Composer textarea label"
+  },
+  "composerPlaceholder": {
+    "message": "Enter 发送，Shift+Enter换行",
+    "description": "Composer textarea placeholder"
+  },
+  "langBtn": {
+    "message": "En",
+    "description": "Language switch button text (shows target language)"
+  },
+  "langToggleTitle": {
+    "message": "切换语言",
+    "description": "Language switch button title and aria-label"
+  },
+  "chatroom": {
+    "message": "群聊模式",
+    "description": "Chatroom mode button title (dev feature)"
+  },
+  "refresh": {
+    "message": "刷新",
+    "description": "Refresh button label"
+  },
+  "newTab": {
+    "message": "新标签页",
+    "description": "Open in new tab button label"
+  },
+  "close": {
+    "message": "关闭",
+    "description": "Close panel button label"
+  },
+  "switch": {
+    "message": "切换 AI",
+    "description": "Switch AI button label"
+  },
+  "add": {
+    "message": "添加 AI",
+    "description": "Add AI button label"
+  },
+  "remove": {
+    "message": "移除",
+    "description": "Remove target chip aria-label"
+  },
+  "panelBlocked": {
+    "message": "该站点无法嵌入，请在新标签页中打开。",
+    "description": "Blocked panel message (iframe embed not allowed)"
+  },
+  "colAuto": {
+    "message": "自动",
+    "description": "Auto column layout label"
+  },
+  "transcriptDockLabel": {
+    "message": "会话记录 ▶",
+    "description": "Transcript dock toggle button label"
+  },
+  "transcriptTitle": {
+    "message": "会话记录",
+    "description": "Transcript panel heading"
+  },
+  "transcriptRefresh": {
+    "message": "刷新",
+    "description": "Transcript refresh button label"
+  },
+  "transcriptStatusTitle": {
+    "message": "实时状态",
+    "description": "Live status section title"
+  },
+  "transcriptTimelineTitle": {
+    "message": "合并时间线",
+    "description": "Merged timeline section title"
+  },
+  "transcriptRawTitle": {
+    "message": "Provider 原始记录",
+    "description": "Provider raw records section title"
+  },
+  "transcriptViewDialogue": {
+    "message": "对话",
+    "description": "Dialogue view mode label"
+  },
+  "transcriptViewMessages": {
+    "message": "消息",
+    "description": "Messages view mode label"
+  },
+  "transcriptViewToDialogue": {
+    "message": "切换为对话视图",
+    "description": "Tooltip: switch to dialogue view"
+  },
+  "transcriptViewToMessages": {
+    "message": "切换为消息视图",
+    "description": "Tooltip: switch to messages view"
+  },
+  "statusIdleShort": {
+    "message": "空闲",
+    "description": "Live status: idle (short)"
+  },
+  "statusIdleLong": {
+    "message": "空闲",
+    "description": "Live status: idle (long)"
+  },
+  "statusRespondingShort": {
+    "message": "响应中",
+    "description": "Live status: responding (short)"
+  },
+  "statusRespondingLong": {
+    "message": "响应中",
+    "description": "Live status: responding (long)"
+  },
+  "statusCompletedShort": {
+    "message": "完成",
+    "description": "Live status: completed (short)"
+  },
+  "statusCompletedLong": {
+    "message": "已完成",
+    "description": "Live status: completed (long)"
+  },
+  "statusFailedShort": {
+    "message": "失败",
+    "description": "Live status: failed (short)"
+  },
+  "statusFailedLong": {
+    "message": "失败",
+    "description": "Live status: failed (long)"
+  },
+  "statusInterruptedShort": {
+    "message": "中断",
+    "description": "Live status: interrupted (short)"
+  },
+  "statusInterruptedLong": {
+    "message": "已中断",
+    "description": "Live status: interrupted (long)"
+  },
+  "roleAssistant": {
+    "message": "AI",
+    "description": "Assistant role label in transcript"
+  },
+  "roleUser": {
+    "message": "用户",
+    "description": "User role label in transcript"
+  },
+  "timestampNone": {
+    "message": "暂无时间",
+    "description": "Shown when a transcript entry has no timestamp"
+  },
+  "timestampWaiting": {
+    "message": "等待更新",
+    "description": "Shown when waiting for first status update"
+  },
+  "timestampJustNow": {
+    "message": "刚刚",
+    "description": "Relative time: less than 1 min ago"
+  },
+  "timestampMinutesAgo": {
+    "message": "$MIN$ 分钟前",
+    "description": "Relative time: N minutes ago. $MIN$ is replaced with the count.",
+    "placeholders": {
+      "min": { "content": "$1" }
+    }
+  },
+  "timestampHoursAgo": {
+    "message": "$HOUR$ 小时前",
+    "description": "Relative time: N hours ago. $HOUR$ is replaced with the count.",
+    "placeholders": {
+      "hour": { "content": "$1" }
+    }
+  },
+  "timestampDaysAgo": {
+    "message": "$DAY$ 天前",
+    "description": "Relative time: N days ago. $DAY$ is replaced with the count.",
+    "placeholders": {
+      "day": { "content": "$1" }
+    }
+  },
+  "statusStarted": {
+    "message": "开始 $TS$",
+    "description": "Status detail: started at timestamp. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "statusEnded": {
+    "message": "结束 $TS$",
+    "description": "Status detail: ended at timestamp. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "statusUpdatedAt": {
+    "message": "更新于 $TS$",
+    "description": "Status detail: updated at relative time. $TS$ is replaced.",
+    "placeholders": {
+      "ts": { "content": "$1" }
+    }
+  },
+  "transcriptTurnCount": {
+    "message": "$COUNT$ 条记录",
+    "description": "Number of transcript turns. $COUNT$ is replaced.",
+    "placeholders": {
+      "count": { "content": "$1" }
+    }
+  },
+  "transcriptEmptyProviders": {
+    "message": "当前会话还没有 provider 状态。",
+    "description": "Empty state: no provider status"
+  },
+  "transcriptEmptyTimeline": {
+    "message": "暂无合并时间线记录。",
+    "description": "Empty state: no timeline entries"
+  },
+  "transcriptEmptyRaw": {
+    "message": "暂无原始 Provider 记录。",
+    "description": "Empty state: no raw provider records"
+  },
+  "transcriptEmptyTurns": {
+    "message": "还没有捕获到消息。",
+    "description": "Empty state: no captured turns for a provider"
+  },
+  "transcriptSessionMeta": {
+    "message": "会话 $1",
+    "description": "Session meta label with session ID. $1 is the session ID.",
+    "placeholders": {
+      "1": { "content": "$1" }
+    }
+  },
+  "transcriptWaitingData": {
+    "message": "等待会话数据",
+    "description": "Shown when session data hasn't loaded yet"
+  },
+  "transcriptNotLoaded": {
+    "message": "当前会话记录尚未加载。",
+    "description": "Empty state: session transcript not loaded"
+  },
+  "transcriptTimelineNotLoaded": {
+    "message": "加载后会在这里显示合并时间线。",
+    "description": "Empty state: timeline placeholder before load"
+  },
+  "transcriptRawNotLoaded": {
+    "message": "加载后会在这里显示 provider 原始记录。",
+    "description": "Empty state: raw records placeholder before load"
+  },
+  "transcriptLoadFailed": {
+    "message": "读取会话记录失败",
+    "description": "Error message when loading session transcript fails"
+  }
+}

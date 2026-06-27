@@ -5,7 +5,7 @@ const DASHBOARD_SESSION_KEY_PREFIX = "multi-ai-dashboard-session:";
 const currentSessionId = new URLSearchParams(window.location.search).get("sessionId") || "";
 const dashboardStateKey = currentSessionId ? `${STATE_KEY}:${currentSessionId}` : STATE_KEY;
 const dashboardPanelsKey = currentSessionId ? `${DASHBOARD_SESSION_KEY_PREFIX}${currentSessionId}` : DASHBOARD_KEY;
-const I18N_DATA = globalThis.MultiAI?.I18N_DATA || {};
+const I18N_DATA = globalThis.MultiAI_I18n?.LOCALES || {};
 const ALLOWED_IFRAME_ORIGINS = new Set(
   (typeof PROVIDERS !== "undefined" && Array.isArray(PROVIDERS))
     ? PROVIDERS.map((p) => new URL(p.url).origin)
@@ -34,8 +34,9 @@ function cleanupAll(registry) {
   }
   registry.length = 0;
 }
-let currentLang = localStorage.getItem("multi-ai-lang") || "zh-CN";
-let I18N = I18N_DATA[currentLang];
+let currentLang = globalThis.MultiAI_I18n?.currentLang || "zh-CN";
+let I18N = globalThis.MultiAI_I18n?.messages || I18N_DATA[currentLang] || {};
+const t = globalThis.MultiAI_I18n?.t || ((k) => k);
 const grid = document.getElementById("panelGrid");
 const promptEl = document.getElementById("prompt");
 const sendAllBtn = document.getElementById("sendAll");
@@ -110,7 +111,10 @@ function applyI18n(root) {
     if (!key || !I18N[key]) return;
     const attr = el.getAttribute("data-i18n-attr");
     if (attr) {
-      el.setAttribute(attr, I18N[key]);
+      // Support comma-separated attributes (e.g. "title,aria-label")
+      attr.split(",").forEach((a) => {
+        el.setAttribute(a.trim(), I18N[key]);
+      });
     } else {
       el.textContent = I18N[key];
     }
@@ -120,7 +124,12 @@ function applyI18n(root) {
 function toggleLanguage() {
   currentLang = currentLang === "zh-CN" ? "en-US" : "zh-CN";
   localStorage.setItem("multi-ai-lang", currentLang);
-  I18N = I18N_DATA[currentLang];
+  I18N = I18N_DATA[currentLang] || {};
+  // Update the i18n module so other modules read the new language
+  if (globalThis.MultiAI_I18n) {
+    globalThis.MultiAI_I18n.currentLang = currentLang;
+    globalThis.MultiAI_I18n.messages = I18N;
+  }
   syncSharedState();
   applyI18n();
   renderPanels(); // Re-render panels to translate dynamic content
@@ -515,7 +524,7 @@ function renderPanels() {
       iframe.src = "about:blank";
       const blocked = document.createElement("div");
       blocked.className = "panel-blocked";
-      blocked.textContent = "This site cannot be embedded. Open in a new tab.";
+      blocked.textContent = t("panelBlocked");
       blocked.addEventListener("click", () => {
         chrome.runtime.sendMessage({ type: "openProviderTab", provider: provider.id });
       });
@@ -536,7 +545,7 @@ function renderPanels() {
     liveStatus.className = "panel-live-status";
     liveStatus.dataset.providerId = provider.id;
     liveStatus.dataset.status = "idle";
-    liveStatus.textContent = globalThis.MultiAITranscript?.getLocalizedStatusText?.("idle", "short") || "Idle";
+    liveStatus.textContent = globalThis.MultiAITranscript?.getLocalizedStatusText?.("idle", "short") || t("statusIdleShort");
     actions.appendChild(liveStatus);
     // Helper to create action button
     const createActionBtn = (title, svgPath, actionName) => {
