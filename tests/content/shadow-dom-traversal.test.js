@@ -1,7 +1,7 @@
 // tests/content/shadow-dom-traversal.test.js
 // Tests for Shadow DOM traversal whitelist in content/send-handlers.js
 
-import { describe, it, before, after } from "node:test";
+import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
@@ -258,6 +258,40 @@ describe("T-021 Shadow DOM traversal policy", () => {
       restore();
 
       assert.equal(results.length, 0);
+    });
+
+    it("allows standard HTML element with allowlist attribute (chat-input-container)", () => {
+      const textbox = makeNode({ tagName: "TEXTAREA" });
+      const shadowRoot = makeShadowRoot((sel) => sel === "textarea" ? [textbox] : []);
+      const host = makeNode({ tagName: "DIV", className: "chat-input-container", shadowRoot });
+      const root = makeNode({ tagName: "BODY", querySelectorAll: () => [] });
+
+      const doc = globalThis.document;
+      const restore = overrideDocument(doc, (walkerRoot) =>
+        walkerRoot === root ? [host] : []
+      );
+      const results = mod.deepQueryAll(root, "textarea");
+      restore();
+
+      assert.equal(results.length, 1);
+      assert.equal(results[0], textbox);
+    });
+
+    it("allows standard HTML element with allowlist data-testid (composer-input)", () => {
+      const textbox = makeNode({ tagName: "TEXTAREA" });
+      const shadowRoot = makeShadowRoot((sel) => sel === "textarea" ? [textbox] : []);
+      const host = makeNode({ tagName: "DIV", attrs: { "data-testid": "composer-input" }, shadowRoot });
+      const root = makeNode({ tagName: "BODY", querySelectorAll: () => [] });
+
+      const doc = globalThis.document;
+      const restore = overrideDocument(doc, (walkerRoot) =>
+        walkerRoot === root ? [host] : []
+      );
+      const results = mod.deepQueryAll(root, "textarea");
+      restore();
+
+      assert.equal(results.length, 1);
+      assert.equal(results[0], textbox);
     });
 
     it("Kimi send container shadow DOM is traversed", () => {

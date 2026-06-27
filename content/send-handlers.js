@@ -76,12 +76,12 @@
 
   function shouldTraverseShadowHost(host) {
     if (!host) return false;
+    // Denylist takes absolute priority — sensitive hosts are never traversed.
     if (isSensitiveShadowHost(host)) return false;
+    // Allowlist: host must match at least one AI-input-related pattern.
+    // This applies to both custom elements and standard HTML elements
+    // (e.g. a plain <div class="chat-input-container"> with a shadowRoot).
     var tag = (host.tagName || "").toLowerCase();
-    // Standard HTML elements rarely need shadow traversal for AI chat.
-    // Only traverse if the host is a custom element OR matches allowlist.
-    var isCustom = tag.indexOf("-") !== -1;
-    if (!isCustom) return false;
     var attrStr = [
       tag,
       host.id || "",
