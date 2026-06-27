@@ -1,5 +1,7 @@
 "use strict";
 
+var C_TC = (typeof globalThis !== "undefined" && globalThis.MultiAIContentConstants) || {};
+
 /**
  * Transcript Capture Module
  *
@@ -416,7 +418,7 @@ var __MAI_Transcript = (function () {
     if (!provider || !prompt) return false;
     if (provider !== lastManualSendProvider) return false;
     if (prompt !== lastManualSendText) return false;
-    return Date.now() - lastManualSendAt < 1200;
+    return Date.now() - lastManualSendAt < (C_TC.MANUAL_SEND_CAPTURE_WINDOW_MS || 1200);
   }
 
   function rememberManualSend(provider, prompt) {
@@ -545,7 +547,7 @@ var __MAI_Transcript = (function () {
       }
 
       startResponseFlow(false);
-    }, 300);
+    }, C_TC.MANUAL_TURN_OBSERVER_RESTART_DELAY_MS || 300);
   }
 
   // ─── startManualSendCapture ────────────────────────────────────────────────

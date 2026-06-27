@@ -1,5 +1,33 @@
 # Progress.md
 
+## 2026-06-27（记录 45）
+
+- 时间：2026-06-27
+- 任务：T-20260622-020 代码规范：提取魔法数字为命名常量
+- 状态：待确认
+- 变更文件：
+  - `content/constants.js` — 新建，IIFE 风格，暴露 `globalThis.MultiAIContentConstants`（Object.freeze），28 个命名常量
+  - `manifest.json` — content_scripts[0].js 首位新增 `content/constants.js`
+  - `content/response-state.js` — 4 个稳定性阈值改用 `C.RESPONSE_STABILITY_MS_*`（含 fallback）
+  - `content/response-detection.js` — 12 个超时/阈值改用 `C_RD.*`（含 fallback）
+  - `content/content.js` — 4 个超时改用 `MultiAIContentConstants.*`（含 fallback）
+  - `content/send-handlers.js` — 6 个超时改用 `C_SH.*`（含 fallback）
+  - `content/transcript-capture.js` — 2 个超时改用 `C_TC.*`（含 fallback）
+  - `eslint.config.js` — ESM 配置新增 `tests/content/**/*.test.js`
+  - `tests/content/magic-numbers.test.js` — 新建，13 项 guard 测试
+- 提取的常量（按模块）：
+  - content.js: CONFIG_READY_TIMEOUT_MS(5000), DOM_READY_SETTLE_MS(2000), SEND_INPUT_WAIT_TIMEOUT_MS(3000), CLOUDFLARE_VERIFY_INTERVAL_MS(2000)
+  - response-state.js: `RESPONSE_STABILITY_MS_FALLBACK(1200)`, `_DEEPSEEK(1500)`, `_DOUBAO_KIMI_TONGYI(1800)`, `_DEFAULT(3500)`
+  - response-detection.js: `SEND_BUTTON_DISABLED_WAIT_MS(5000)`, `RESPONSE_START_MAX_WAIT_MS(30000)`, `_CHECK_INTERVAL_MS(500)`, `_STOP_CHECK_LIMIT(60)`, `_META_CHECK_LIMIT(20)`, `_SIGNAL_DELAY_MS(500)`, `_FAST_POLL_MS(250)`, `RESPONSE_STOP_GRACE_MS(5000)`, `_RECHECK_DELAY_MS(800)`, `RESPONSE_TEXT_STABILITY_RECHECK_MS(800)`, `RESPONSE_SKIP_DELAY_MS(250)`
+  - send-handlers.js: `ELEMENT_WAIT_TIMEOUT_MS(3000)`, `COPILOT_SEND_DELAY_MS(800)`, `GROK_SEND_SIGNAL_TIMEOUT_MS(2000)`, `KIMI_SEND_BUTTON_ENABLE_WAIT_MS(1500)`, `_POLL_MS(100)`, `KIMI_INPUT_SETTLE_MS(250)`, `TONGYI_INPUT_SETTLE_MS(100)`
+  - transcript-capture.js: MANUAL_SEND_CAPTURE_WINDOW_MS(1200), MANUAL_TURN_OBSERVER_RESTART_DELAY_MS(300)
+- 验证证据：
+  - 488/488 测试通过
+  - 0 errors / 17 warnings（均为预存）
+  - manifest validate OK
+  - node --check 全部 6 个 content 脚本 OK
+  - git diff --check clean
+
 ## 2026-06-27（记录 44，修正轮）
 
 - 时间：2026-06-27

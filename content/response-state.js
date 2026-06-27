@@ -1,4 +1,5 @@
 (function initResponseState(root) {
+  var C = root.MultiAIContentConstants || {};
   console.log('[response-state.js] initResponseState called, root type:', typeof root);
   function normalizeText(value) {
     return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -9,16 +10,16 @@
   }
 
   function getProviderStabilityMs(provider) {
-    if (provider === "deepseek") return 1500;
-    if (provider === "doubao" || provider === "kimi" || provider === "tongyi") return 1800;
-    return 3500;
+    if (provider === "deepseek") return C.RESPONSE_STABILITY_MS_DEEPSEEK || 1500;
+    if (provider === "doubao" || provider === "kimi" || provider === "tongyi") return C.RESPONSE_STABILITY_MS_DOUBAO_KIMI_TONGYI || 1800;
+    return C.RESPONSE_STABILITY_MS_DEFAULT || 3500;
   }
 
   function createResponseStabilityTracker(options = {}) {
     const provider = options.provider || "";
     const baselineText = normalizeText(options.baselineText);
     const baselineResponseCount = Number(options.baselineResponseCount) || 0;
-    const stabilityMs = Number(options.stabilityMs) || 1200;
+    const stabilityMs = Number(options.stabilityMs) || (C.RESPONSE_STABILITY_MS_FALLBACK || 1200);
     const requireNewResponse = provider === "deepseek";
     let observedNewResponse = !requireNewResponse;
     let lastStableResponse = "";

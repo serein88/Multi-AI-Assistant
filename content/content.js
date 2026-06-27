@@ -109,7 +109,7 @@ const SS = globalThis.__MAI_SessionSync || {};
 // JSON is loaded async by provider-configs.js; all config-dependent paths must
 // call ensureConfigsReady() before reading PROVIDER_CONFIGS or HOST_MAP.
 
-const CONFIG_READY_TIMEOUT_MS = 5000;
+const CONFIG_READY_TIMEOUT_MS = (globalThis.MultiAIContentConstants || {}).CONFIG_READY_TIMEOUT_MS || 5000;
 
 function ensureConfigsReady(timeoutMs = CONFIG_READY_TIMEOUT_MS) {
   if (PC.ready) return Promise.resolve(true);
@@ -290,13 +290,13 @@ async function trySendPrompt(provider, prompt, retryCount = 0) {
   if (document.readyState === "loading") {
     await new Promise((resolve) => {
       window.addEventListener("DOMContentLoaded", resolve, { once: true });
-      setTimeout(resolve, 2000); // Max wait 2s
+      setTimeout(resolve, (globalThis.MultiAIContentConstants || {}).DOM_READY_SETTLE_MS || 2000); // Max wait 2s
     });
   }
 
   const input = config.useShadow
-    ? await waitForElementDeep(config.inputSelectors, 3000)
-    : await waitForElement(config.inputSelectors, 3000);
+    ? await waitForElementDeep(config.inputSelectors, (globalThis.MultiAIContentConstants || {}).SEND_INPUT_WAIT_TIMEOUT_MS || 3000)
+    : await waitForElement(config.inputSelectors, (globalThis.MultiAIContentConstants || {}).SEND_INPUT_WAIT_TIMEOUT_MS || 3000);
   if (!input) {
     console.error(`找不到输入框: ${provider}`);
     if (retryCount < maxRetries) {
@@ -635,7 +635,7 @@ function initializeCustomFixes() {
     };
 
     // Check periodically
-    const verificationIntervalId = setInterval(attemptVerification, 2000);
+    const verificationIntervalId = setInterval(attemptVerification, (globalThis.MultiAIContentConstants || {}).CLOUDFLARE_VERIFY_INTERVAL_MS || 2000);
 
     // Also observe mutations
     const observer = new MutationObserver((mutations) => {

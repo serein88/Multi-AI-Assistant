@@ -3,6 +3,7 @@
 // Exposes functions on globalThis.__MAI_Send for content.js to consume
 (() => {
   "use strict";
+  var C_SH = (typeof globalThis !== "undefined" && globalThis.MultiAIContentConstants) || {};
 
 function findElement(selectors) {
   for (const selector of selectors) {
@@ -58,7 +59,7 @@ function log(msg, ...args) {
     }
   }
 }
-function waitForElement(selectors, timeout = 3000) {
+function waitForElement(selectors, timeout = (C_SH.ELEMENT_WAIT_TIMEOUT_MS || 3000)) {
   return new Promise((resolve) => {
     const start = Date.now();
 
@@ -83,7 +84,7 @@ function findElementDeep(selectors) {
   return null;
 }
 
-function waitForElementDeep(selectors, timeout = 3000) {
+function waitForElementDeep(selectors, timeout = (C_SH.ELEMENT_WAIT_TIMEOUT_MS || 3000)) {
   return new Promise((resolve) => {
     const start = Date.now();
 
@@ -600,7 +601,7 @@ async function sendCopilotMessage(input, prompt, config) {
     input.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
 
     // Add delay before sending to avoid bot detection
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, C_SH.COPILOT_SEND_DELAY_MS || 800));
 
     // Early Enter Key (Optimistic Send)
     log("Copilot: attempting early Enter key");
@@ -838,7 +839,7 @@ async function sendGrokMessage(input, prompt, config) {
     dispatchEnterKey(editable.closest?.("[class*='chat-input']"));
     dispatchEnterKey(document.body);
 
-    return waitForGrokSendSignal(baselineText, baselineStop, baselineCount, 2000);
+    return waitForGrokSendSignal(baselineText, baselineStop, baselineCount, C_SH.GROK_SEND_SIGNAL_TIMEOUT_MS || 2000);
   } catch (e) {
     console.error("Grok send error:", e);
     return false;
@@ -895,7 +896,7 @@ async function sendKimiMessage(input, prompt, config) {
     const setOk = setKimiEditableText(editable, prompt);
     if (!setOk) return false;
 
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, C_SH.KIMI_INPUT_SETTLE_MS || 250));
     const textLen = getEditableText(editable).trim().length;
 
     const findKimiSendButton = (allowDisabled) => {
@@ -943,9 +944,9 @@ async function sendKimiMessage(input, prompt, config) {
     }
 
     const waitStart = Date.now();
-    while (Date.now() - waitStart < 1500) {
+    while (Date.now() - waitStart < (C_SH.KIMI_SEND_BUTTON_ENABLE_WAIT_MS || 1500)) {
       fireInputSignals();
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, C_SH.KIMI_SEND_BUTTON_POLL_MS || 100));
       btn = findKimiSendButton(true);
       const ariaDisabled = btn?.getAttribute?.("aria-disabled") === "true";
       const hardDisabled = btn?.disabled === true || btn?.getAttribute?.("disabled") !== null;
@@ -1027,8 +1028,7 @@ async function sendTongyiMessage(input, prompt, config) {
     const setOk = await forceSetEditableText(editable, prompt);
     if (!setOk) return false;
 
-    await new Promise((r) => setTimeout(r, 100));
-
+    await new Promise((r) => setTimeout(r, C_SH.TONGYI_INPUT_SETTLE_MS || 100));
     const btn = findElement([
       "div.operateBtn-ehxNOr",
       "button[type='submit']",

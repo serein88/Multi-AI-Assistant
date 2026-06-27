@@ -1,5 +1,7 @@
 "use strict";
 
+var C_RD = (typeof globalThis !== "undefined" && globalThis.MultiAIContentConstants) || {};
+
 /**
  * Response Detection Module
  *
@@ -61,7 +63,7 @@ var __MAI_Response = (function () {
   // ─── waitForSendButtonDisabled ─────────────────────────────────────────────
 
   function waitForSendButtonDisabled(doc, timeout) {
-    timeout = timeout || 5000;
+    timeout = timeout || C_RD.SEND_BUTTON_DISABLED_WAIT_MS || 5000;
     var startBtns = doc.querySelectorAll('button[data-testid="start-speech-button"]');
     if (startBtns.length) {
       var startBtn = startBtns[startBtns.length - 1];
@@ -92,10 +94,10 @@ var __MAI_Response = (function () {
 
   // ─── waitForResponseStart ──────────────────────────────────────────────────
 
-  var MAX_START_WAIT = 30000;
-  var CHECK_INTERVAL = 500;
-  var STOP_CHECK_LIMIT = 60;
-  var META_CHECK_LIMIT = 20;
+  var MAX_START_WAIT = C_RD.RESPONSE_START_MAX_WAIT_MS || 30000;
+  var CHECK_INTERVAL = C_RD.RESPONSE_START_CHECK_INTERVAL_MS || 500;
+  var STOP_CHECK_LIMIT = C_RD.RESPONSE_START_STOP_CHECK_LIMIT || 60;
+  var META_CHECK_LIMIT = C_RD.RESPONSE_START_META_CHECK_LIMIT || 20;
 
   function waitForResponseStart(provider, meta, config) {
     config = config || {};
@@ -120,7 +122,7 @@ var __MAI_Response = (function () {
       waitForSendButtonDisabled(doc, timeout).then(function (result) {
         if (cancelled) return;
         if (result.stopped) {
-          setTimeout(function () { if (!cancelled) startedResolve("stream-started"); }, 500);
+          setTimeout(function () { if (!cancelled) startedResolve("stream-started"); }, C_RD.RESPONSE_START_SIGNAL_DELAY_MS || 500);
           return;
         }
         var count = 0;
@@ -130,7 +132,7 @@ var __MAI_Response = (function () {
           var sv = getStopVisible(doc);
           var dv = doc.querySelectorAll('button[aria-label="停止"]');
           if (sv.length || (provider === "deepseek" && dv.length)) { clearInterval(interval); startedResolve("stream-started"); }
-        }, 250);
+        }, C_RD.RESPONSE_START_FAST_POLL_MS || 250);
       });
     }
 
@@ -158,21 +160,21 @@ var __MAI_Response = (function () {
         if (++cnt > META_CHECK_LIMIT) { clearInterval(metaInterval); return; }
         var checkBtn = doc.querySelector('button[data-testid="send-button"]');
         if (checkBtn && !checkBtn.disabled) { clearInterval(metaInterval); startedResolve("send-button-visible"); }
-      }, 250);
+      }, C_RD.RESPONSE_START_FAST_POLL_MS || 250);
     }
 
     if (meta && meta.observability === "high") {
       var t = 0;
       var sdInterval = setInterval(function () {
         if (cancelled) { clearInterval(sdInterval); return; }
-        if (++t > 20) { clearInterval(sdInterval); startedResolve("stream-started"); return; }
+        if (++t > (C_RD.RESPONSE_START_META_CHECK_LIMIT || 20)) { clearInterval(sdInterval); startedResolve("stream-started"); return; }
         var btns = doc.querySelectorAll('button[data-testid="send-button"]');
         if (!btns.length) return;
         var b = btns[btns.length - 1];
         if (b.disabled || b.closest('[aria-disabled="true"]') || (!b.querySelector('svg') && !b.querySelector('[data-icon]'))) {
           clearInterval(sdInterval); startedResolve("stream-started");
         }
-      }, 250);
+      }, C_RD.RESPONSE_START_FAST_POLL_MS || 250);
     }
 
     return promise;
@@ -199,9 +201,9 @@ var __MAI_Response = (function () {
     if (globalThis.MultiAIResponseState && typeof globalThis.MultiAIResponseState.getProviderStabilityMs === "function") {
       textStableMs = globalThis.MultiAIResponseState.getProviderStabilityMs(provider);
     } else {
-      textStableMs = 3500;
-      if (provider === "deepseek") textStableMs = 1500;
-      if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = 1800;
+      textStableMs = C_RD.RESPONSE_STABILITY_MS_DEFAULT || 3500;
+      if (provider === "deepseek") textStableMs = C_RD.RESPONSE_STABILITY_MS_DEEPSEEK || 1500;
+      if (provider === "doubao" || provider === "kimi" || provider === "tongyi") textStableMs = C_RD.RESPONSE_STABILITY_MS_DOUBAO_KIMI_TONGYI || 1800;
     }
     // Baseline: meta is actually responseBaseline from content.js { text, responseCount }
     var baselineText = (meta && typeof meta.text === "string") ? meta.text.trim() : "";
@@ -289,10 +291,10 @@ var __MAI_Response = (function () {
         var anyVisibleStop = sv.length > 0 || (provider === "deepseek" && dv.length > 0) || isProviderStop;
         if (anyVisibleStop) {
           hasSeenStop = true;
-          setTimeout(checkStopBtn, 800);
+          setTimeout(checkStopBtn, C_RD.RESPONSE_STOP_RECHECK_DELAY_MS || 800);
           return;
         }
-        if (!hasSeenStop && Date.now() - stopTs < 5000) {
+        if (!hasSeenStop && Date.now() - stopTs < (C_RD.RESPONSE_STOP_GRACE_MS || 5000)) {
           setTimeout(checkStopBtn, 400);
           return;
         }
@@ -326,7 +328,7 @@ var __MAI_Response = (function () {
         if (isStreaming(doc)) {
           textStableStart = null;
           lastTextSnapshot = null;
-          setTimeout(function () { checkTextStability(0); }, 800);
+          setTimeout(function () { checkTextStability(0); }, C_RD.RESPONSE_TEXT_STABILITY_RECHECK_MS || 800);
           return;
         }
         var t0 = collectText().join("\n");
@@ -346,7 +348,7 @@ var __MAI_Response = (function () {
           if (isStreaming(doc)) {
             textStableStart = null;
             lastTextSnapshot = null;
-            setTimeout(function () { checkTextStability(0); }, 800);
+            setTimeout(function () { checkTextStability(0); }, C_RD.RESPONSE_TEXT_STABILITY_RECHECK_MS || 800);
             return;
           }
           var finalText = collectText().join("\n");
@@ -403,7 +405,7 @@ var __MAI_Response = (function () {
       if (streamingEls.length) { resolve("streaming-present"); return; }
       var streamingBtn = Array.from(document.querySelectorAll('[aria-label="停止"], [aria-label="Stop"]')).filter(SH.isElementVisible);
       if (streamingBtn.length) { resolve("streaming-btn"); return; }
-      setTimeout(function () { resolve("skip"); }, 250);
+      setTimeout(function () { resolve("skip"); }, C_RD.RESPONSE_SKIP_DELAY_MS || 250);
     });
   }
 
