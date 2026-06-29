@@ -876,8 +876,8 @@
       "category": "fix",
       "priority": "P2",
       "status": "待确认",
-      "criteria": "1. content/runtime-messaging.js 提供 sendRuntimeMessageWithRetry（5s 超时、3 次重试、250ms 间隔）；2. content 侧 5 个 sendMessage 调用已替换；3. dashboard 侧 3 个 sendMessage 调用已替换；4. 常量在 content/constants.js；5. 8 项测试覆盖成功/超时/重试/全失败/同步抛异常/fire-and-forget；6. 525/525 全量通过",
-      "notes": "2026-06-29 实现：IIFE helper 暴露 globalThis.__MAI_RuntimeMessaging，所有调用保留 fallback 到原始 sendMessage",
+      "criteria": "1. content/runtime-messaging.js 提供 sendRuntimeMessageWithRetry（默认 5s 超时、3 次重试、250ms 间隔）；2. 非幂等消息用 per-call options 禁用重试（sendPromptToProviderTab retries:1+35s, executeMainWorldSend retries:1, transcript-user-turn retries:1）；3. fire-and-forget 路径 .catch 安全且 fallback 分支恢复 result&&typeof result.catch 守卫；4. 11 项测试覆盖；5. 528/528 全量通过",
+      "notes": "2026-06-29 实现+审查修复：per-call retries:1 保护非幂等消息，35s timeout 覆盖后台 30s waitForTabComplete",
       "createdAt": "2026-06-22",
       "archived": false
     },

@@ -628,7 +628,7 @@ async function sendChatGPTMessage(input, prompt, config) {
         ? globalThis.__MAI_RuntimeMessaging.sendRuntimeMessageWithRetry({
             type: "executeChatGPTMainWorldSend",
             prompt
-          })
+          }, { retries: 1 })
         : chrome.runtime.sendMessage({
             type: "executeChatGPTMainWorldSend",
             prompt
@@ -1111,7 +1111,7 @@ async function sendTongyiMessage(input, prompt, config) {
         ? globalThis.__MAI_RuntimeMessaging.sendRuntimeMessageWithRetry({
             type: "executeTongyiMainWorldSend",
             prompt
-          })
+          }, { retries: 1 })
         : chrome.runtime.sendMessage({
             type: "executeTongyiMainWorldSend",
             prompt

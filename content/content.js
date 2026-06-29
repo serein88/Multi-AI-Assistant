@@ -175,9 +175,10 @@ function sendTranscriptLiveStatus(provider, status, occurredAt = null) {
         (err) => console.warn(`[MultiAI Content] sendTranscriptLiveStatus (${provider}):`, err)
       );
     } else if (chrome?.runtime?.sendMessage) {
-      chrome.runtime.sendMessage(payload).catch(
-        (err) => console.warn(`[MultiAI Content] sendTranscriptLiveStatus (${provider}):`, err)
-      );
+      var result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch((err) => console.warn(`[MultiAI Content] sendTranscriptLiveStatus (${provider}):`, err));
+      }
     }
   } catch (error) {
     console.warn(`[MultiAI Content] Failed to send transcript live-status for ${provider}:`, error);
@@ -230,9 +231,10 @@ function sendTranscriptProviderTurn(provider, role, content, occurredAt = null, 
         (err) => console.warn(`[MultiAI Content] sendTranscriptProviderTurn (${provider}/${role}):`, err)
       );
     } else if (chrome?.runtime?.sendMessage) {
-      chrome.runtime.sendMessage(payload).catch(
-        (err) => console.warn(`[MultiAI Content] sendTranscriptProviderTurn (${provider}/${role}):`, err)
-      );
+      var result = chrome.runtime.sendMessage(payload);
+      if (result && typeof result.catch === "function") {
+        result.catch((err) => console.warn(`[MultiAI Content] sendTranscriptProviderTurn (${provider}/${role}):`, err));
+      }
     }
   } catch (error) {
     console.warn(`[MultiAI Content] Failed to send transcript turn for ${provider} (${role}):`, error);

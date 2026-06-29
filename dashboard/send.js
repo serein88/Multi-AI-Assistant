@@ -211,7 +211,10 @@
       if (!iframe || !iframe.contentWindow || IFRAME_BLOCKED_PROVIDERS.has(providerId)) {
         var _msg = globalThis.__MAI_RuntimeMessaging;
         var sendFn = _msg && _msg.sendRuntimeMessageWithRetry
-          ? _msg.sendRuntimeMessageWithRetry({ type: "sendPromptToProviderTab", provider: providerId, prompt })
+          ? _msg.sendRuntimeMessageWithRetry(
+              { type: "sendPromptToProviderTab", provider: providerId, prompt },
+              { timeoutMs: 35000, retries: 1 }
+            )
           : chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt });
         sendFn
           .then((res) => resolvePendingSend(providerId, res && res.ok))
@@ -258,7 +261,7 @@
             prompt,
             providers,
             occurredAt: new Date().toISOString()
-          })
+          }, { retries: 1 })
         : chrome.runtime.sendMessage({
             type: "session:transcript-user-turn",
             sessionId: currentSessionId,
