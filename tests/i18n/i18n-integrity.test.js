@@ -217,7 +217,7 @@ describe("dashboard.js i18n integration", () => {
 });
 
 describe("HTML templates", () => {
-  for (const htmlFile of ["dashboard.html", "dashboard-dev.html"]) {
+  for (const htmlFile of ["dashboard.html", "debug/dashboard-dev.html"]) {
     describe(htmlFile, () => {
       const src = fs.readFileSync(path.join(ROOT, htmlFile), "utf8");
 
@@ -284,8 +284,8 @@ describe("HTML templates", () => {
     });
   });
 
-  describe("dashboard-dev.html", () => {
-    const src = fs.readFileSync(path.join(ROOT, "dashboard-dev.html"), "utf8");
+  describe("debug/dashboard-dev.html", () => {
+    const src = fs.readFileSync(path.join(ROOT, "debug", "dashboard-dev.html"), "utf8");
 
     it("chatroom button uses data-i18n for title and aria-label", () => {
       assert.ok(

@@ -1,5 +1,31 @@
 # Progress.md
 
+## 2026-06-29（记录 50）
+
+- 时间：2026-06-29
+- 任务：T-20260629-001 根目录整理：归档旧入口并删除生成产物
+- 状态：待确认
+- 变更文件：
+  - `background.js` — 删除；当前 Manifest V3 Service Worker 已使用 `background.mjs`
+  - `coverage-output.txt` — 删除测试覆盖率输出产物
+  - `archive/task.md` — 从根目录归档只读历史任务文档
+  - `archive/legacy-popup/` — 归档旧 popup 调试入口（`popup.html` / `popup.css` / `popup.js`）
+  - `debug/dashboard-dev.html`、`debug/chrome-shim.js` — 从根目录移动到本地调试目录，并修正相对资源路径
+  - `.gitignore` — 增加 coverage / test-results / playwright-report / coverage-output.txt 忽略规则
+  - `readme.md`、`AGENTS.md` — 同步当前文件结构与历史文档位置
+  - `eslint.config.js`、`tests/i18n/i18n-integrity.test.js` — 同步移动后的路径
+  - `tasks.json` — 新增本轮整理任务记录
+- 设计决策：
+  - 直接删除 `background.js`，因为 `manifest.json` 已明确加载 `background.mjs`，保留旧文件会继续制造维护歧义
+  - 不删除旧 popup 和 dashboard dev 页面，改为归档/移动：这些不是当前运行入口，但仍可能作为历史参考或本地调试工具
+  - 不移动 `.claude` / `.mimocode` / `.codex` / `.code-review-graph` 等 AI 工具状态目录；它们已被 `.gitignore` 忽略，属于本地工具状态，不纳入代码整理提交
+- 验证证据：
+  - `npm test`：470/470 通过
+  - `npm run lint`：0 errors / 17 warnings（均为既有 warning）
+  - `npm run validate`：manifest.json OK
+  - `node --check background.mjs tests/session/transcript-store.test.js tests/session/background-message-routing.test.mjs`：OK
+  - `git diff --check`：clean
+
 ## 2026-06-29（记录 49）
 
 - 时间：2026-06-29

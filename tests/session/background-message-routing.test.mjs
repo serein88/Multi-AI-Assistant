@@ -229,6 +229,49 @@ describe("background.mjs message routing", () => {
     assert.equal(response.ok, true);
   });
 
+  it("waitForTabComplete resolves on matching complete update and removes listener", async () => {
+    const mock = createMockChrome();
+    const background = await importBackground(mock.chrome);
+
+    const completed = background.waitForTabComplete(7, { timeoutMs: 50 });
+    assert.equal(mock.tabs.onUpdated.addListener.callCount, 1);
+
+    const listener = mock.tabs.onUpdated.addListener.firstCall.args[0];
+    listener(8, { status: "complete" });
+    assert.equal(mock.tabs.onUpdated.removeListener.callCount, 0);
+
+    listener(7, { status: "complete" });
+    await completed;
+
+    assert.equal(mock.tabs.onUpdated.removeListener.callCount, 1);
+    assert.equal(mock.tabs.onUpdated.removeListener.firstCall.args[0], listener);
+  });
+
+  it("waitForTabComplete rejects on timeout and removes listener", async () => {
+    const mock = createMockChrome();
+    const background = await importBackground(mock.chrome);
+
+    await assert.rejects(
+      background.waitForTabComplete(9, { timeoutMs: 5 }),
+      /tab-complete-timeout.*9/
+    );
+    assert.equal(mock.tabs.onUpdated.removeListener.callCount, 1);
+  });
+
+  it("sendPromptToProviderTab returns false when tab completion times out", async () => {
+    const mock = createMockChrome();
+    mock.tabs.query.resolves([]);
+    mock.tabs.create.resolves({ id: 60, status: "loading", url: "https://chat.deepseek.com/" });
+    const background = await importBackground(mock.chrome);
+
+    const result = await background.sendPromptToProviderTab("deepseek", "hello", {
+      tabCompleteTimeoutMs: 5,
+    });
+
+    assert.equal(result, false);
+    assert.equal(mock.tabs.sendMessage.callCount, 0);
+  });
+
   // ── executeChatGPTMainWorldSend ──
 
   it("executeChatGPTMainWorldSend delegates to chrome.scripting.executeScript", async () => {

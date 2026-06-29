@@ -42,7 +42,7 @@ module.exports = [
   },
   {
     // Files that consume providers.js exports as implicit globals
-    files: ["background.js", "dashboard.js", "dashboard/*.js", "manage.js", "popup.js"],
+    files: ["dashboard.js", "dashboard/*.js", "manage.js", "archive/legacy-popup/popup.js"],
     languageOptions: {
       globals: {
         PROVIDERS: "readonly",

@@ -31,7 +31,7 @@
 
 ### 4. 强大的兼容性 (Compatibility)
 - **iframe 嵌入**：通过 `declarativeNetRequest` (DNR) 规则移除部分站点的 `X-Frame-Options` 限制。
-- **降级处理**：对于无法 iframe 嵌入的站点（如部分高风控站点），支持**“在新标签页打开”**，并通过后台脚本 (`background.js`) 实现跨标签页的消息同步与发送。
+- **降级处理**：对于无法 iframe 嵌入的站点（如部分高风控站点），支持**“在新标签页打开”**，并通过后台脚本 (`background.mjs`) 实现跨标签页的消息同步与发送。
 
 ---
 
@@ -63,13 +63,14 @@
 ```text
 Multi AI Assistant\
 ├── manifest.json        # 核心配置：权限、Host 匹配、Content Scripts
-├── background.js        # Service Worker：管理标签页、跨页消息转发
+├── background.mjs       # Service Worker：管理标签页、跨页消息转发
 ├── dashboard.html/js    # 主界面：Grid 布局、iframe 管理、消息总线
 ├── content/
 │   └── content.js       # 注入脚本：运行在各 AI 网页内，负责 DOM 操作
 ├── providers.js         # 数据源：定义所有 AI 的元数据
 ├── rules.json           # DNR 规则：网络请求头修改（绕过 iframe 限制）
-└── popup.html/js        # 可选调试页（非默认入口）
+├── debug/               # 本地调试页面
+└── archive/             # 历史参考与旧入口
 ```
 
 ### 2. 核心工作流

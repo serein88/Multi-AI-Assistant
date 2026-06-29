@@ -22,6 +22,10 @@ claude.md
 node_modules
 .DS_Store
 **/.DS_Store
+coverage-output.txt
+coverage/
+test-results/
+playwright-report/
 # package-lock.json is committed for reproducible CI installs
 # Added by code-review-graph
 .code-review-graph/

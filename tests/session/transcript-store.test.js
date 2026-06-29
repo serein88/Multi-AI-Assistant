@@ -2,7 +2,6 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const MODULE_PATHS = [
-  "../../background.js",
   "../../session/session-constants.js",
   "../../session/session-model.js",
   "../../session/session-registry.js",
@@ -102,19 +101,14 @@ function createChromeStub(initialStore = {}) {
   };
 }
 
-function loadBackgroundWithStubs(chromeStub) {
+async function loadBackgroundWithStubs(chromeStub) {
   clearModuleCache();
   resetSessionGlobals();
-  global.chrome = chromeStub;
-  global.importScripts = () => undefined;
+  globalThis.chrome = chromeStub;
 
   const constants = require("../../session/session-constants.js");
-  require("../../session/session-model.js");
-  require("../../session/session-registry.js");
-  require("../../session/provider-session-bindings.js");
-  require("../../session/transcript-store.js");
-  require("../../session/window-manager.js");
-  const background = require("../../background.js");
+  const url = new URL(`../../background.mjs?test=${Date.now()}${Math.random()}`, `file://${__filename}`).href;
+  const background = await import(url);
 
   return {
     background,
@@ -125,8 +119,7 @@ function loadBackgroundWithStubs(chromeStub) {
 test.afterEach(() => {
   clearModuleCache();
   resetSessionGlobals();
-  delete global.chrome;
-  delete global.importScripts;
+  delete globalThis.chrome;
 });
 
 test("ensureSessionTranscript initializes transcript shell for new session", () => {
@@ -215,7 +208,7 @@ test("ensureSessionTranscript preserves existing transcript fields and fills mis
 
 test("handleSessionCreate persists transcript shell for new sessions", async () => {
   const chromeStub = createChromeStub();
-  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const { background, constants } = await loadBackgroundWithStubs(chromeStub);
 
   const created = await background.handleSessionCreate({ mode: "foreground" });
   const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
@@ -252,7 +245,7 @@ test("sanitizeSessionIfNeeded backfills transcript shell for legacy sessions", a
   const chromeStub = createChromeStub({
     "multi-ai-sessions": [legacySession]
   });
-  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const { background, constants } = await loadBackgroundWithStubs(chromeStub);
 
   const updated = await background.sanitizeSessionIfNeeded(legacySession);
   const storedSessions = chromeStub.__store[constants.SESSION_STORAGE_KEY];
@@ -278,7 +271,7 @@ test("handleSessionTranscriptUserTurn records one unified-send user turn per tar
   const chromeStub = createChromeStub({
     "multi-ai-sessions": [managedSession]
   });
-  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const { background, constants } = await loadBackgroundWithStubs(chromeStub);
 
   const occurredAt = "2026-04-13T11:02:00.000Z";
   const prompt = "Explain zero-shot learning in one paragraph.";
@@ -332,7 +325,7 @@ test("provider raw turns and session timeline are updated together for unified-s
   const chromeStub = createChromeStub({
     "multi-ai-sessions": [managedSession]
   });
-  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const { background, constants } = await loadBackgroundWithStubs(chromeStub);
 
   const prompt = "Summarize transfer learning in one paragraph.";
   const userOccurredAt = "2026-04-13T13:01:00.000Z";
@@ -423,7 +416,7 @@ test("handleSessionTranscriptProviderTurn ignores consecutive duplicates even wh
   const chromeStub = createChromeStub({
     "multi-ai-sessions": [managedSession]
   });
-  const { background, constants } = loadBackgroundWithStubs(chromeStub);
+  const { background, constants } = await loadBackgroundWithStubs(chromeStub);
 
   const sender = {
     tab: {

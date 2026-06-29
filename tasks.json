@@ -957,6 +957,17 @@
       "notes": "",
       "createdAt": "2026-06-24",
       "archived": false
+    },
+    {
+      "id": "T-20260629-001",
+      "name": "根目录整理：归档旧入口并删除生成产物",
+      "category": "chore",
+      "priority": "P2",
+      "status": "待确认",
+      "criteria": "1. 根目录移除旧 background.js、coverage-output.txt、旧 popup 入口和本地 dashboard 调试页；2. 仍有参考价值的历史文件归档到 archive/ 或 debug/；3. README、AGENTS、测试和 lint 配置同步新路径；4. npm test / npm run lint / npm run validate 通过",
+      "notes": "2026-06-29 整理完成：删除未被 manifest 使用的旧 background.js 与 coverage-output.txt；popup.* 移至 archive/legacy-popup/；task.md 移至 archive/task.md；dashboard-dev.html/chrome-shim.js 移至 debug/；同步 README、AGENTS、i18n 测试、ESLint 和 .gitignore；background.mjs 导出测试用内部函数，旧 background.js 相关测试迁到 ESM；验证 npm test 470/470、npm run lint 0 errors/17 warnings、npm run validate OK、git diff --check clean。",
+      "createdAt": "2026-06-29",
+      "archived": false
     }
   ]
 }

@@ -1006,3 +1006,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   return undefined;
 });
+
+export {
+  sanitizeSessionIfNeeded,
+  handleSessionCreate,
+  handleSessionTranscriptLiveStatus,
+  handleSessionTranscriptUserTurn,
+  handleSessionTranscriptProviderTurn,
+  sendPromptToProviderTab,
+  waitForTabComplete
+};
