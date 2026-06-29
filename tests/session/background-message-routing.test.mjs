@@ -16,11 +16,15 @@ import sinon from "sinon";
 
 /**
  * Build a mock chrome API for the background service worker.
- * Returns { chrome, messageListener, storage, tabs } for assertions.
+ * @param {object} [opts]
+ * @param {object} [opts.storage] - Shared backing store (plain object).
+ *   Pass the same object to a second mock to simulate SW restart with
+ *   persistent storage intact.
+ * Returns { chrome, messageListeners, storage, tabs } for assertions.
  */
-function createMockChrome() {
+function createMockChrome(opts = {}) {
   const messageListeners = [];
-  const storage = {};
+  const storage = opts.storage ?? {};
 
   const tabs = {
     created: [],
@@ -452,6 +456,35 @@ describe("background.mjs message routing", () => {
 
 // ── Service Worker restart recovery ─────────────────────────────────────
 
+/**
+ * Call a specific onMessage listener (by reference) and return the
+ * sendResponse value. Use this instead of callMessageListener when the
+ * test needs to target a particular lifecycle's listener.
+ */
+function callListener(listener, message, sender = {}, { timeoutMs = 3000 } = {}) {
+  assert.ok(listener, "should have a message listener");
+
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const sendResponse = sinon.stub().callsFake((val) => {
+      if (!settled) {
+        settled = true;
+        resolve(val);
+      }
+    });
+
+    const keepChannel = listener(message, sender, sendResponse);
+    assert.equal(keepChannel, true, "listener should return true");
+
+    setTimeout(() => {
+      if (!settled) {
+        settled = true;
+        reject(new Error(`sendResponse timeout after ${timeoutMs}ms for message type: ${message.type}`));
+      }
+    }, timeoutMs);
+  });
+}
+
 describe("background.mjs Service Worker restart recovery", () => {
   let savedChrome;
 
@@ -468,11 +501,16 @@ describe("background.mjs Service Worker restart recovery", () => {
   });
 
   it("session:list/get/restore work after simulated SW restart", async () => {
-    const mock = createMockChrome();
+    // Shared backing store persists across both lifecycles.
+    const sharedStorage = {};
 
-    // --- First SW lifecycle: create a session ---
-    await importBackground(mock.chrome);
-    const createRes = await callMessageListener(mock.messageListeners, {
+    // --- First SW lifecycle ---
+    const mock1 = createMockChrome({ storage: sharedStorage });
+    await importBackground(mock1.chrome);
+    const listener1 = mock1.messageListeners[0];
+    assert.ok(listener1, "first lifecycle should register a listener");
+
+    const createRes = await callListener(listener1, {
       type: "session:create",
       providers: ["deepseek", "grok"],
     });
@@ -480,52 +518,52 @@ describe("background.mjs Service Worker restart recovery", () => {
     const sessionId = createRes.result.session.sessionId;
     assert.ok(sessionId, "first lifecycle should produce sessionId");
 
-    // --- Simulate SW restart: re-import with same backing storage ---
-    await importBackground(mock.chrome);
+    // --- Simulate SW restart: new chrome mock reusing same storage ---
+    const mock2 = createMockChrome({ storage: sharedStorage });
+    await importBackground(mock2.chrome);
+
+    // Prove we have a NEW listener, not the first lifecycle's.
+    assert.equal(mock2.messageListeners.length, 1, "second lifecycle should register exactly 1 new listener");
+    const listener2 = mock2.messageListeners[0];
+    assert.notEqual(listener2, listener1, "second lifecycle listener must be a different function");
 
     // session:list should find the session from the first lifecycle
-    const listRes = await callMessageListener(mock.messageListeners, {
-      type: "session:list",
-    });
+    const listRes = await callListener(listener2, { type: "session:list" });
     assert.equal(listRes.ok, true);
     const found = listRes.result.find((s) => s.sessionId === sessionId);
     assert.ok(found, "session:list after restart should contain the session");
     assert.deepEqual(found.providers.sort(), ["deepseek", "grok"]);
 
     // session:get should return the same session
-    const getRes = await callMessageListener(mock.messageListeners, {
-      type: "session:get",
-      sessionId,
-    });
+    const getRes = await callListener(listener2, { type: "session:get", sessionId });
     assert.equal(getRes.ok, true);
     assert.equal(getRes.result.sessionId, sessionId);
 
     // session:restore should succeed
-    const restoreRes = await callMessageListener(mock.messageListeners, {
-      type: "session:restore",
-      sessionId,
-    });
+    const restoreRes = await callListener(listener2, { type: "session:restore", sessionId });
     assert.equal(restoreRes.ok, true);
     assert.equal(restoreRes.result.session.sessionId, sessionId);
     assert.equal(typeof restoreRes.result.windowId, "number");
   });
 
   it("session:transcript-user-turn writes to persisted session after SW restart", async () => {
-    const mock = createMockChrome();
+    const sharedStorage = {};
 
-    // --- First lifecycle: create session ---
-    await importBackground(mock.chrome);
-    const createRes = await callMessageListener(mock.messageListeners, {
+    // --- First lifecycle: create session and write one turn ---
+    const mock1 = createMockChrome({ storage: sharedStorage });
+    await importBackground(mock1.chrome);
+    const listener1 = mock1.messageListeners[0];
+
+    const createRes = await callListener(listener1, {
       type: "session:create",
       providers: ["deepseek", "gemini"],
     });
     const sessionId = createRes.result.session.sessionId;
     const windowId = createRes.result.windowId;
 
-    // Write a user turn in the first lifecycle
     const sender1 = { tab: { id: 10, windowId } };
-    await callMessageListener(
-      mock.messageListeners,
+    await callListener(
+      listener1,
       {
         type: "session:transcript-user-turn",
         sessionId,
@@ -536,20 +574,18 @@ describe("background.mjs Service Worker restart recovery", () => {
     );
 
     // --- Simulate SW restart ---
-    await importBackground(mock.chrome);
+    const mock2 = createMockChrome({ storage: sharedStorage });
+    await importBackground(mock2.chrome);
+    const listener2 = mock2.messageListeners[0];
+    assert.notEqual(listener2, listener1, "must use new lifecycle listener");
 
-    // Write another user turn from the new lifecycle
-    // The new windowId from the restore will differ, so we need the new one.
-    // First restore to get the new windowId.
-    const restoreRes = await callMessageListener(mock.messageListeners, {
-      type: "session:restore",
-      sessionId,
-    });
+    // Restore to get a new windowId for the second lifecycle
+    const restoreRes = await callListener(listener2, { type: "session:restore", sessionId });
     const newWindowId = restoreRes.result.windowId;
 
     const sender2 = { tab: { id: 20, windowId: newWindowId } };
-    const turnRes = await callMessageListener(
-      mock.messageListeners,
+    const turnRes = await callListener(
+      listener2,
       {
         type: "session:transcript-user-turn",
         sessionId,
@@ -561,10 +597,7 @@ describe("background.mjs Service Worker restart recovery", () => {
     assert.equal(turnRes.ok, true);
 
     // Verify both turns are in the transcript
-    const getRes = await callMessageListener(mock.messageListeners, {
-      type: "session:get",
-      sessionId,
-    });
+    const getRes = await callListener(listener2, { type: "session:get", sessionId });
     const transcript = getRes.result.transcript;
     assert.ok(transcript, "session should have transcript after restart");
 

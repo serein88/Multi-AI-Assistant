@@ -7,14 +7,16 @@
 - 状态：待确认
 - 变更文件：
   - `background.mjs` — 顶层 `const sessionRegistry` / `const sessionWindowManager` 替换为 `let _registry = null` / `let _windowManager = null` + `getSessionRegistry()` / `getSessionWindowManager()` 懒加载单例。所有 session 操作路径（sanitizeSessionIfNeeded、handleSessionCreate/List/Get/Restore、handleSessionSyncChild、handleSessionTranscriptLiveStatus/UserTurn/ProviderTurn）均改为调用 getter
-  - `tests/session/background-message-routing.test.mjs` — 新增 3 项 SW 重启恢复测试
+  - `tests/session/background-message-routing.test.mjs` — 新增 3 项 SW 重启恢复测试 + `callListener` helper；`createMockChrome` 支持共享 storage backing store
 - 设计决策：
   - 懒加载单例：SW 生命周期内 `_registry` 保持同一实例（保留 pending 队列串行化），SW 重启后模块重新评估，`_registry` 重置为 null，下次访问从 `chrome.storage.local` 重建
   - 不是"每次 handler 调用都重建"——避免破坏 `createSessionRegistry` 内部的 pending 队列
   - `sessionWindowManager` 同样改为懒加载单例，保持一致性
-- 测试覆盖：
-  - session:list/get/restore 在模拟 SW 重启后仍能读取第一生命周期创建的 session
-  - session:transcript-user-turn 在重启后仍能写入持久化 session（两轮 turn 均可追溯）
+- 测试覆盖（已修正为 mock1/mock2 共享 storage 方案）：
+  - `createMockChrome({ storage })` 支持传入共享 backing store；mock2 创建新 listener，所有重启后消息通过 `callListener(listener2, ...)` 调用第二生命周期
+  - 断言 `mock2.messageListeners.length === 1` 且 `listener2 !== listener1`，证明确实调用了新 listener
+  - session:list/get/restore 在新 listener 下仍能读取第一生命周期写入的 session
+  - session:transcript-user-turn 在新 listener 下仍能写入持久 session（两轮 turn 均可追溯）
   - 同一生命周期内 lazy singleton 保证 registry 实例一致
 - 验证证据：
   - background 路由测试：17/17 通过（含 3 项 SW 重启恢复）
