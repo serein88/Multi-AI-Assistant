@@ -13,23 +13,25 @@
   - `content/content.js` — sendTranscriptLiveStatus/sendTranscriptProviderTurn 改用 helper（fire-and-forget + .catch），fallback 恢复 `result && typeof result.catch` 安全写法
   - `content/session-sync.js` — sendChildSessionSync 改用 helper（fire-and-forget + .catch），fallback 同上
   - `content/send-handlers.js` — sendChatGPTMessage/sendTongyiMessage 的 executeMainWorldSend 改用 helper，retries:1
-  - `dashboard/send.js` — sendPromptToProviderTab 改用 helper（timeoutMs:35000, retries:1）；recordSessionUserTurn 改用 helper（retries:1）
+  - `dashboard/send.js` — sendPromptToProviderTab 改用 helper（timeoutMs:35000, retries:1）；前端 pending 超时同步改为 SEND_PROVIDER_TAB_TIMEOUT_MS(35000)，清除原 15s 超时避免误判；recordSessionUserTurn 改用 helper（retries:1）
   - `dashboard/transcript.js` — refreshSessionTranscript 改用 helper（默认超时/重试）
   - `tests/content/runtime-messaging.test.js` — 新建，11 项测试
+  - `tests/dashboard/send.test.mjs` — 新增 3 项超时对齐测试（SEND_PROVIDER_TAB_TIMEOUT_MS >= 35000、> SEND_TIMEOUT_MS、background 路径不被 15s 误判）
 - 已纳入保护的 sendMessage 调用（8 处）及重试策略：
   - **默认重试（3 次）**：session:transcript-live-status, session:sync-child — 状态类消息，重试价值高
   - **默认重试（3 次）**：session:transcript-provider-turn — appendProviderTurn 有近邻去重，风险可控
   - **默认重试（3 次）**：dashboard session:get — 读操作，幂等
-  - **retries:1**：sendPromptToProviderTab（timeoutMs:35000）— 后台 waitForTabComplete 可达 30s，不能 5s 重试
+  - **retries:1**：sendPromptToProviderTab（后台 timeoutMs:35000, 前端 pending 也用 SEND_PROVIDER_TAB_TIMEOUT_MS=35000，对齐后台 waitForTabComplete 30s）— 不能 5s 重试
   - **retries:1**：executeChatGPTMainWorldSend / executeTongyiMainWorldSend — scripting.executeScript 有副作用（填 prompt + 点击），不能重试
   - **retries:1**：session:transcript-user-turn — appendUserTurn 无幂等键，重试会重复写入
 - 设计决策：
   - 默认 helper 5s timeout + 3 attempts；非幂等消息通过 per-call options 禁用重试
   - fallback 分支恢复 `result && typeof result.catch === "function"` 安全写法
-  - sendPromptToProviderTab 用 35s timeout 覆盖后台 30s waitForTabComplete + tabs.sendMessage
+  - sendPromptToProviderTab 用 35s timeout 覆盖后台 30s waitForTabComplete + tabs.sendMessage，前端 pending 超时同步清除原 15s SEND_TIMEOUT_MS 避免误判
 - 验证证据：
   - runtime-messaging 测试：11/11 通过
-  - 全量测试：528/528 通过
+  - dashboard send 测试：39/39 通过（含 3 项超时对齐测试，其中 background 路径 16s 等待验证不被 15s 误判）
+  - 全量测试：531/531 通过
   - Lint：0 errors / 17 warnings
   - Manifest：OK
   - Syntax：所有改到的文件 node --check 通过

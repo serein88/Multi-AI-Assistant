@@ -160,6 +160,9 @@
 
   const IFRAME_BLOCKED_PROVIDERS = new Set([]);
   const SEND_TIMEOUT_MS = 15000;
+  /** Longer timeout for background sendPromptToProviderTab path, aligned with
+   *  background waitForTabComplete (30s) + tabs.sendMessage overhead. */
+  const SEND_PROVIDER_TAB_TIMEOUT_MS = 35000;
   const pendingSends = new Map();
   let currentSendTargets = [];
   let completedResponses = new Set();
@@ -209,11 +212,18 @@
       pendingSends.set(providerId, { resolve, timeoutId });
 
       if (!iframe || !iframe.contentWindow || IFRAME_BLOCKED_PROVIDERS.has(providerId)) {
+        // Background path: align pending timeout with actual backend wait
+        clearTimeout(timeoutId);
+        const bgTimeoutId = setTimeout(() => {
+          resolvePendingSend(providerId, false);
+        }, SEND_PROVIDER_TAB_TIMEOUT_MS);
+        pendingSends.set(providerId, { resolve, timeoutId: bgTimeoutId });
+
         var _msg = globalThis.__MAI_RuntimeMessaging;
         var sendFn = _msg && _msg.sendRuntimeMessageWithRetry
           ? _msg.sendRuntimeMessageWithRetry(
               { type: "sendPromptToProviderTab", provider: providerId, prompt },
-              { timeoutMs: 35000, retries: 1 }
+              { timeoutMs: SEND_PROVIDER_TAB_TIMEOUT_MS, retries: 1 }
             )
           : chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt });
         sendFn
@@ -429,7 +439,8 @@
     IFRAME_BLOCKED_PROVIDERS,
     sendStatusTimers,
     BADGE_STATUS_CLASSES,
-    SEND_TIMEOUT_MS
+    SEND_TIMEOUT_MS,
+    SEND_PROVIDER_TAB_TIMEOUT_MS
   };
 
   if (typeof globalThis !== "undefined") {

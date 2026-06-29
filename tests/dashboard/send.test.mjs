@@ -390,6 +390,53 @@ describe("dashboard/send.js", () => {
     });
   });
 
+  // ── Timeout alignment ──
+
+  describe("SEND_PROVIDER_TAB_TIMEOUT_MS", () => {
+    it("is exported and at least 35000ms", () => {
+      const { api } = loadSendModule();
+      assert.equal(typeof api.SEND_PROVIDER_TAB_TIMEOUT_MS, "number");
+      assert.ok(
+        api.SEND_PROVIDER_TAB_TIMEOUT_MS >= 35000,
+        `expected >= 35000, got ${api.SEND_PROVIDER_TAB_TIMEOUT_MS}`
+      );
+    });
+
+    it("is strictly longer than SEND_TIMEOUT_MS (iframe path)", () => {
+      const { api } = loadSendModule();
+      assert.ok(
+        api.SEND_PROVIDER_TAB_TIMEOUT_MS > api.SEND_TIMEOUT_MS,
+        "background path timeout must exceed iframe path timeout"
+      );
+    });
+  });
+
+  describe("sendPromptToProvider background path timeout", () => {
+    it("background path resolves after SEND_PROVIDER_TAB_TIMEOUT_MS, not SEND_TIMEOUT_MS", async () => {
+      const origSetTimeout = global.setTimeout;
+
+      // sendMessage that never resolves
+      const sendMessage = () => new Promise(() => {});
+      const { api } = loadSendModule({
+        chrome: { runtime: { sendMessage } }
+      });
+
+      const promise = api.sendPromptToProvider("deepseek", "slow load");
+
+      // After 16s (past SEND_TIMEOUT_MS=15s), should NOT have resolved yet
+      const earlyCheck = await Promise.race([
+        promise.then(() => "resolved"),
+        new Promise((r) => origSetTimeout(() => r("still-pending"), 16000))
+      ]);
+      assert.equal(earlyCheck, "still-pending",
+        "background path should not timeout at 15s (SEND_TIMEOUT_MS)");
+
+      // Clean up — resolve it manually
+      api.resolvePendingSend("deepseek", false);
+      await promise;
+    });
+  });
+
   describe("resolvePendingSend", () => {
     it("resolves pending promise and clears timeout", async () => {
       const { api } = loadSendModule();
