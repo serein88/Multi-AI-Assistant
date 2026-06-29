@@ -837,10 +837,17 @@
 
     const requestId = ++transcriptRequestSeq;
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "session:get",
-        sessionId: currentSessionId
-      });
+      var _msg = globalThis.__MAI_RuntimeMessaging;
+      const response = await (_msg && _msg.sendRuntimeMessageWithRetry
+        ? _msg.sendRuntimeMessageWithRetry({
+            type: "session:get",
+            sessionId: currentSessionId
+          })
+        : chrome.runtime.sendMessage({
+            type: "session:get",
+            sessionId: currentSessionId
+          })
+      );
 
       if (requestId !== transcriptRequestSeq) {
         return null;

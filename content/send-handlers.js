@@ -624,10 +624,16 @@ async function sendChatGPTMessage(input, prompt, config) {
     log("ChatGPT: starting send sequence");
 
     try {
-      const mainWorldResult = await chrome.runtime.sendMessage({
-        type: "executeChatGPTMainWorldSend",
-        prompt
-      });
+      const mainWorldResult = await (globalThis.__MAI_RuntimeMessaging?.sendRuntimeMessageWithRetry
+        ? globalThis.__MAI_RuntimeMessaging.sendRuntimeMessageWithRetry({
+            type: "executeChatGPTMainWorldSend",
+            prompt
+          })
+        : chrome.runtime.sendMessage({
+            type: "executeChatGPTMainWorldSend",
+            prompt
+          })
+      );
       if (mainWorldResult?.ok) {
         log(`ChatGPT: main world send succeeded via ${mainWorldResult.method || "unknown"}`);
         return true;
@@ -1101,10 +1107,16 @@ async function sendTongyiMessage(input, prompt, config) {
     log("Tongyi: starting send sequence");
 
     try {
-      const mainWorldResult = await chrome.runtime.sendMessage({
-        type: "executeTongyiMainWorldSend",
-        prompt
-      });
+      const mainWorldResult = await (globalThis.__MAI_RuntimeMessaging?.sendRuntimeMessageWithRetry
+        ? globalThis.__MAI_RuntimeMessaging.sendRuntimeMessageWithRetry({
+            type: "executeTongyiMainWorldSend",
+            prompt
+          })
+        : chrome.runtime.sendMessage({
+            type: "executeTongyiMainWorldSend",
+            prompt
+          })
+      );
       if (mainWorldResult?.ok) {
         log(`Tongyi: main world send succeeded via ${mainWorldResult.method || "unknown"}`);
         return true;

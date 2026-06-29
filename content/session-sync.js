@@ -92,13 +92,15 @@ var __MAI_SessionSync = (function () {
     };
 
     try {
-      if (chrome?.runtime?.sendMessage) {
-        var result = chrome.runtime.sendMessage(payload);
-        if (result && typeof result.catch === "function") {
-          result.catch(function (err) {
-            console.warn("[MultiAI Content] sendChildSessionSync (" + provider + "):", err);
-          });
-        }
+      var msg = (typeof globalThis !== "undefined" && globalThis.__MAI_RuntimeMessaging);
+      if (msg && msg.sendRuntimeMessageWithRetry) {
+        msg.sendRuntimeMessageWithRetry(payload).catch(function (err) {
+          console.warn("[MultiAI Content] sendChildSessionSync (" + provider + "):", err);
+        });
+      } else if (chrome?.runtime?.sendMessage) {
+        chrome.runtime.sendMessage(payload).catch(function (err) {
+          console.warn("[MultiAI Content] sendChildSessionSync (" + provider + "):", err);
+        });
       }
     } catch (error) {
       console.warn("[MultiAI Content] Failed to sync child session for " + provider + ":", error);

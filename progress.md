@@ -1,5 +1,39 @@
 # Progress.md
 
+## 2026-06-29（记录 48）
+
+- 时间：2026-06-29
+- 任务：T-20260622-023 稳定性改进：消息传递超时保护
+- 状态：待确认
+- 变更文件：
+  - `content/constants.js` — 新增 RUNTIME_MESSAGE_TIMEOUT_MS(5000), RUNTIME_MESSAGE_RETRY_COUNT(3), RUNTIME_MESSAGE_RETRY_DELAY_MS(250)
+  - `content/runtime-messaging.js` — 新建 IIFE，暴露 `globalThis.__MAI_RuntimeMessaging.sendRuntimeMessageWithRetry`
+  - `manifest.json` — content_scripts[0].js 新增 `content/runtime-messaging.js`（constants.js 之后）
+  - `dashboard.html` — 新增 `<script src="content/runtime-messaging.js">`
+  - `content/content.js` — sendTranscriptLiveStatus/sendTranscriptProviderTurn 改用 helper（fire-and-forget + .catch）
+  - `content/session-sync.js` — sendChildSessionSync 改用 helper（fire-and-forget + .catch）
+  - `content/send-handlers.js` — sendChatGPTMessage/sendTongyiMessage 的 executeMainWorldSend 改用 helper（await + fallback）
+  - `dashboard/send.js` — sendPromptToProvider/recordSessionUserTurn 改用 helper
+  - `dashboard/transcript.js` — refreshSessionTranscript 改用 helper
+  - `tests/content/runtime-messaging.test.js` — 新建，8 项测试
+- 已纳入保护的 sendMessage 调用（8 处）：
+  - content: sendTranscriptLiveStatus, sendTranscriptProviderTurn, sendChildSessionSync, executeChatGPTMainWorldSend, executeTongyiMainWorldSend
+  - dashboard: sendPromptToProviderTab, session:transcript-user-turn, session:get
+- 设计决策：
+  - IIFE 模式（非 ES module），兼容 content_scripts 和 dashboard 两种加载方式
+  - 每个调用保留 fallback：如果 `__MAI_RuntimeMessaging` 不可用，退回原始 sendMessage
+  - fire-and-forget 路径（状态消息）: `.catch(console.warn)` 不阻塞主流程
+  - await 路径（主发送流程）: try/catch 后走现有 fallback 逻辑
+  - timeout error 带 `code: "runtime-message-timeout"` 和 `messageType`、`attempt` 字段
+  - retries=3 表示最多 3 次总尝试（不是 1+3）
+- 验证证据：
+  - runtime-messaging 测试：8/8 通过
+  - 全量测试：525/525 通过
+  - Lint：0 errors / 18 warnings
+  - Manifest：OK
+  - Syntax：所有改到的文件 node --check 通过
+  - git diff --check：clean
+
 ## 2026-06-27（记录 47）
 
 - 时间：2026-06-27

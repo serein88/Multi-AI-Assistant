@@ -105,7 +105,18 @@
     MANUAL_SEND_CAPTURE_WINDOW_MS: 1200,
 
     /** Delay before restarting observer after manual turn detection. */
-    MANUAL_TURN_OBSERVER_RESTART_DELAY_MS: 300
+    MANUAL_TURN_OBSERVER_RESTART_DELAY_MS: 300,
+
+    // ── content/runtime-messaging.js ─────────────────────────────────
+
+    /** Timeout per attempt for chrome.runtime.sendMessage. */
+    RUNTIME_MESSAGE_TIMEOUT_MS: 5000,
+
+    /** Max total attempts (retries = 3 means up to 3 attempts total). */
+    RUNTIME_MESSAGE_RETRY_COUNT: 3,
+
+    /** Delay between retry attempts. */
+    RUNTIME_MESSAGE_RETRY_DELAY_MS: 250
   };
 
   Object.freeze(C);

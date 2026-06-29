@@ -209,7 +209,11 @@
       pendingSends.set(providerId, { resolve, timeoutId });
 
       if (!iframe || !iframe.contentWindow || IFRAME_BLOCKED_PROVIDERS.has(providerId)) {
-        chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt })
+        var _msg = globalThis.__MAI_RuntimeMessaging;
+        var sendFn = _msg && _msg.sendRuntimeMessageWithRetry
+          ? _msg.sendRuntimeMessageWithRetry({ type: "sendPromptToProviderTab", provider: providerId, prompt })
+          : chrome.runtime.sendMessage({ type: "sendPromptToProviderTab", provider: providerId, prompt });
+        sendFn
           .then((res) => resolvePendingSend(providerId, res && res.ok))
           .catch((err) => {
             console.warn("[MultiAI Dashboard] sendPromptToProviderTab:", err);
@@ -246,13 +250,23 @@
     }
 
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: "session:transcript-user-turn",
-        sessionId: currentSessionId,
-        prompt,
-        providers,
-        occurredAt: new Date().toISOString()
-      });
+      var _msg = globalThis.__MAI_RuntimeMessaging;
+      const response = await (_msg && _msg.sendRuntimeMessageWithRetry
+        ? _msg.sendRuntimeMessageWithRetry({
+            type: "session:transcript-user-turn",
+            sessionId: currentSessionId,
+            prompt,
+            providers,
+            occurredAt: new Date().toISOString()
+          })
+        : chrome.runtime.sendMessage({
+            type: "session:transcript-user-turn",
+            sessionId: currentSessionId,
+            prompt,
+            providers,
+            occurredAt: new Date().toISOString()
+          })
+      );
 
       if (!response || !response.ok || !response.result || response.result.ok !== true) {
         if (state.log) state.log("Failed to persist transcript user turn", response);

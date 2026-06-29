@@ -99,6 +99,7 @@
       ],
       "js": [
         "content/constants.js",
+        "content/runtime-messaging.js",
         "content/provider-configs.js",
         "content/send-handlers.js",
         "content/response-state.js",
