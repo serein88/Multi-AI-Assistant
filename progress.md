@@ -1,5 +1,34 @@
 # Progress.md
 
+## 2026-06-29（记录 49）
+
+- 时间：2026-06-29
+- 任务：T-20260622-024 优化：content script 注入时机配置
+- 状态：待确认
+- 变更文件：
+  - `manifest.json` — content_scripts[0] 新增 `"run_at": "document_start"`
+  - `tests/content/injection-chain.test.js` — 新增 6 项测试（run_at 断言、constants 首位、注入顺序、response-state/detection 顺序、send-handlers/transcript-capture 顺序、无顶层 DOM 访问）
+- 设计决策：
+  - 选用 `document_start` 而非 `document_end`：document_end 只比 idle 早一点，仍可能错过 provider 页面初始化阶段的 DOM 变化；document_start + 现有 DOM readiness guard 更可靠
+  - 所有 content 脚本已确认安全：constants.js / runtime-messaging.js 无 DOM 访问；provider-configs.js / send-handlers.js / response-state.js / response-detection.js / transcript-capture.js / session-sync.js 顶层代码无 document.body/head 访问；content.js 有 DOMContentLoaded guard
+  - 注入顺序不变：constants → runtime-messaging → provider-configs → send-handlers → response-state → response-detection → transcript-capture → session-sync → content.js
+- 验证证据：
+  - injection-chain 测试：13/13 通过（含 6 项新增）
+  - 全量测试：537/537 通过
+  - Lint：0 errors / 17 warnings（均为预存）
+  - Manifest：OK
+  - Syntax：node --check content/content.js 通过
+  - git diff --check：clean
+- 用户实机验收建议：
+  1. 重新加载扩展
+  2. 打开 Dashboard，新建/恢复一个会话
+  3. 至少验证 ChatGPT / Claude / Gemini / DeepSeek / Grok 中 2-3 个 provider：
+     - 页面能正常加载
+     - 统一发送能成功
+     - 回答开始/完成状态正常
+     - transcript / live status 无明显回归
+  4. 特别留意 iframe 内 provider 页面刚加载后立即发送时是否比之前更稳定
+
 ## 2026-06-29（记录 48）
 
 - 时间：2026-06-29

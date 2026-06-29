@@ -20,6 +20,9 @@ tests/esm-migration.test.js
 claude.md
 .tmp-chrome-profile-*/
 node_modules
+.DS_Store
+**/.DS_Store
 # package-lock.json is committed for reproducible CI installs
 # Added by code-review-graph
 .code-review-graph/
+/.mimocode
