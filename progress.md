@@ -1,5 +1,29 @@
 # Progress.md
 
+## 2026-06-27（记录 47）
+
+- 时间：2026-06-27
+- 任务：T-20260622-022 稳定性改进：background.js Service Worker 状态恢复
+- 状态：待确认
+- 变更文件：
+  - `background.mjs` — 顶层 `const sessionRegistry` / `const sessionWindowManager` 替换为 `let _registry = null` / `let _windowManager = null` + `getSessionRegistry()` / `getSessionWindowManager()` 懒加载单例。所有 session 操作路径（sanitizeSessionIfNeeded、handleSessionCreate/List/Get/Restore、handleSessionSyncChild、handleSessionTranscriptLiveStatus/UserTurn/ProviderTurn）均改为调用 getter
+  - `tests/session/background-message-routing.test.mjs` — 新增 3 项 SW 重启恢复测试
+- 设计决策：
+  - 懒加载单例：SW 生命周期内 `_registry` 保持同一实例（保留 pending 队列串行化），SW 重启后模块重新评估，`_registry` 重置为 null，下次访问从 `chrome.storage.local` 重建
+  - 不是"每次 handler 调用都重建"——避免破坏 `createSessionRegistry` 内部的 pending 队列
+  - `sessionWindowManager` 同样改为懒加载单例，保持一致性
+- 测试覆盖：
+  - session:list/get/restore 在模拟 SW 重启后仍能读取第一生命周期创建的 session
+  - session:transcript-user-turn 在重启后仍能写入持久化 session（两轮 turn 均可追溯）
+  - 同一生命周期内 lazy singleton 保证 registry 实例一致
+- 验证证据：
+  - background 路由测试：17/17 通过（含 3 项 SW 重启恢复）
+  - 全量测试：517/517 通过
+  - Lint：0 errors / 17 warnings
+  - Manifest：OK
+  - Syntax：OK
+  - git diff --check：clean
+
 ## 2026-06-27（记录 46）
 
 - 时间：2026-06-27

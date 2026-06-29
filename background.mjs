@@ -47,8 +47,23 @@ const DEFAULT_TAB_COMPLETE_TIMEOUT_MS = 30000;
 
 const PROVIDERS_BY_ID = PROVIDER_BY_ID;
 
-const sessionRegistry = createSessionRegistry({ storage: chrome.storage.local });
-const sessionWindowManager = createWindowManager({ chromeApi: chrome });
+// --- Lazy-loading singletons for Service Worker restart resilience ---
+let _registry = null;
+let _windowManager = null;
+
+function getSessionRegistry() {
+  if (!_registry) {
+    _registry = createSessionRegistry({ storage: chrome.storage.local });
+  }
+  return _registry;
+}
+
+function getSessionWindowManager() {
+  if (!_windowManager) {
+    _windowManager = createWindowManager({ chromeApi: chrome });
+  }
+  return _windowManager;
+}
 
 function getSessionProviderIds() {
   if (Array.isArray(BINDING_PROVIDER_IDS) && BINDING_PROVIDER_IDS.length > 0) {
@@ -163,7 +178,7 @@ async function sanitizeSessionIfNeeded(session) {
     return session;
   }
 
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) => {
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) => {
     const nextRecord = { ...record };
     if (childSessionsChanged) {
       nextRecord.childSessions = nextChildSessions;
@@ -199,7 +214,7 @@ async function handleSessionCreate(message) {
 
   const sessionWithTranscript = ensureSessionTranscript(session, now);
 
-  await sessionRegistry.saveSession(sessionWithTranscript);
+  await getSessionRegistry().saveSession(sessionWithTranscript);
   await persistDashboardSessionState(sessionWithTranscript);
 
   const dashboardUrl = buildManagedDashboardUrl({
@@ -207,13 +222,13 @@ async function handleSessionCreate(message) {
     sessionId
   });
   const focused = mode !== "background";
-  const windowResult = await sessionWindowManager.createManagedSessionWindow({
+  const windowResult = await getSessionWindowManager().createManagedSessionWindow({
     urls: [dashboardUrl],
     focused
   });
   const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
 
-  const updated = await sessionRegistry.updateSession(sessionId, (record) => ({
+  const updated = await getSessionRegistry().updateSession(sessionId, (record) => ({
     ...record,
     windowId,
     lastActiveAt: now
@@ -224,7 +239,7 @@ async function handleSessionCreate(message) {
 }
 
 async function handleSessionList() {
-  const sessions = await sessionRegistry.listSessions();
+  const sessions = await getSessionRegistry().listSessions();
   const sanitized = [];
   for (const session of sessions) {
     sanitized.push(await sanitizeSessionIfNeeded(session));
@@ -233,12 +248,12 @@ async function handleSessionList() {
 }
 
 async function handleSessionGet(sessionId) {
-  const session = await sessionRegistry.getSession(sessionId);
+  const session = await getSessionRegistry().getSession(sessionId);
   return sanitizeSessionIfNeeded(session);
 }
 
 async function handleSessionRestore(sessionId) {
-  let session = await sessionRegistry.getSession(sessionId);
+  let session = await getSessionRegistry().getSession(sessionId);
   if (!session) {
     throw new Error("session-not-found");
   }
@@ -248,7 +263,7 @@ async function handleSessionRestore(sessionId) {
   const recoverableChildren = restorePlan.restored;
   const childSessions = restorePlan.clearedChildSessions;
 
-  const cleared = await sessionRegistry.updateSession(session.sessionId, (record) => ({
+  const cleared = await getSessionRegistry().updateSession(session.sessionId, (record) => ({
     ...record,
     childSessions
   }));
@@ -259,14 +274,14 @@ async function handleSessionRestore(sessionId) {
     sessionId: session.sessionId
   });
   const focused = session.mode !== "background";
-  const windowResult = await sessionWindowManager.createManagedSessionWindow({
+  const windowResult = await getSessionWindowManager().createManagedSessionWindow({
     urls: [dashboardUrl],
     focused
   });
   const windowId = typeof windowResult?.id === "number" ? windowResult.id : null;
   const now = new Date().toISOString();
 
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) => ({
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) => ({
     ...record,
     windowId,
     lastActiveAt: now
@@ -325,7 +340,7 @@ async function handleSessionSyncChild(message, sender) {
     return { ok: false, reason: "missing-tab-context" };
   }
 
-  const sessions = await sessionRegistry.listSessions();
+  const sessions = await getSessionRegistry().listSessions();
   const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
@@ -350,7 +365,7 @@ async function handleSessionSyncChild(message, sender) {
     now
   });
 
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) =>
     updateChildSessionRecord(record, provider, normalized)
   );
   await persistDashboardSessionState(updated);
@@ -376,7 +391,7 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
     return { ok: false, reason: "missing-tab-context" };
   }
 
-  const sessions = await sessionRegistry.listSessions();
+  const sessions = await getSessionRegistry().listSessions();
   const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
@@ -387,7 +402,7 @@ async function handleSessionTranscriptLiveStatus(message, sender) {
   }
 
   const occurredAt = normalizeOccurredAt(message);
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) =>
     applyProviderLiveStatus(record, {
       provider,
       status: message?.status,
@@ -428,7 +443,7 @@ async function handleSessionTranscriptUserTurn(message, sender) {
     return { ok: false, reason: "missing-tab-context" };
   }
 
-  const session = await sessionRegistry.getSession(sessionId);
+  const session = await getSessionRegistry().getSession(sessionId);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
   }
@@ -454,7 +469,7 @@ async function handleSessionTranscriptUserTurn(message, sender) {
   }
 
   const occurredAt = normalizeOccurredAt(message);
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) =>
     appendUserTurn(record, {
       providers,
       prompt,
@@ -502,7 +517,7 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
     return { ok: false, reason: "missing-tab-context" };
   }
 
-  const sessions = await sessionRegistry.listSessions();
+  const sessions = await getSessionRegistry().listSessions();
   const session = findSessionForSender(sender, sessions);
   if (!session) {
     return { ok: false, reason: "session-not-found" };
@@ -518,7 +533,7 @@ async function handleSessionTranscriptProviderTurn(message, sender) {
     (message?.status === "completed" || message?.status === "failed" || message?.status === "interrupted")
       ? message.status
       : "";
-  const updated = await sessionRegistry.updateSession(session.sessionId, (record) =>
+  const updated = await getSessionRegistry().updateSession(session.sessionId, (record) =>
     {
       let nextRecord = appendProviderTurn(record, {
         provider,

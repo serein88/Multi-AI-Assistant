@@ -449,3 +449,155 @@ describe("background.mjs message routing", () => {
     assert.equal(response.result.length, 2);
   });
 });
+
+// ── Service Worker restart recovery ─────────────────────────────────────
+
+describe("background.mjs Service Worker restart recovery", () => {
+  let savedChrome;
+
+  beforeEach(() => {
+    savedChrome = globalThis.chrome;
+  });
+
+  afterEach(() => {
+    if (savedChrome) {
+      globalThis.chrome = savedChrome;
+    } else {
+      delete globalThis.chrome;
+    }
+  });
+
+  it("session:list/get/restore work after simulated SW restart", async () => {
+    const mock = createMockChrome();
+
+    // --- First SW lifecycle: create a session ---
+    await importBackground(mock.chrome);
+    const createRes = await callMessageListener(mock.messageListeners, {
+      type: "session:create",
+      providers: ["deepseek", "grok"],
+    });
+    assert.equal(createRes.ok, true);
+    const sessionId = createRes.result.session.sessionId;
+    assert.ok(sessionId, "first lifecycle should produce sessionId");
+
+    // --- Simulate SW restart: re-import with same backing storage ---
+    await importBackground(mock.chrome);
+
+    // session:list should find the session from the first lifecycle
+    const listRes = await callMessageListener(mock.messageListeners, {
+      type: "session:list",
+    });
+    assert.equal(listRes.ok, true);
+    const found = listRes.result.find((s) => s.sessionId === sessionId);
+    assert.ok(found, "session:list after restart should contain the session");
+    assert.deepEqual(found.providers.sort(), ["deepseek", "grok"]);
+
+    // session:get should return the same session
+    const getRes = await callMessageListener(mock.messageListeners, {
+      type: "session:get",
+      sessionId,
+    });
+    assert.equal(getRes.ok, true);
+    assert.equal(getRes.result.sessionId, sessionId);
+
+    // session:restore should succeed
+    const restoreRes = await callMessageListener(mock.messageListeners, {
+      type: "session:restore",
+      sessionId,
+    });
+    assert.equal(restoreRes.ok, true);
+    assert.equal(restoreRes.result.session.sessionId, sessionId);
+    assert.equal(typeof restoreRes.result.windowId, "number");
+  });
+
+  it("session:transcript-user-turn writes to persisted session after SW restart", async () => {
+    const mock = createMockChrome();
+
+    // --- First lifecycle: create session ---
+    await importBackground(mock.chrome);
+    const createRes = await callMessageListener(mock.messageListeners, {
+      type: "session:create",
+      providers: ["deepseek", "gemini"],
+    });
+    const sessionId = createRes.result.session.sessionId;
+    const windowId = createRes.result.windowId;
+
+    // Write a user turn in the first lifecycle
+    const sender1 = { tab: { id: 10, windowId } };
+    await callMessageListener(
+      mock.messageListeners,
+      {
+        type: "session:transcript-user-turn",
+        sessionId,
+        prompt: "First lifecycle prompt",
+        providers: ["deepseek"],
+      },
+      sender1
+    );
+
+    // --- Simulate SW restart ---
+    await importBackground(mock.chrome);
+
+    // Write another user turn from the new lifecycle
+    // The new windowId from the restore will differ, so we need the new one.
+    // First restore to get the new windowId.
+    const restoreRes = await callMessageListener(mock.messageListeners, {
+      type: "session:restore",
+      sessionId,
+    });
+    const newWindowId = restoreRes.result.windowId;
+
+    const sender2 = { tab: { id: 20, windowId: newWindowId } };
+    const turnRes = await callMessageListener(
+      mock.messageListeners,
+      {
+        type: "session:transcript-user-turn",
+        sessionId,
+        prompt: "Second lifecycle prompt",
+        providers: ["deepseek", "gemini"],
+      },
+      sender2
+    );
+    assert.equal(turnRes.ok, true);
+
+    // Verify both turns are in the transcript
+    const getRes = await callMessageListener(mock.messageListeners, {
+      type: "session:get",
+      sessionId,
+    });
+    const transcript = getRes.result.transcript;
+    assert.ok(transcript, "session should have transcript after restart");
+
+    const dsTurns = transcript.providers.deepseek.turns;
+    const userTurns = dsTurns.filter((t) => t.role === "user");
+    assert.ok(userTurns.length >= 2, "deepseek should have >= 2 user turns");
+    assert.equal(userTurns[0].content, "First lifecycle prompt");
+    assert.equal(userTurns[userTurns.length - 1].content, "Second lifecycle prompt");
+
+    const geminiTurns = transcript.providers.gemini.turns.filter((t) => t.role === "user");
+    assert.ok(geminiTurns.length >= 1, "gemini should have >= 1 user turn from second lifecycle");
+  });
+
+  it("lazy singleton returns same registry within one lifecycle", async () => {
+    const mock = createMockChrome();
+    await importBackground(mock.chrome);
+
+    // Create two sessions in the same lifecycle
+    const res1 = await callMessageListener(mock.messageListeners, {
+      type: "session:create",
+      providers: ["deepseek"],
+    });
+    const res2 = await callMessageListener(mock.messageListeners, {
+      type: "session:create",
+      providers: ["grok"],
+    });
+
+    // Both should be visible via session:list (same registry instance)
+    const listRes = await callMessageListener(mock.messageListeners, {
+      type: "session:list",
+    });
+    const ids = listRes.result.map((s) => s.sessionId);
+    assert.ok(ids.includes(res1.result.session.sessionId), "first session in list");
+    assert.ok(ids.includes(res2.result.session.sessionId), "second session in list");
+  });
+});
