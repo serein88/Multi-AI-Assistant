@@ -5,7 +5,17 @@
   "description": "__MSG_extDescription__",
   "default_locale": "zh_CN",
   "action": {
-    "default_title": "Multi AI"
+    "default_title": "Multi AI",
+    "default_icon": {
+      "16": "icon/icon16.png",
+      "48": "icon/icon48.png",
+      "128": "icon/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icon/icon16.png",
+    "48": "icon/icon48.png",
+    "128": "icon/icon128.png"
   },
   "background": {
     "service_worker": "background.mjs",
