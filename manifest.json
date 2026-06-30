@@ -115,15 +115,22 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "dashboard.html",
-        "dashboard.css",
-        "dashboard-focus.js",
-        "dashboard.js",
-        "providers.js",
+        "pages/dashboard.html",
+        "pages/dashboard.css",
+        "pages/dashboard.js",
+        "pages/manage.html",
+        "pages/manage.css",
+        "pages/manage.js",
+        "shared/dashboard-focus.js",
+        "shared/favicon-cache.js",
+        "shared/providers.js",
         "content/provider-configs.json",
-        "manage.html",
-        "manage.css",
-        "manage.js"
+        "dashboard/i18n.js",
+        "dashboard/shared-state.js",
+        "dashboard/transcript.js",
+        "dashboard/grid-resizer.js",
+        "dashboard/send.js",
+        "content/runtime-messaging.js"
       ],
       "matches": [
         "<all_urls>"

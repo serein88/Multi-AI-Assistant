@@ -77,7 +77,7 @@ describe("E2E: Session Flows", () => {
     assert.ok(dashboardPage, "dashboard page should open");
 
     const url = dashboardPage.url();
-    assert.ok(url.includes("dashboard.html"), `URL should contain dashboard.html: ${url}`);
+    assert.ok(url.includes("pages/dashboard.html"), `URL should contain pages/dashboard.html: ${url}`);
     assert.ok(url.includes(`sessionId=${session.sessionId}`), `URL should contain sessionId: ${url}`);
 
     await dashboardPage.waitForSelector(".panel", { timeout: 10_000 });

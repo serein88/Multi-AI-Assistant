@@ -188,7 +188,7 @@ describe("shared-state.js", () => {
 });
 
 describe("dashboard.js i18n integration", () => {
-  const src = fs.readFileSync(path.join(ROOT, "dashboard.js"), "utf8");
+  const src = fs.readFileSync(path.join(ROOT, "pages", "dashboard.js"), "utf8");
 
   it("does NOT contain hardcoded 'This site cannot be embedded' string", () => {
     assert.ok(
@@ -217,7 +217,7 @@ describe("dashboard.js i18n integration", () => {
 });
 
 describe("HTML templates", () => {
-  for (const htmlFile of ["dashboard.html", "debug/dashboard-dev.html"]) {
+  for (const htmlFile of ["pages/dashboard.html", "debug/dashboard-dev.html"]) {
     describe(htmlFile, () => {
       const src = fs.readFileSync(path.join(ROOT, htmlFile), "utf8");
 
@@ -260,7 +260,7 @@ describe("HTML templates", () => {
   }
 
   describe("dashboard.html", () => {
-    const src = fs.readFileSync(path.join(ROOT, "dashboard.html"), "utf8");
+    const src = fs.readFileSync(path.join(ROOT, "pages", "dashboard.html"), "utf8");
 
     it("langToggle uses data-i18n for title and aria-label", () => {
       assert.ok(

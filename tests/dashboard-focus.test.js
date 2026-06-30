@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const {
   createPromptFocusGuard,
   setFrameFocusShielded
-} = require("../dashboard-focus");
+} = require("../shared/dashboard-focus");
 
 function createFakeWindow() {
   const callbacks = [];

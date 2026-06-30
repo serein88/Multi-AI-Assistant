@@ -167,8 +167,8 @@ describe("background.mjs message routing", () => {
     assert.equal(response.ok, true);
     assert.ok(mock.tabs.create.called, "should create tab");
     assert.ok(
-      mock.tabs.create.firstCall.args[0].url.includes("dashboard.html"),
-      "should open dashboard.html"
+      mock.tabs.create.firstCall.args[0].url.includes("pages/dashboard.html"),
+      "should open pages/dashboard.html"
     );
     // Storage should have the panels
     const setCall = mock.chrome.storage.local.set.getCalls().find(

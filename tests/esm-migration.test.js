@@ -1,12 +1,12 @@
 /**
- * Tests for ES Modules migration (background.mjs + session/*.mjs + providers.mjs)
+ * Tests for ES Modules migration (background.mjs + session/*.mjs + shared/providers.mjs)
  *
  * Covers:
  *   - manifest.json background config is ESM (service_worker + type: "module")
  *   - background.mjs does NOT use importScripts or globalThis.MultiAI*
  *   - All .mjs modules can be dynamically imported (syntax + module graph)
  *   - ESM session modules export the same API surface as old UMD modules
- *   - ESM providers.mjs exports match old providers.js
+ *   - ESM shared/providers.mjs exports match old shared/providers.js
  *   - ESM session-model.mjs produces identical results to old session-model.js
  *   - ESM provider-session-bindings.mjs behavior matches old module
  *   - ESM transcript-store.mjs key functions work correctly
@@ -87,11 +87,11 @@ describe("background.mjs source code constraints", () => {
     );
   });
 
-  it("imports from providers.mjs", () => {
+  it("imports from shared/providers.mjs", () => {
     source = source || fs.readFileSync(path.join(ROOT_DIR, "background.mjs"), "utf8");
     assert.ok(
-      source.includes('./providers.mjs'),
-      "background.mjs should import from providers.mjs"
+      source.includes('./shared/providers.mjs'),
+      "background.mjs should import from shared/providers.mjs"
     );
   });
 
@@ -110,7 +110,7 @@ describe("background.mjs source code constraints", () => {
 
 describe("ESM modules can be dynamically imported", () => {
   const modules = [
-    { name: "providers.mjs", path: "../providers.mjs" },
+    { name: "shared/providers.mjs", path: "../shared/providers.mjs" },
     { name: "session-constants.mjs", path: "../session/session-constants.mjs" },
     { name: "session-model.mjs", path: "../session/session-model.mjs" },
     { name: "session-registry.mjs", path: "../session/session-registry.mjs" },
@@ -128,17 +128,17 @@ describe("ESM modules can be dynamically imported", () => {
   }
 });
 
-// ── providers.mjs ESM exports ───────────────────────────────────────────────
+// ── shared/providers.mjs ESM exports ────────────────────────────────────────
 
-describe("providers.mjs ESM exports", () => {
+describe("shared/providers.mjs ESM exports", () => {
   it("exports PROVIDERS array with 13 providers", async () => {
-    const { PROVIDERS } = await import("../providers.mjs");
+    const { PROVIDERS } = await import("../shared/providers.mjs");
     assert.ok(Array.isArray(PROVIDERS));
     assert.equal(PROVIDERS.length, 13);
   });
 
   it("exports PROVIDER_BY_ID with all 13 providers", async () => {
-    const { PROVIDER_BY_ID } = await import("../providers.mjs");
+    const { PROVIDER_BY_ID } = await import("../shared/providers.mjs");
     assert.equal(typeof PROVIDER_BY_ID, "object");
     assert.equal(Object.keys(PROVIDER_BY_ID).length, 13);
     assert.ok(PROVIDER_BY_ID.chatgpt);
@@ -146,20 +146,20 @@ describe("providers.mjs ESM exports", () => {
   });
 
   it("exports SESSION_PROVIDER_IDS array", async () => {
-    const { SESSION_PROVIDER_IDS } = await import("../providers.mjs");
+    const { SESSION_PROVIDER_IDS } = await import("../shared/providers.mjs");
     assert.ok(Array.isArray(SESSION_PROVIDER_IDS));
     assert.ok(SESSION_PROVIDER_IDS.includes("chatgpt"));
   });
 
   it("exports normalizeProviders function", async () => {
-    const { normalizeProviders } = await import("../providers.mjs");
+    const { normalizeProviders } = await import("../shared/providers.mjs");
     assert.equal(typeof normalizeProviders, "function");
     const result = normalizeProviders(["chatgpt", "unknown", "grok"], 10);
     assert.deepEqual(result, ["chatgpt", "grok"]);
   });
 
   it("exports findProviderByToken function", async () => {
-    const { findProviderByToken } = await import("../providers.mjs");
+    const { findProviderByToken } = await import("../shared/providers.mjs");
     assert.equal(typeof findProviderByToken, "function");
     const byId = findProviderByToken("chatgpt");
     assert.equal(byId?.label, "ChatGPT");
@@ -169,13 +169,13 @@ describe("providers.mjs ESM exports", () => {
   });
 
   it("exports DASHBOARD_MAX_PANELS", async () => {
-    const { DASHBOARD_MAX_PANELS } = await import("../providers.mjs");
+    const { DASHBOARD_MAX_PANELS } = await import("../shared/providers.mjs");
     assert.equal(DASHBOARD_MAX_PANELS, Infinity);
   });
 
   it("matches old providers.js API surface", async () => {
-    const old = require("../providers.js");
-    const esm = await import("../providers.mjs");
+    const old = require("../shared/providers.js");
+    const esm = await import("../shared/providers.mjs");
     // Same keys
     const oldKeys = Object.keys(old).sort();
     const esmKeys = Object.keys(esm).sort();
@@ -513,7 +513,7 @@ describe("window-manager.mjs", () => {
   it("buildManagedDashboardUrl appends sessionId", async () => {
     const { buildManagedDashboardUrl } = await import("../session/window-manager.mjs");
     const url = buildManagedDashboardUrl({
-      baseUrl: "chrome-extension://abc/dashboard.html",
+      baseUrl: "chrome-extension://abc/pages/dashboard.html",
       sessionId: "sess_123"
     });
     assert.ok(url.includes("sessionId=sess_123"));
@@ -549,7 +549,7 @@ describe("window-manager.mjs", () => {
 
 describe(".mjs files do not use UMD patterns", () => {
   const mjsFiles = [
-    "providers.mjs",
+    "shared/providers.mjs",
     "session/session-constants.mjs",
     "session/session-model.mjs",
     "session/session-registry.mjs",
@@ -622,7 +622,7 @@ describe("background.mjs service worker bootstrap (near-real)", () => {
 
     try {
       // This exercises the full ESM import graph:
-      //   background.mjs → providers.mjs, session-constants.mjs, session-model.mjs,
+      //   background.mjs → shared/providers.mjs, session-constants.mjs, session-model.mjs,
       //   session-registry.mjs, provider-session-bindings.mjs, transcript-store.mjs,
       //   window-manager.mjs
       const bg = await import("../background.mjs");
@@ -714,7 +714,7 @@ describe("background.mjs service worker bootstrap (near-real)", () => {
 
     // Build dashboard URL for restore
     const dashboardUrl = buildManagedDashboardUrl({
-      baseUrl: "chrome-extension://test/dashboard.html",
+      baseUrl: "chrome-extension://test/pages/dashboard.html",
       sessionId: session.sessionId
     });
     assert.ok(dashboardUrl.includes("sessionId=sess_integration"));

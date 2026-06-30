@@ -10,7 +10,7 @@
 import {
   PROVIDER_BY_ID,
   SESSION_PROVIDER_IDS
-} from "./providers.mjs";
+} from "./shared/providers.mjs";
 
 import { SESSION_MODE_FOREGROUND } from "./session/session-constants.mjs";
 import { createSessionRecord, updateChildSessionRecord } from "./session/session-model.mjs";
@@ -33,7 +33,7 @@ import {
   createWindowManager
 } from "./session/window-manager.mjs";
 
-const START_PAGE = "dashboard.html";
+const START_PAGE = "pages/dashboard.html";
 const DEBUG = false;
 
 function log(msg, ...args) {
@@ -862,7 +862,7 @@ async function openProviders(providers, prompt, autoSend, options = {}) {
 }
 
 async function openDashboard(panels) {
-  const url = chrome.runtime.getURL("dashboard.html");
+  const url = chrome.runtime.getURL("pages/dashboard.html");
   const dashboardTab = await chrome.tabs.create({ url, active: true });
 
   if (!Array.isArray(panels) || panels.length === 0) {
@@ -876,7 +876,7 @@ async function openDashboard(panels) {
 }
 
 chrome.action.onClicked.addListener(() => {
-  chrome.tabs.create({ url: chrome.runtime.getURL("manage.html"), active: true });
+  chrome.tabs.create({ url: chrome.runtime.getURL("pages/manage.html"), active: true });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

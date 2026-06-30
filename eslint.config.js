@@ -4,7 +4,7 @@ const globals = require("globals");
 module.exports = [
   js.configs.recommended,
   {
-    // Default config for all JS files except providers.js
+    // Default config for all JS files except shared/providers.js
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "script",
@@ -29,7 +29,7 @@ module.exports = [
   },
   {
     // ES Module files (background service worker + session modules + .mjs tests)
-    files: ["*.mjs", "session/*.mjs", "tests/e2e/**/*.mjs", "tests/session/**/*.test.mjs", "tests/dashboard/**/*.test.mjs", "tests/content/**/*.test.js", "tests/i18n/**/*.test.js", "tests/*.test.mjs"],
+    files: ["*.mjs", "shared/*.mjs", "session/*.mjs", "tests/e2e/**/*.mjs", "tests/session/**/*.test.mjs", "tests/dashboard/**/*.test.mjs", "tests/content/**/*.test.js", "tests/i18n/**/*.test.js", "tests/*.test.mjs"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -41,8 +41,8 @@ module.exports = [
     }
   },
   {
-    // Files that consume providers.js exports as implicit globals
-    files: ["dashboard.js", "dashboard/*.js", "manage.js", "archive/legacy-popup/popup.js"],
+    // Files that consume shared/providers.js exports as implicit globals
+    files: ["pages/dashboard.js", "dashboard/*.js", "pages/manage.js", "archive/legacy-popup/popup.js"],
     languageOptions: {
       globals: {
         PROVIDERS: "readonly",
@@ -69,7 +69,7 @@ module.exports = [
       ".worktrees/**",
       "tests/e2e/t-*",
       "eslint.config.js",
-      "providers.js"
+      "shared/providers.js"
     ]
   }
 ];

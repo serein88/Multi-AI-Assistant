@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const providersModule = require("../../providers.js");
+const providersModule = require("../../shared/providers.js");
 const {
   normalizeChildSessionBinding,
   isSessionProviderSupported,

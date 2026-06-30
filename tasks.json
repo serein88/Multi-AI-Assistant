@@ -968,6 +968,17 @@
       "notes": "2026-06-29 整理完成：删除未被 manifest 使用的旧 background.js 与 coverage-output.txt；popup.* 移至 archive/legacy-popup/；task.md 移至 archive/task.md；dashboard-dev.html/chrome-shim.js 移至 debug/；同步 README、AGENTS、i18n 测试、ESLint 和 .gitignore；background.mjs 导出测试用内部函数，旧 background.js 相关测试迁到 ESM；验证 npm test 470/470、npm run lint 0 errors/17 warnings、npm run validate OK、git diff --check clean。",
       "createdAt": "2026-06-29",
       "archived": false
+    },
+    {
+      "id": "T-20260630-001",
+      "name": "根目录收口：下沉共享脚本与页面入口",
+      "category": "refactor",
+      "priority": "P2",
+      "status": "完成",
+      "criteria": "1. 根目录仅保留 AGENTS.md、claude.md、tasks.json、progress.md、task-board.html、manifest.json、package*.json、eslint.config.js、readme.md、rules.json、background.mjs 等必要文件；2. dashboard/manage 相关页面与共享脚本下沉到子目录；3. 所有引用路径同步；4. npm test / npm run lint / npm run validate / git diff --check 通过",
+      "notes": "2026-06-30 根目录二次收口完成并经用户实机确认：dashboard/manage 页面入口下沉到 pages/；providers、favicon-cache、dashboard-focus 共享脚本下沉到 shared/；同步 manifest、background、debug 页面、测试、lint、README、AGENTS 路径；验证 npm test 470/470、npm run lint 0 errors/17 warnings、npm run validate OK、git diff --check clean；用户确认功能全部正常。",
+      "createdAt": "2026-06-30",
+      "archived": false
     }
   ]
 }

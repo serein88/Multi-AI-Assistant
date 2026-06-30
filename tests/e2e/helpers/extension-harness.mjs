@@ -110,7 +110,7 @@ export async function launchExtension() {
 
     /** Wait for a dashboard page for a specific sessionId. */
     async waitForDashboardPage(sessionId, { timeoutMs = PAGE_NAV_TIMEOUT_MS } = {}) {
-      const pattern = `dashboard.html`;
+      const pattern = `pages/dashboard.html`;
       const sessionCheck = (url) =>
         url.includes(pattern) &&
         url.includes(`chrome-extension://${extensionId}/`) &&
@@ -230,7 +230,7 @@ async function findServiceWorker(browser, launched) {
   if (!launched) {
     for (const page of await browser.pages()) {
       const url = page.url();
-      if (url.includes("chrome-extension://") && url.includes("/manage.html")) {
+      if (url.includes("chrome-extension://") && url.includes("/pages/manage.html")) {
         try {
           await page.evaluate(() => new Promise((resolve) => {
             chrome.runtime.sendMessage({ type: "session:list" }, resolve);
@@ -279,11 +279,11 @@ async function findServiceWorker(browser, launched) {
 }
 
 /**
- * Open manage.html as a hidden control page for sending runtime messages.
+ * Open pages/manage.html as a hidden control page for sending runtime messages.
  */
 async function openControlPage(browser, extensionId) {
   const page = await browser.newPage();
-  await page.goto(`chrome-extension://${extensionId}/manage.html`, {
+  await page.goto(`chrome-extension://${extensionId}/pages/manage.html`, {
     waitUntil: "domcontentloaded",
     timeout: PAGE_NAV_TIMEOUT_MS,
   });

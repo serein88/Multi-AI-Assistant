@@ -37,7 +37,7 @@
 
 ## 🤖 支持的 AI 模型 (Supported Providers)
 
-详见 `providers.js`，目前支持以下平台：
+详见 `shared/providers.js`，目前支持以下平台：
 | ID | Label | URL | 特性备注 |
 |----|-------|-----|----------|
 | `chatgpt` | ChatGPT | chatgpt.com | 需处理 Enter 键分发，乐观成功策略 |
@@ -64,17 +64,22 @@
 Multi AI Assistant\
 ├── manifest.json        # 核心配置：权限、Host 匹配、Content Scripts
 ├── background.mjs       # Service Worker：管理标签页、跨页消息转发
-├── dashboard.html/js    # 主界面：Grid 布局、iframe 管理、消息总线
+├── pages/
+│   ├── dashboard.html/js/css  # 主界面：Grid 布局、iframe 管理、消息总线
+│   └── manage.html/js/css     # 会话管理入口
 ├── content/
 │   └── content.js       # 注入脚本：运行在各 AI 网页内，负责 DOM 操作
-├── providers.js         # 数据源：定义所有 AI 的元数据
+├── shared/
+│   ├── providers.js/mjs # 数据源：定义所有 AI 的元数据
+│   ├── favicon-cache.js # Provider 图标工具
+│   └── dashboard-focus.js
 ├── rules.json           # DNR 规则：网络请求头修改（绕过 iframe 限制）
 ├── debug/               # 本地调试页面
 └── archive/             # 历史参考与旧入口
 ```
 
 ### 2. 核心工作流
-1.  **启动**：用户点击扩展图标 -> Background 直接打开 `dashboard.html`。
+1.  **启动**：用户点击扩展图标 -> Background 直接打开 `pages/dashboard.html`。
 2.  **渲染**：Dashboard 读取 `chrome.storage` 恢复上次的面板列表和布局配置。
 3.  **发送消息**：
     - 用户输入 -> Dashboard `postMessage` 广播 -> iframe 内的 `content.js` 接收。
@@ -88,7 +93,7 @@ Multi AI Assistant\
 - **Dashboard Grid System**：
   - 手写了一套基于 CSS Grid 的布局引擎。
   - 支持 `colSizes` (百分比) 和 `rowSizes` (像素) 的混合控制。
-  - **FLIP 动画**：在 `dashboard.js` 的 `animateDOMMove` 中实现了流畅的排序动画。
+  - **FLIP 动画**：在 `pages/dashboard.js` 的 `animateDOMMove` 中实现了流畅的排序动画。
 - **Content Script 适配器模式**：
   - `content.js` 内部维护了一个 `HOST_MAP` 和 `PROVIDER_CONFIGS` 表。
   - 针对不同站点（React, Vue, ShadowDOM, Lexical, ProseMirror）有不同的输入注入策略。

@@ -46,7 +46,7 @@
 
     if (typeof require === "function") {
       try {
-        const providerModule = require("../providers.js");
+        const providerModule = require("../shared/providers.js");
         if (
           providerModule &&
           Array.isArray(providerModule.SESSION_PROVIDER_IDS) &&

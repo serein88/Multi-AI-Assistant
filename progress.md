@@ -923,7 +923,7 @@
 - 时间：2026-06-23
 - 任务 ID：T-20260622-011
 - 任务名：架构优化：拆分 content.js（第 2 阶段）
-- 状态流转：进行中 -> 待确认
+- 状态流转：进行中 -> 待确认 -> 完成（用户确认）
 - 变更文件：
   - `content/response-detection.js`（新增，395 行）— waitForResponseStart/Complete/StreamSignal 等
   - `content/transcript-capture.js`（新增，629 行）— startManualTurnCapture/SendCapture、recordManualSend 等
@@ -4209,3 +4209,41 @@ ode --check manage.js 通过，无语法错误。
   - 浏览器原生缓存由浏览器管理，无法通过 JS 控制缓存策略。
 - 下一步建议：
   - 用户确认后合并提交。
+
+---
+
+- 时间：2026-06-30
+- 任务 ID：T-20260630-001
+- 任务名：根目录收口：下沉共享脚本与页面入口
+- 状态流转：进行中 -> 待确认
+- 变更文件：
+  - `pages/dashboard.html` / `pages/dashboard.css` / `pages/dashboard.js`（由根目录下沉）
+  - `pages/manage.html` / `pages/manage.css` / `pages/manage.js`（由根目录下沉）
+  - `shared/providers.js` / `shared/providers.mjs` / `shared/favicon-cache.js` / `shared/dashboard-focus.js`（由根目录下沉）
+  - `background.mjs`、`manifest.json`、`debug/dashboard-dev.html`、`session/provider-session-bindings.js`
+  - `package.json`、`eslint.config.js`、`readme.md`、`AGENTS.md`
+  - 相关测试：`tests/esm-migration.test.js`、`tests/i18n/i18n-integrity.test.js`、`tests/e2e/*`、`tests/session/*`、`tests/favicon-cache.test.mjs`、`tests/dashboard-focus.test.js`
+  - `tasks.json`、`progress.md`
+- 操作摘要：
+  - 将 Dashboard / Manage 页面入口从根目录移动到 `pages/`，根目录不再平铺 `dashboard.html/js/css` 与 `manage.html/js/css`。
+  - 将跨页面共享脚本从根目录移动到 `shared/`，包括 provider 元数据、favicon 工具与 dashboard focus 工具。
+  - 保留 `background.mjs` 在根目录，避免改变 MV3 service worker 入口带来额外风险。
+  - 同步 manifest web_accessible_resources、background 打开路径、debug 页面、测试、lint 脚本和文档中的路径引用。
+- 验证步骤：
+  1. 执行 `node --check background.mjs pages/dashboard.js pages/manage.js shared/dashboard-focus.js shared/favicon-cache.js shared/providers.js tests/esm-migration.test.js`。
+  2. 执行 `npm test`。
+  3. 执行 `npm run lint`。
+  4. 执行 `npm run validate`。
+  5. 执行 `git diff --check`。
+- 验证证据：
+  - `node --check` 关键入口与共享脚本均通过。
+  - `npm test`：470/470 pass。
+  - `npm run lint`：0 errors / 17 warnings（既有 warning）。
+  - `npm run validate`：manifest.json OK: v0.3.2。
+  - `git diff --check`：clean。
+  - `find . -name .DS_Store -print`：无输出。
+- 风险/问题：
+  - 这是路径迁移型改动，风险集中在扩展页面加载路径与测试夹具路径；已通过单元测试、lint、manifest 校验和路径扫描覆盖。
+  - 未执行真实浏览器扩展加载回归，建议用户审核时重新加载扩展并打开 Dashboard / Manage 做一次快速冒烟。
+- 用户确认：
+  - 2026-06-30 用户已检查并确认功能全部正常，同意提交代码。

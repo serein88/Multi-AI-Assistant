@@ -57,7 +57,7 @@ function loadFaviconCache(mocks = {}) {
   context.globalThis = context;
 
   const code = require("fs").readFileSync(
-    require("path").resolve(process.cwd(), "favicon-cache.js"),
+    require("path").resolve(process.cwd(), "shared/favicon-cache.js"),
     "utf8"
   );
 
