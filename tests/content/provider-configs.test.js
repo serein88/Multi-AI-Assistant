@@ -10,7 +10,7 @@
  *   - reloadProviderConfigs() updates in-memory config
  */
 
-const { describe, it, beforeEach } = require("node:test");
+const { describe, it, beforeEach, afterEach } = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -395,6 +395,94 @@ describe("provider-configs.js failure handling", () => {
     const result = await PC.readyPromise;
     assert.equal(result, false);
     assert.deepEqual(PC.PROVIDER_CONFIGS, {});
+  });
+});
+
+// ── Console.warn behavior tests ─────────────────────────────────────────────
+
+describe("provider-configs.js console.warn behavior", () => {
+  let originalWarn;
+
+  beforeEach(() => {
+    delete globalThis.__MAI_ProviderConfigs;
+    originalWarn = console.warn;
+    globalThis.chrome = {
+      runtime: {
+        getURL: (p) => "chrome-extension://fake/" + p
+      }
+    };
+  });
+
+  afterEach(() => {
+    console.warn = originalWarn;
+  });
+
+  it("successful load does NOT call console.warn", async () => {
+    const jsonData = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => jsonData });
+
+    let warnCount = 0;
+    console.warn = () => { warnCount++; };
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+    await PC.readyPromise;
+
+    assert.equal(warnCount, 0, "console.warn must not be called on successful load");
+    assert.equal(PC.ready, true);
+  });
+
+  it("failed load DOES call console.warn", async () => {
+    globalThis.fetch = () => Promise.reject(new Error("Network error"));
+
+    let warnCount = 0;
+    console.warn = () => { warnCount++; };
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+    await PC.readyPromise;
+
+    assert.ok(warnCount > 0, "console.warn must be called on fetch failure");
+    assert.equal(PC.ready, false);
+  });
+
+  it("successful reload does NOT call console.warn", async () => {
+    const jsonData = JSON.parse(fs.readFileSync(JSON_PATH, "utf8"));
+    globalThis.fetch = () => Promise.resolve({ ok: true, json: () => jsonData });
+
+    let warnCount = 0;
+    console.warn = () => { warnCount++; };
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+    await PC.readyPromise;
+
+    warnCount = 0;
+    const ok = await PC.reloadProviderConfigs();
+
+    assert.equal(ok, true);
+    assert.equal(warnCount, 0, "console.warn must not be called on successful reload");
+  });
+
+  it("failed reload DOES call console.warn", async () => {
+    globalThis.fetch = () => Promise.reject(new Error("Reload error"));
+
+    let warnCount = 0;
+    console.warn = () => { warnCount++; };
+
+    delete require.cache[JS_PATH];
+    require(JS_PATH);
+    const PC = globalThis.__MAI_ProviderConfigs;
+    await PC.readyPromise;
+
+    warnCount = 0;
+    const ok = await PC.reloadProviderConfigs();
+
+    assert.equal(ok, false);
+    assert.ok(warnCount > 0, "console.warn must be called on reload failure");
   });
 });
 

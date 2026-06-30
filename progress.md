@@ -4247,3 +4247,30 @@ ode --check manage.js 通过，无语法错误。
   - 未执行真实浏览器扩展加载回归，建议用户审核时重新加载扩展并打开 Dashboard / Manage 做一次快速冒烟。
 - 用户确认：
   - 2026-06-30 用户已检查并确认功能全部正常，同意提交代码。
+
+---
+
+- 时间：2026-06-30
+- 任务 ID：T-20260630-002
+- 任务名：修复 ProviderConfigs 成功日志污染扩展错误页
+- 状态流转：待进行 -> 进行中 -> 待确认 -> 完成（用户确认）
+- 变更文件：
+  - `content/provider-configs.js`
+  - `tests/content/provider-configs.test.js`
+  - `tasks.json`
+  - `progress.md`
+- 操作摘要：
+  - 根因确认：`content/provider-configs.js` 将普通成功日志绑定到 `console.warn`，Chrome 扩展管理页会把 content script warning 记录到 errors 页面。
+  - 成功加载 `provider-configs.json` 与成功 `reloadProviderConfigs()` 改为默认静默，不再污染 `chrome://extensions` 错误页。
+  - 失败加载、`chrome.runtime.getURL` 不可用、reload 失败继续使用 `console.warn`，保留诊断可见性。
+  - 新增 console.warn 行为测试，覆盖 load/reload 的成功与失败路径。
+- 验证步骤：
+  1. 执行 `node --test tests/content/provider-configs.test.js`。
+  2. 执行全量 `npm test`、`npm run lint`、`npm run validate`、`git diff --check`（由 MIMO 汇报通过）。
+  3. 用户实机打开 `chrome://extensions/?errors=<扩展ID>`，清空错误后重新加载扩展并打开 Dashboard。
+- 验证证据：
+  - 定向测试：`node --test tests/content/provider-configs.test.js` 66/66 pass。
+  - MIMO 汇报：全量测试 474/474 pass，lint 0 errors / 17 warnings，manifest OK，git diff --check clean。
+  - 用户实机验收通过：不再出现 `[ProviderConfigs] Loaded from JSON...` 错误页条目。
+- 风险/问题：
+  - 成功路径日志被静默后，排查配置加载耗时需要临时打开调试或断点；正常使用收益大于该诊断信息损失。

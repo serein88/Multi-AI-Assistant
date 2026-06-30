@@ -26,7 +26,7 @@ var __MAI_ProviderConfigs = (function () {
   var JSON_URL = (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.getURL)
     ? chrome.runtime.getURL("content/provider-configs.json")
     : "";
-  var log = (typeof console !== "undefined" && console.warn)
+  var logWarn = (typeof console !== "undefined" && console.warn)
     ? console.warn.bind(console, "[ProviderConfigs]")
     : function () {};
 
@@ -73,13 +73,10 @@ var __MAI_ProviderConfigs = (function () {
 
   function loadProviderConfigs() {
     if (!JSON_URL) {
-      log("chrome.runtime.getURL unavailable — configs stay empty");
+      logWarn("chrome.runtime.getURL unavailable — configs stay empty");
       _resolveReady(false);
       return PC.readyPromise;
     }
-
-    var start = typeof performance !== "undefined" && performance.now
-      ? performance.now() : 0;
 
     return fetch(JSON_URL)
       .then(function (res) {
@@ -89,16 +86,11 @@ var __MAI_ProviderConfigs = (function () {
       .then(function (data) {
         _applyConfig(data);
         PC.ready = true;
-        if (start) {
-          var ms = (performance.now() - start).toFixed(1);
-          log("Loaded from JSON in " + ms + "ms (" +
-            Object.keys(PC.PROVIDER_CONFIGS).length + " providers)");
-        }
         _resolveReady(true);
         return true;
       })
       .catch(function (err) {
-        log("Failed to load provider-configs.json: " + err.message +
+        logWarn("Failed to load provider-configs.json: " + err.message +
           " — PROVIDER_CONFIGS will be empty until reload");
         _resolveReady(false);
         return false;
@@ -107,7 +99,7 @@ var __MAI_ProviderConfigs = (function () {
 
   function reloadProviderConfigs() {
     if (!JSON_URL) {
-      log("chrome.runtime.getURL unavailable — cannot reload");
+      logWarn("chrome.runtime.getURL unavailable — cannot reload");
       return Promise.resolve(false);
     }
     return fetch(JSON_URL)
@@ -118,11 +110,10 @@ var __MAI_ProviderConfigs = (function () {
       .then(function (data) {
         _applyConfig(data);
         PC.ready = true;
-        log("Reloaded (" + Object.keys(PC.PROVIDER_CONFIGS).length + " providers)");
         return true;
       })
       .catch(function (err) {
-        log("Reload failed: " + err.message);
+        logWarn("Reload failed: " + err.message);
         return false;
       });
   }
